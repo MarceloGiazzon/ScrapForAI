@@ -117,6 +117,26 @@
         "collectDomOnFailure": {
           "default": false,
           "type": "boolean"
+        },
+        "viewport": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            }
+          },
+          "required": [
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -335,6 +355,98 @@
           "required": [
             "action",
             "timeoutMs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema9"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema13"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema23"
+            },
+            "action": {
+              "type": "string",
+              "const": "setViewport"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            }
+          },
+          "required": [
+            "action",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema9"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema13"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema23"
+            },
+            "action": {
+              "type": "string",
+              "const": "resizeWindow"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            }
+          },
+          "required": [
+            "action",
+            "width",
+            "height"
           ],
           "additionalProperties": false
         },
@@ -1416,6 +1528,52 @@
             "action",
             "sinceStepId",
             "minElapsedMs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema9"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema11"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema12"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema13"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema14"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema15"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema23"
+            },
+            "action": {
+              "type": "string",
+              "const": "setViewportSize"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 4096
+            }
+          },
+          "required": [
+            "action",
+            "width",
+            "height"
           ],
           "additionalProperties": false
         }
