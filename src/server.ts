@@ -6,8 +6,10 @@ import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 
 import { env, getLiveAllowedOrigins } from './config/env.js';
+import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
 import { domInspectionRouter } from './routes/domInspection.routes.js';
 import { explorationRouter } from './routes/exploration.routes.js';
+import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
 import { apiAuth } from './security/apiAuth.js';
 import { redactSecrets } from './security/redactSecrets.js';
@@ -83,6 +85,8 @@ app.use('/v1/schema', schemaRouter);
 app.use('/v1/explorations', explorationRouter);
 app.use('/v1/explorations/inspect-dom', domInspectionRouter);
 
+app.use('/v1/runs', runsRouter);
+
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (error instanceof TargetUrlNotAllowedError) {
     res.status(400).json({
@@ -114,6 +118,19 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
-app.listen(env.PORT, env.HOST, () => {
-  logger.info({ host: env.HOST, port: env.PORT }, 'ScrapForAI API listening');
+async function start(): Promise<void> {
+  await initRunHistory();
+  const pruned = await pruneHistory();
+  if (pruned.removed > 0) {
+    logger.info(pruned, 'Pruned expired run history entries');
+  }
+
+  app.listen(env.PORT, env.HOST, () => {
+    logger.info({ host: env.HOST, port: env.PORT }, 'ScrapForAI API listening');
+  });
+}
+
+start().catch((error: unknown) => {
+  logger.error({ err: error }, 'Failed to start ScrapForAI');
+  process.exit(1);
 });
