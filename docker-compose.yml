@@ -7,7 +7,9 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV}
       PORT: ${PORT}
-      HOST: ${HOST}
+      # 0.0.0.0 inside the container is correct; the host-side publish below is limited
+      # to 127.0.0.1, so this is not network-exposed.
+      HOST: ${HOST:-0.0.0.0}
       SCRAPFORAI_API_KEY: ${SCRAPFORAI_API_KEY}
       ALLOWED_TARGET_ORIGINS: ${ALLOWED_TARGET_ORIGINS}
       ALLOWED_RESOURCE_ORIGINS: ${ALLOWED_RESOURCE_ORIGINS}
@@ -27,13 +29,19 @@ services:
       MIN_WATCH_INTERVAL_MS: ${MIN_WATCH_INTERVAL_MS:-100}
       MAX_WATCH_SAMPLES: ${MAX_WATCH_SAMPLES:-200}
       ARTIFACT_RETENTION_HOURS: ${ARTIFACT_RETENTION_HOURS}
-      ARTIFACT_DIR: ${ARTIFACT_DIR}
       LOG_LEVEL: ${LOG_LEVEL}
       PLAYWRIGHT_BROWSER: ${PLAYWRIGHT_BROWSER}
+      # ARTIFACT_DIR is derived from SCRAPFORAI_DATA_DIR, so history and evidence share one
+      # persisted volume.
+      SCRAPFORAI_DATA_DIR: /app/data
+      HISTORY_RETENTION_DAYS: ${HISTORY_RETENTION_DAYS:-90}
+      HISTORY_MAX_RUNS: ${HISTORY_MAX_RUNS:-5000}
+      UI_ENABLED: ${UI_ENABLED:-true}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-480}
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./artifacts:/app/artifacts
+      - ./data:/app/data
     restart: unless-stopped
 
   cloudflared-quick-tunnel:
