@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practical examples · ScrapForAI User Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/examples.html">PT</a>
+      <a class="lang-link" href="../es/examples.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link active" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guides</div>
+      <h1>Practical examples</h1>
+      <p class="lede">Nine end-to-end routines covering logins, validation, search, regressions, tracing, extraction, evaluate/watch, and plain curl.</p>
+
+<h2 id="ex1-login">Example 1: Login smoke test</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "login smoke test"
+    targetUrl = "https://dev.example.com/login"
+    options = @{
+        trace = $false
+        screenshots = "onFailure"
+        collectDomOnFailure = $true
+    }
+    credentials = @{
+        loginUser = "test-user"
+        loginPassword = "test-password"
+    }
+    steps = @(
+        @{ label = "open app"; action = "goto"; url = "`$targetUrl" },
+        @{ label = "fill user"; action = "fill"; selector = "#username"; valueFromCredential = "loginUser" },
+        @{ label = "fill password"; action = "fill"; selector = "#password"; valueFromCredential = "loginPassword" },
+        @{ label = "submit"; action = "click"; selector = "button[type='submit']" },
+        @{ label = "wait for shell"; action = "waitForLoadState"; state = "networkidle"; timeoutMs = 10000 },
+        @{ label = "assert text"; action = "assertTextContains"; selector = "body"; text = "Dashboard" }
+    )
+} | ConvertTo-Json -Depth 20
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/run" -Headers $Headers -ContentType "application/json" -Body $Body</code></pre>
+
+<h2 id="ex2-validation">Example 2: Form validation</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "form validation"
+    targetUrl = "https://dev.example.com/form"
+    variables = @{
+        invalidValue = "not-valid"
+    }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "fill"; selector = "[name='email']"; valueFromVariable = "invalidValue" },
+        @{ action = "click"; selector = "button[type='submit']" },
+        @{ action = "assertTextContains"; selector = "body"; text = "invalid" },
+        @{ action = "screenshot"; name = "validation-message" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+
+<h2 id="ex3-search">Example 3: Search and data loading</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "data loading check"
+    targetUrl = "https://dev.example.com/search"
+    variables = @{
+        searchText = "ABC123"
+    }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "fill"; selector = "[name='search']"; valueFromVariable = "searchText" },
+        @{ action = "press"; selector = "[name='search']"; key = "Enter" },
+        @{ action = "waitForResponse"; urlContains = "/api/search"; method = "GET"; status = 200 },
+        @{ action = "waitForSelector"; selector = "[data-row]"; state = "visible" },
+        @{ action = "extractText"; selector = "[data-row]"; name = "firstRowText" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+<p>After running, read:</p>
+<pre><code class="language-powershell">$Result.extracted.firstRowText</code></pre>
+
+<h2 id="ex4-menu-regression">Example 4: Menu load regression</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "first menu click regression"
+    targetUrl = "https://dev.example.com/login"
+    options = @{
+        trace = $false
+        screenshots = "always"
+        collectDomOnFailure = $true
+    }
+    credentials = @{
+        loginUser = "test-user"
+        loginPassword = "test-password"
+    }
+    steps = @(
+        @{ label = "open login"; action = "goto"; url = "`$targetUrl" },
+        @{ label = "fill user"; action = "fill"; selector = "#username"; valueFromCredential = "loginUser" },
+        @{ label = "fill password"; action = "fill"; selector = "#password"; valueFromCredential = "loginPassword" },
+        @{ label = "submit"; action = "click"; selector = "button[type='submit']" },
+        @{ label = "wait after login"; action = "waitForLoadState"; state = "networkidle"; timeoutMs = 10000 },
+        @{ label = "click menu"; action = "click"; selector = "#top-menu" },
+        @{ label = "capture first click"; action = "screenshot"; name = "after-first-menu-click" },
+        @{ label = "wait option"; action = "waitForSelector"; selector = ".left-menu .option"; state = "visible"; timeoutMs = 5000 },
+        @{ label = "collect evidence"; action = "collect"; what = @("console", "network", "domText", "url", "pageErrors") }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+
+<h2 id="ex5-trace">Example 5: Capture trace for a hard failure</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "trace checkout failure"
+    targetUrl = "https://dev.example.com/checkout"
+    options = @{
+        trace = $true
+        screenshots = "always"
+        collectDomOnFailure = $true
+    }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "click"; selector = "#place-order" },
+        @{ action = "waitForResponse"; urlContains = "/api/orders"; method = "POST"; status = 201; timeoutMs = 10000 },
+        @{ action = "assertTextContains"; selector = "body"; text = "Order confirmed" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+<p>The result includes <code>evidence.tracePath</code> when trace is enabled.</p>
+
+<h2 id="ex6-extract-attribute">Example 6: Extract an attribute</h2>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "download link check"
+    targetUrl = "https://dev.example.com/reports"
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "waitForSelector"; selector = "a.download"; state = "visible" },
+        @{ action = "extractAttribute"; selector = "a.download"; attribute = "href"; name = "downloadHref" },
+        @{ action = "assertVisible"; selector = "a.download" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+
+<h2 id="ex7-evaluate">Example 7: Evaluate page state, trusted local only</h2>
+<p>Requires:</p>
+<pre><code class="language-env">ALLOW_EVALUATE=true</code></pre>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "cart state debug"
+    targetUrl = "https://dev.example.com/cart"
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{
+            action = "evaluate"
+            name = "cartSummary"
+            script = "return { itemCount: document.querySelectorAll('[data-cart-item]').length, url: location.href };"
+        }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+
+<h2 id="ex8-watch">Example 8: Watch changing UI state, trusted local only</h2>
+<p>Requires:</p>
+<pre><code class="language-env">ALLOW_EVALUATE=true</code></pre>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "progress watcher"
+    targetUrl = "https://dev.example.com/import"
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "click"; selector = "#start-import" },
+        @{
+            action = "watch"
+            name = "progressSamples"
+            intervalMs = 500
+            durationMs = 5000
+            script = "return document.querySelector('[data-progress]')?.textContent ?? '';"
+        }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+
+<h2 id="ex9-curl">Example 9: Use curl instead of PowerShell</h2>
+<pre><code class="language-bash">curl -X POST "http://localhost:3000/v1/explorations/run" \
+  -H "Authorization: Bearer $SCRAPFORAI_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scenarioName": "curl smoke",
+    "targetUrl": "https://dev.example.com",
+    "steps": [
+      { "action": "goto", "url": "$targetUrl" },
+      { "action": "assertTextContains", "selector": "body", "text": "Welcome" }
+    ]
+  }'</code></pre>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="schemas.html"><span class="dir">&larr; Previous</span><span class="title">JSON schemas</span></a>
+      <a class="pager-link next" href="dom-inspection.html"><span class="dir">Next &rarr;</span><span class="title">DOM inspection</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

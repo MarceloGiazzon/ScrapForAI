@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI User Manual</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #5b6578;
+      --line: #d8deea;
+      --accent: #0f766e;
+      --accent-dark: #115e59;
+      --code-bg: #101827;
+      --code-ink: #edf3ff;
+      --table-head: #eef5f4;
+      --warning-bg: #fff7e6;
+      --warning-line: #f0bf62;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 28px 22px;
+      background: #eef3f7;
+      border-right: 1px solid var(--line);
+    }
+
+    nav h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+    }
+
+    nav ol {
+      margin: 0;
+      padding-left: 22px;
+      font-size: 14px;
+    }
+
+    nav li {
+      margin: 7px 0;
+    }
+
+    main {
+      max-width: 1120px;
+      width: 100%;
+      padding: 42px 48px 80px;
+    }
+
+    header {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 30px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 40px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      margin: 0;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 26px 30px;
+      margin: 18px 0;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 26px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    h4 {
+      margin: 20px 0 8px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    ul,
+    ol {
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+      font-size: 0.95em;
+      background: #eef2f8;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    pre {
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #1f2a3d;
+    }
+
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+      font-size: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: var(--table-head);
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #edf8f7;
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+
+    .warning {
+      border-left: 4px solid var(--warning-line);
+      background: var(--warning-bg);
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+
+    @media (max-width: 940px) {
+      .layout {
+        display: block;
+      }
+
+      nav {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      main {
+        padding: 24px 16px 60px;
+      }
+
+      header,
+      section {
+        padding: 22px 18px;
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#what-scrapforai-is">What ScrapForAI is</a></li>
+        <li><a href="#what-scrapforai-is-not">What ScrapForAI is not</a></li>
+        <li><a href="#who-should-use-scrapforai">Who should use it</a></li>
+        <li><a href="#core-concepts">Core concepts</a></li>
+        <li><a href="#architecture-overview">Architecture</a></li>
+        <li><a href="#security-model">Security model</a></li>
+        <li><a href="#prerequisites">Prerequisites</a></li>
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#running-scrapforai">Running</a></li>
+        <li><a href="#api-authentication">Authentication</a></li>
+        <li><a href="#endpoint-reference">Endpoints</a></li>
+        <li><a href="#routine-request-guide">Routine guide</a></li>
+        <li><a href="#step-by-step-first-run">First run</a></li>
+        <li><a href="#practical-examples">Examples</a></li>
+        <li><a href="#dom-inspection-guide">DOM inspection</a></li>
+        <li><a href="#artifacts-and-evidence">Artifacts</a></li>
+        <li><a href="#json-schemas">JSON schemas</a></li>
+        <li><a href="#docker-and-tunnel-usage">Docker and tunnel</a></li>
+        <li><a href="#development-workflow">Development</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+        <li><a href="#operational-checklist">Checklist</a></li>
+        <li><a href="#glossary">Glossary</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <header>
+        <h1>ScrapForAI User Manual</h1>
+        <p class="meta">Product version: 1.0.0<br>Manual version: 1.0<br>Last updated: 2026-06-14</p>
+      </header>
+
+      <section id="what-scrapforai-is">
+        <h2>What ScrapForAI is</h2>
+        <p>ScrapForAI is a security-first browser exploration runner for controlled development and test websites. It exposes an HTTP API that accepts a restricted JSON routine, opens a browser with Playwright, performs the requested steps, collects useful evidence, redacts known secrets, and returns a structured result that an AI development tool or automation client can consume.</p>
+        <p>Use it when you need an automated agent to inspect, click through, validate, or collect evidence from a web application in a predictable and controlled way.</p>
+        <ul>
+          <li>Open development or QA URLs.</li>
+          <li>Fill forms with disposable test credentials.</li>
+          <li>Click menus, buttons, links, tabs, and form controls.</li>
+          <li>Wait for page loads, selectors, URLs, or network responses.</li>
+          <li>Assert text, visibility, enabled state, counts, or URL conditions.</li>
+          <li>Collect screenshots, console logs, network evidence, DOM text, and page errors.</li>
+          <li>Inspect DOM controls and selectors before building a routine.</li>
+        </ul>
+      </section>
+
+      <section id="what-scrapforai-is-not">
+        <h2>What ScrapForAI is not</h2>
+        <p>ScrapForAI is not a generic open-web scraper. It intentionally avoids anti-bot evasion, CAPTCHA bypassing, stored browser sessions, credential vaulting, site-specific scraping logic, unlimited JavaScript execution, and arbitrary navigation.</p>
+        <div class="warning">Use ScrapForAI only against systems you control or have permission to test. Avoid production data unless you have a specific, approved, controlled reason.</div>
+      </section>
+
+      <section id="who-should-use-scrapforai">
+        <h2>Who should use ScrapForAI</h2>
+        <ul>
+          <li>Developers who want an AI assistant to reproduce UI bugs in local, dev, or QA environments.</li>
+          <li>QA engineers who need repeatable browser smoke checks with structured evidence.</li>
+          <li>Platform engineers who want a browser runner with explicit security boundaries.</li>
+          <li>AI tool builders who need a controlled API for web app inspection and interaction.</li>
+          <li>Support engineers who need reproducible evidence from test systems.</li>
+        </ul>
+      </section>
+
+      <section id="core-concepts">
+        <h2>Core concepts</h2>
+        <h3>Routine</h3>
+        <p>A routine is the JSON request sent to <code>POST /v1/explorations/run</code>. It contains a <code>targetUrl</code>, optional metadata, optional credentials and variables, runtime options, and ordered steps.</p>
+        <h3>Step</h3>
+        <p>A step is one browser action or assertion. Steps run in order. When a step fails, the routine stops and returns <code>status: "failed"</code>.</p>
+        <h3>Evidence</h3>
+        <p>Evidence is diagnostic data collected while the routine runs: screenshots, traces, console messages, page errors, network events, DOM text snapshots, and the final URL.</p>
+        <h3>Artifact</h3>
+        <p>An artifact is a file written to the artifact directory, such as <code>result.json</code>, <code>screenshots/*.png</code>, or <code>trace.zip</code>.</p>
+        <h3>Allowlist</h3>
+        <p>An allowlist is a configured list of origins ScrapForAI is allowed to visit or expect. <code>ALLOWED_TARGET_ORIGINS</code> controls target URLs and main-frame redirects.</p>
+      </section>
+
+      <section id="architecture-overview">
+        <h2>Architecture overview</h2>
+        <p>ScrapForAI is a Node.js and TypeScript service using Express, Playwright, Zod, Pino, Helmet, CORS, rate limiting, and bearer-token authentication.</p>
+        <ol>
+          <li>A client sends a JSON request.</li>
+          <li>Express authenticates the request unless it is a public endpoint.</li>
+          <li>Zod validates the request and cross-field rules.</li>
+          <li>The target URL is checked against <code>ALLOWED_TARGET_ORIGINS</code>.</li>
+          <li>Playwright opens a browser context.</li>
+          <li>Steps run in order.</li>
+          <li>Evidence collectors record diagnostics.</li>
+          <li>Known secrets are redacted.</li>
+          <li>A structured JSON result is returned and saved as an artifact.</li>
+        </ol>
+      </section>
+
+      <section id="security-model">
+        <h2>Security model</h2>
+        <h3>Public endpoints</h3>
+        <ul>
+          <li><code>GET /health</code></li>
+          <li><code>GET /v1/schema</code></li>
+          <li><code>GET /v1/schema/routine.request.json</code></li>
+          <li><code>GET /v1/schema/routine.result.json</code></li>
+        </ul>
+        <h3>Protected endpoints</h3>
+        <ul>
+          <li><code>POST /v1/explorations/run</code></li>
+          <li><code>POST /v1/explorations/inspect-dom</code></li>
+        </ul>
+        <pre><code>Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;</code></pre>
+        <h3>Target origin restrictions</h3>
+        <p><code>ALLOWED_TARGET_ORIGINS</code> controls the initial <code>targetUrl</code>, literal URLs used by <code>goto</code> steps, and main-frame redirects.</p>
+        <pre><code>ALLOWED_TARGET_ORIGINS=https://dev.example.com,https://qa.example.com</code></pre>
+        <h3>Secret redaction</h3>
+        <p>ScrapForAI redacts the API key, credential values, sensitive recursive keys, and authorization or cookie headers in logs. Put passwords and tokens in <code>credentials</code>, not <code>variables</code>.</p>
+        <h3>JavaScript execution</h3>
+        <p><code>evaluate</code> and <code>watch</code> execute caller-provided JavaScript inside the page. They are disabled by default.</p>
+        <pre><code>ALLOW_EVALUATE=false</code></pre>
+        <div class="warning">Enable <code>ALLOW_EVALUATE=true</code> only for trusted local use against controlled development or test origins.</div>
+      </section>
+
+      <section id="prerequisites">
+        <h2>Prerequisites</h2>
+        <ul>
+          <li>Docker Desktop.</li>
+          <li>Doppler CLI for secret management.</li>
+          <li>Node.js LTS for local development outside Docker.</li>
+          <li>npm.</li>
+          <li>Optional: Cloudflare <code>cloudflared</code> for a temporary development tunnel.</li>
+        </ul>
+      </section>
+
+      <section id="installation">
+        <h2>Installation</h2>
+        <h3>Docker Compose installation</h3>
+        <pre><code>Set-Location -Path "D:\WorkSpace\ScrapForAI"
+doppler login
+doppler setup
+doppler run -- docker compose up --build</code></pre>
+        <p>Verify health:</p>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+        <h3>Local Node.js installation</h3>
+        <pre><code>Set-Location -Path "D:\WorkSpace\ScrapForAI"
+npm ci
+Copy-Item .env.example .env
+npx playwright install
+npm run dev</code></pre>
+      </section>
+
+      <section id="configuration">
+        <h2>Configuration</h2>
+        <h3>Required variables</h3>
+        <table>
+          <thead><tr><th>Variable</th><th>Required</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>SCRAPFORAI_API_KEY</code></td><td>Yes</td><td>Bearer token for protected endpoints. Must be at least 16 characters.</td></tr>
+            <tr><td><code>ALLOWED_TARGET_ORIGINS</code></td><td>Yes</td><td>Origins ScrapForAI may visit as target URLs and main-frame redirects.</td></tr>
+          </tbody>
+        </table>
+        <h3>Common variables</h3>
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>NODE_ENV</code></td><td><code>development</code></td><td>Runtime mode.</td></tr>
+            <tr><td><code>PORT</code></td><td><code>3000</code></td><td>HTTP port.</td></tr>
+            <tr><td><code>HOST</code></td><td><code>0.0.0.0</code></td><td>Network interface.</td></tr>
+            <tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>Pino log level.</td></tr>
+            <tr><td><code>MAX_REQUEST_BODY_SIZE</code></td><td><code>1mb</code></td><td>Maximum JSON body size.</td></tr>
+            <tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td>empty list</td><td>Browser origins allowed by CORS.</td></tr>
+          </tbody>
+        </table>
+        <h3>Job and browser limits</h3>
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>PLAYWRIGHT_BROWSER</code></td><td><code>chromium</code></td><td>Browser engine.</td></tr>
+            <tr><td><code>MAX_STEPS_PER_JOB</code></td><td><code>50</code></td><td>Maximum routine steps.</td></tr>
+            <tr><td><code>MAX_PARALLEL_JOBS</code></td><td><code>2</code></td><td>Maximum concurrent jobs.</td></tr>
+            <tr><td><code>JOB_TIMEOUT_MS</code></td><td><code>60000</code></td><td>Overall routine timeout.</td></tr>
+            <tr><td><code>STEP_TIMEOUT_MS</code></td><td><code>10000</code></td><td>Maximum timeout for most actions.</td></tr>
+            <tr><td><code>MAX_DOM_SNAPSHOT_CHARS</code></td><td><code>20000</code></td><td>DOM text or HTML snapshot cap.</td></tr>
+          </tbody>
+        </table>
+        <h3>Evaluate and watch limits</h3>
+        <table>
+          <thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>ALLOW_EVALUATE</code></td><td><code>false</code></td><td>Enables <code>evaluate</code> and <code>watch</code>.</td></tr>
+            <tr><td><code>MAX_EVALUATE_SCRIPT_CHARS</code></td><td><code>4000</code></td><td>Maximum script length.</td></tr>
+            <tr><td><code>MAX_EVALUATE_RESULT_CHARS</code></td><td><code>20000</code></td><td>Maximum serialized result length before truncation.</td></tr>
+            <tr><td><code>EVALUATE_TIMEOUT_MS</code></td><td><code>5000</code></td><td>Timeout for one script evaluation.</td></tr>
+            <tr><td><code>MAX_WATCH_DURATION_MS</code></td><td><code>30000</code></td><td>Maximum watch duration.</td></tr>
+            <tr><td><code>MIN_WATCH_INTERVAL_MS</code></td><td><code>100</code></td><td>Minimum watch sampling interval.</td></tr>
+            <tr><td><code>MAX_WATCH_SAMPLES</code></td><td><code>200</code></td><td>Maximum watch samples.</td></tr>
+          </tbody>
+        </table>
+        <h3>Example .env</h3>
+        <pre><code>NODE_ENV=development
+PORT=3000
+HOST=0.0.0.0
+SCRAPFORAI_API_KEY=replace-with-a-strong-random-value
+ALLOWED_TARGET_ORIGINS=https://dev.example.com,https://qa.example.com
+ALLOWED_RESOURCE_ORIGINS=https://dev.example.com,https://qa.example.com,https://api-dev.example.com
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+MAX_STEPS_PER_JOB=50
+JOB_TIMEOUT_MS=60000
+STEP_TIMEOUT_MS=10000
+MAX_REQUEST_BODY_SIZE=1mb
+MAX_PARALLEL_JOBS=2
+MAX_DOM_SNAPSHOT_CHARS=20000
+ALLOW_EVALUATE=false
+ARTIFACT_RETENTION_HOURS=4
+ARTIFACT_DIR=/app/artifacts
+LOG_LEVEL=info
+PLAYWRIGHT_BROWSER=chromium</code></pre>
+      </section>
+
+      <section id="running-scrapforai">
+        <h2>Running ScrapForAI</h2>
+        <h3>Docker Compose</h3>
+        <pre><code>Set-Location -Path "D:\WorkSpace\ScrapForAI"
+doppler run -- docker compose up --build</code></pre>
+        <p>The API is available at <code>http://localhost:3000</code>.</p>
+        <h3>Local development</h3>
+        <pre><code>npm run dev</code></pre>
+        <h3>Compiled production code locally</h3>
+        <pre><code>npm run build
+npm start</code></pre>
+      </section>
+
+      <section id="api-authentication">
+        <h2>API authentication</h2>
+        <p>Protected API calls require a bearer token.</p>
+        <pre><code>$ApiKey = "paste-your-scrapforai-api-key-here"
+$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+        <p>Expected unauthorized behavior: missing or wrong API keys return <code>401 Unauthorized</code>.</p>
+      </section>
+
+      <section id="endpoint-reference">
+        <h2>Endpoint reference</h2>
+        <h3>GET /health</h3>
+        <p>Checks whether the service is running. Authentication is not required.</p>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+        <h3>GET /v1/schema</h3>
+        <p>Returns links to public JSON schemas.</p>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema"</code></pre>
+        <h3>POST /v1/explorations/run</h3>
+        <p>Runs a browser exploration routine. Authentication is required.</p>
+        <pre><code>$Body = @{
+    scenarioName = "basic page check"
+    targetUrl = "https://dev.example.com"
+    options = @{
+        trace = $false
+        screenshots = "onFailure"
+        collectDomOnFailure = $true
+    }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "assertTextContains"; selector = "body"; text = "Welcome" },
+        @{ action = "collect"; what = @("console", "network", "url") }
+    )
+} | ConvertTo-Json -Depth 20
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/run" -Headers $Headers -ContentType "application/json" -Body $Body</code></pre>
+        <h3>POST /v1/explorations/inspect-dom</h3>
+        <p>Inspects a target page and returns controls, forms, selectors, text, and optional diagnostics. Authentication is required.</p>
+        <pre><code>$Body = @{
+    targetUrl = "https://dev.example.com/login"
+    waitUntil = "domcontentloaded"
+    includeRenderedHtml = $false
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20
+
+Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/inspect-dom" -Headers $Headers -ContentType "application/json" -Body $Body</code></pre>
+      </section>
+
+      <section id="routine-request-guide">
+        <h2>Routine request guide</h2>
+        <h3>Minimal routine</h3>
+        <pre><code>{
+  "targetUrl": "https://dev.example.com",
+  "steps": [
+    {
+      "action": "goto",
+      "url": "$targetUrl"
+    }
+  ]
+}</code></pre>
+        <h3>Top-level fields</h3>
+        <table>
+          <thead><tr><th>Field</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>scenarioName</code></td><td>No</td><td>Human-readable routine name.</td></tr>
+            <tr><td><code>targetUrl</code></td><td>Yes</td><td>Initial target URL. Must match <code>ALLOWED_TARGET_ORIGINS</code>.</td></tr>
+            <tr><td><code>credentials</code></td><td>No</td><td>Secret values used by steps and redacted from results.</td></tr>
+            <tr><td><code>variables</code></td><td>No</td><td>Non-secret reusable values.</td></tr>
+            <tr><td><code>caller</code></td><td>No</td><td>Optional metadata about the caller.</td></tr>
+            <tr><td><code>options</code></td><td>No</td><td>Runtime options.</td></tr>
+            <tr><td><code>steps</code></td><td>Yes</td><td>Ordered list of browser actions and assertions.</td></tr>
+          </tbody>
+        </table>
+        <h3>Options</h3>
+        <table>
+          <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>headless</code></td><td><code>true</code></td><td>Runs browser without UI.</td></tr>
+            <tr><td><code>trace</code></td><td><code>false</code></td><td>Saves a Playwright trace ZIP.</td></tr>
+            <tr><td><code>screenshots</code></td><td><code>onFailure</code></td><td><code>off</code>, <code>onFailure</code>, or <code>always</code>.</td></tr>
+            <tr><td><code>collectDomOnFailure</code></td><td><code>false</code></td><td>Captures DOM text when a step fails.</td></tr>
+          </tbody>
+        </table>
+        <h3>Common step fields</h3>
+        <table>
+          <thead><tr><th>Field</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code></td><td>Unique step ID for references like <code>waitForElapsed</code>.</td></tr>
+            <tr><td><code>label</code></td><td>Short human-readable label.</td></tr>
+            <tr><td><code>description</code></td><td>Longer description.</td></tr>
+            <tr><td><code>frame</code></td><td>Targets an iframe by name, URL fragment, or index.</td></tr>
+            <tr><td><code>delayMs</code></td><td>Waits before the step action.</td></tr>
+            <tr><td><code>waitFor</code></td><td>Wait condition before the action.</td></tr>
+            <tr><td><code>afterWaitFor</code></td><td>Wait condition after the action. Response waits are armed before the action.</td></tr>
+          </tbody>
+        </table>
+        <h3>Supported actions</h3>
+        <table>
+          <thead><tr><th>Action</th><th>Purpose</th><th>Key fields</th></tr></thead>
+          <tbody>
+            <tr><td><code>goto</code></td><td>Navigate to <code>$targetUrl</code> or an allowed literal URL.</td><td><code>url</code>, <code>timeoutMs</code></td></tr>
+            <tr><td><code>reload</code></td><td>Reload current page.</td><td><code>timeoutMs</code></td></tr>
+            <tr><td><code>waitForLoadState</code></td><td>Wait for <code>domcontentloaded</code>, <code>load</code>, or <code>networkidle</code>.</td><td><code>state</code></td></tr>
+            <tr><td><code>waitForUrlContains</code></td><td>Wait until current URL contains text.</td><td><code>value</code></td></tr>
+            <tr><td><code>waitForTimeout</code></td><td>Wait for a fixed timeout.</td><td><code>timeoutMs</code></td></tr>
+            <tr><td><code>fill</code></td><td>Fill an input-like control.</td><td><code>selector</code>, one value source</td></tr>
+            <tr><td><code>click</code></td><td>Click an element.</td><td><code>selector</code></td></tr>
+            <tr><td><code>doubleClick</code></td><td>Double-click an element.</td><td><code>selector</code></td></tr>
+            <tr><td><code>hover</code></td><td>Hover over an element.</td><td><code>selector</code></td></tr>
+            <tr><td><code>press</code></td><td>Press a keyboard key.</td><td><code>selector</code>, <code>key</code></td></tr>
+            <tr><td><code>selectOption</code></td><td>Select an option value.</td><td><code>selector</code>, one value source</td></tr>
+            <tr><td><code>check</code></td><td>Check a checkbox or radio.</td><td><code>selector</code></td></tr>
+            <tr><td><code>uncheck</code></td><td>Uncheck a checkbox.</td><td><code>selector</code></td></tr>
+            <tr><td><code>waitForSelector</code></td><td>Wait for selector state.</td><td><code>selector</code>, <code>state</code></td></tr>
+            <tr><td><code>waitForResponse</code></td><td>Wait for network response.</td><td><code>urlContains</code>, <code>method</code>, <code>status</code></td></tr>
+            <tr><td><code>assertVisible</code></td><td>Fail unless selector is visible.</td><td><code>selector</code></td></tr>
+            <tr><td><code>assertHidden</code></td><td>Fail unless selector is hidden.</td><td><code>selector</code></td></tr>
+            <tr><td><code>assertEnabled</code></td><td>Fail unless selector is enabled.</td><td><code>selector</code></td></tr>
+            <tr><td><code>assertDisabled</code></td><td>Fail unless selector is disabled.</td><td><code>selector</code></td></tr>
+            <tr><td><code>assertTextContains</code></td><td>Fail unless selector text contains expected text.</td><td><code>selector</code>, <code>text</code></td></tr>
+            <tr><td><code>assertUrlContains</code></td><td>Fail unless current URL contains text.</td><td><code>value</code></td></tr>
+            <tr><td><code>assertCount</code></td><td>Fail unless selector count matches a condition.</td><td><code>selector</code>, <code>operator</code>, <code>count</code></td></tr>
+            <tr><td><code>screenshot</code></td><td>Save a named screenshot.</td><td><code>name</code></td></tr>
+            <tr><td><code>collect</code></td><td>Collect selected evidence.</td><td><code>what</code></td></tr>
+            <tr><td><code>extractText</code></td><td>Save selector text to <code>extracted</code>.</td><td><code>selector</code>, <code>name</code></td></tr>
+            <tr><td><code>extractAttribute</code></td><td>Save an attribute to <code>extracted</code>.</td><td><code>selector</code>, <code>attribute</code>, <code>name</code></td></tr>
+            <tr><td><code>evaluate</code></td><td>Run page JavaScript and save result.</td><td><code>name</code>, <code>script</code></td></tr>
+            <tr><td><code>watch</code></td><td>Sample page JavaScript repeatedly.</td><td><code>name</code>, <code>script</code>, <code>intervalMs</code>, <code>durationMs</code></td></tr>
+            <tr><td><code>waitForElapsed</code></td><td>Ensure minimum elapsed time since an earlier step.</td><td><code>sinceStepId</code>, <code>minElapsedMs</code></td></tr>
+          </tbody>
+        </table>
+        <h3>Value sources</h3>
+        <p><code>fill</code> and <code>selectOption</code> require exactly one of <code>value</code>, <code>valueFromCredential</code>, or <code>valueFromVariable</code>.</p>
+        <pre><code>{ "action": "fill", "selector": "#password", "valueFromCredential": "loginPassword" }</code></pre>
+        <h3>Wait conditions</h3>
+        <p><code>waitFor</code> and <code>afterWaitFor</code> support exactly one of <code>selector</code>, <code>response</code>, <code>loadState</code>, or <code>urlContains</code>.</p>
+        <pre><code>{
+  "action": "click",
+  "selector": "#submit",
+  "afterWaitFor": {
+    "response": {
+      "urlContains": "/api/save",
+      "status": 200
+    },
+    "timeoutMs": 10000
+  }
+}</code></pre>
+      </section>
+
+      <section id="step-by-step-first-run">
+        <h2>Step-by-step first run</h2>
+        <h3>1. Confirm the service is up</h3>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+        <h3>2. Set your API key header</h3>
+        <pre><code>$ApiKey = "paste-your-scrapforai-api-key-here"
+$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+        <h3>3. Inspect the login page</h3>
+        <pre><code>$InspectBody = @{
+    targetUrl = "https://dev.example.com/login"
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20
+
+$Inspection = Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/inspect-dom" -Headers $Headers -ContentType "application/json" -Body $InspectBody
+$Inspection.visibleControls | Select-Object index, tag, id, name, type, text, labelContext</code></pre>
+        <h3>4. Run a login routine</h3>
+        <pre><code>$RunBody = @{
+    scenarioName = "first login smoke"
+    targetUrl = "https://dev.example.com/login"
+    credentials = @{
+        loginUser = "test-user"
+        loginPassword = "test-password"
+    }
+    options = @{
+        trace = $false
+        screenshots = "onFailure"
+        collectDomOnFailure = $true
+    }
+    steps = @(
+        @{ label = "open login"; action = "goto"; url = "`$targetUrl" },
+        @{ label = "fill user"; action = "fill"; selector = "#username"; valueFromCredential = "loginUser" },
+        @{ label = "fill password"; action = "fill"; selector = "#password"; valueFromCredential = "loginPassword" },
+        @{ label = "submit"; action = "click"; selector = "button[type='submit']"; afterWaitFor = @{ urlContains = "/dashboard"; timeoutMs = 10000 } },
+        @{ label = "assert dashboard"; action = "assertTextContains"; selector = "body"; text = "Dashboard" },
+        @{ label = "collect diagnostics"; action = "collect"; what = @("console", "network", "url", "pageErrors") }
+    )
+} | ConvertTo-Json -Depth 30
+
+$Result = Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/run" -Headers $Headers -ContentType "application/json" -Body $RunBody
+$Result.status
+$Result.jobId</code></pre>
+      </section>
+
+      <section id="practical-examples">
+        <h2>Practical examples</h2>
+        <h3>Login smoke test</h3>
+        <pre><code>$Body = @{
+    scenarioName = "login smoke test"
+    targetUrl = "https://dev.example.com/login"
+    options = @{ trace = $false; screenshots = "onFailure"; collectDomOnFailure = $true }
+    credentials = @{ loginUser = "test-user"; loginPassword = "test-password" }
+    steps = @(
+        @{ label = "open app"; action = "goto"; url = "`$targetUrl" },
+        @{ label = "fill user"; action = "fill"; selector = "#username"; valueFromCredential = "loginUser" },
+        @{ label = "fill password"; action = "fill"; selector = "#password"; valueFromCredential = "loginPassword" },
+        @{ label = "submit"; action = "click"; selector = "button[type='submit']" },
+        @{ label = "wait for shell"; action = "waitForLoadState"; state = "networkidle"; timeoutMs = 10000 },
+        @{ label = "assert text"; action = "assertTextContains"; selector = "body"; text = "Dashboard" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+        <h3>Form validation</h3>
+        <pre><code>$Body = @{
+    scenarioName = "form validation"
+    targetUrl = "https://dev.example.com/form"
+    variables = @{ invalidValue = "not-valid" }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "fill"; selector = "[name='email']"; valueFromVariable = "invalidValue" },
+        @{ action = "click"; selector = "button[type='submit']" },
+        @{ action = "assertTextContains"; selector = "body"; text = "invalid" },
+        @{ action = "screenshot"; name = "validation-message" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+        <h3>Search and data loading</h3>
+        <pre><code>$Body = @{
+    scenarioName = "data loading check"
+    targetUrl = "https://dev.example.com/search"
+    variables = @{ searchText = "ABC123" }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "fill"; selector = "[name='search']"; valueFromVariable = "searchText" },
+        @{ action = "press"; selector = "[name='search']"; key = "Enter" },
+        @{ action = "waitForResponse"; urlContains = "/api/search"; method = "GET"; status = 200 },
+        @{ action = "waitForSelector"; selector = "[data-row]"; state = "visible" },
+        @{ action = "extractText"; selector = "[data-row]"; name = "firstRowText" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+        <h3>Evaluate page state, trusted local only</h3>
+        <pre><code>$Body = @{
+    scenarioName = "cart state debug"
+    targetUrl = "https://dev.example.com/cart"
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "evaluate"; name = "cartSummary"; script = "return { itemCount: document.querySelectorAll('[data-cart-item]').length, url: location.href };" }
+    )
+} | ConvertTo-Json -Depth 20</code></pre>
+        <div class="warning">The <code>evaluate</code> example requires <code>ALLOW_EVALUATE=true</code> and should be used only in trusted local testing.</div>
+      </section>
+
+      <section id="dom-inspection-guide">
+        <h2>DOM inspection guide</h2>
+        <p>Use DOM inspection before building a routine when you do not know the page selectors.</p>
+        <pre><code>$Body = @{
+    targetUrl = "https://dev.example.com/login"
+    waitUntil = "domcontentloaded"
+    includeRenderedHtml = $false
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20</code></pre>
+        <h3>Important response fields</h3>
+        <table>
+          <thead><tr><th>Field</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>status</code></td><td><code>passed</code> or <code>failed</code>.</td></tr>
+            <tr><td><code>targetUrl</code></td><td>Normalized target URL.</td></tr>
+            <tr><td><code>finalUrl</code></td><td>URL after navigation.</td></tr>
+            <tr><td><code>title</code></td><td>Page title.</td></tr>
+            <tr><td><code>bodyText</code></td><td>Truncated body text.</td></tr>
+            <tr><td><code>forms</code></td><td>Form metadata and related control indexes.</td></tr>
+            <tr><td><code>visibleControls</code></td><td>Controls that appear visible.</td></tr>
+            <tr><td><code>allControls</code></td><td>Visible and hidden controls when requested.</td></tr>
+            <tr><td><code>consoleMessages</code></td><td>Browser console messages when enabled.</td></tr>
+            <tr><td><code>network</code></td><td>Network events when enabled.</td></tr>
+            <tr><td><code>renderedHtml</code></td><td>Optional rendered HTML. Sensitive output.</td></tr>
+          </tbody>
+        </table>
+        <h3>Selector selection advice</h3>
+        <ol>
+          <li>Prefer unique IDs.</li>
+          <li>Use <code>data-testid</code> when available.</li>
+          <li>Use named input selectors such as <code>input[name="email"]</code>.</li>
+          <li>Avoid generated class names and deep layout selectors.</li>
+        </ol>
+      </section>
+
+      <section id="artifacts-and-evidence">
+        <h2>Artifacts and evidence</h2>
+        <h3>Artifact layout</h3>
+        <pre><code>artifacts/
+  job_&lt;id&gt;/
+    result.json
+    screenshots/
+      failure.png
+      custom-name.png
+    trace.zip</code></pre>
+        <h3>Evidence object</h3>
+        <pre><code>{
+  "screenshots": [],
+  "tracePath": "artifacts/job_abc123/trace.zip",
+  "console": [],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "network": [],
+  "networkFailures": [],
+  "unexpectedExternalRequests": [],
+  "domTextSnapshot": "text...",
+  "finalUrl": "https://dev.example.com/dashboard"
+}</code></pre>
+        <p>Old artifact folders are pruned according to <code>ARTIFACT_RETENTION_HOURS</code>.</p>
+      </section>
+
+      <section id="json-schemas">
+        <h2>JSON schemas</h2>
+        <pre><code>Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.request.json"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.result.json"</code></pre>
+        <p>Regenerate committed schemas with:</p>
+        <pre><code>npm run generate:schema</code></pre>
+        <p><code>npm run build</code> also runs schema generation before TypeScript compilation.</p>
+      </section>
+
+      <section id="docker-and-tunnel-usage">
+        <h2>Docker and tunnel usage</h2>
+        <h3>Docker</h3>
+        <pre><code>doppler run -- docker compose up --build
+docker logs scrapforai-api
+docker compose down</code></pre>
+        <h3>Development-only Cloudflare Quick Tunnel</h3>
+        <pre><code>doppler run -- docker compose --profile tunnel up --build
+docker logs scrapforai-cloudflared-quick-tunnel</code></pre>
+        <div class="warning">Use the tunnel only for development, keep the API key enabled, avoid production credentials, keep allowlists narrow, and stop the tunnel when finished.</div>
+      </section>
+
+      <section id="development-workflow">
+        <h2>Development workflow</h2>
+        <pre><code>npm run typecheck
+npm run build
+npm test
+npm run test:smoke
+npm run test:all
+npm run dev</code></pre>
+      </section>
+
+      <section id="troubleshooting">
+        <h2>Troubleshooting</h2>
+        <h3>Health endpoint fails</h3>
+        <ul>
+          <li>Confirm the container or dev server is running.</li>
+          <li>Check whether port <code>3000</code> is already in use.</li>
+          <li>Inspect logs with <code>docker logs scrapforai-api</code>.</li>
+        </ul>
+        <h3>Protected endpoint returns 401</h3>
+        <ul>
+          <li>Check header format: <code>Authorization: Bearer &lt;key&gt;</code>.</li>
+          <li>Confirm the key matches <code>SCRAPFORAI_API_KEY</code>.</li>
+          <li>Confirm the key is at least 16 characters.</li>
+        </ul>
+        <h3>Request returns 400 ValidationError</h3>
+        <ul>
+          <li>Check required fields.</li>
+          <li>Check step action names.</li>
+          <li>Use exactly one value source for value-based steps.</li>
+          <li>Use exactly one wait condition in <code>waitFor</code> or <code>afterWaitFor</code>.</li>
+        </ul>
+        <h3>URL is rejected</h3>
+        <ul>
+          <li>Confirm the origin is in <code>ALLOWED_TARGET_ORIGINS</code>.</li>
+          <li>Check scheme and port.</li>
+          <li>Confirm redirects stay on allowed origins.</li>
+        </ul>
+        <h3>Step times out</h3>
+        <ul>
+          <li>Inspect DOM to find a better selector.</li>
+          <li>Use <code>frame</code> for iframe content.</li>
+          <li>Add a more precise <code>waitFor</code> or <code>afterWaitFor</code>.</li>
+          <li>Increase timeout values when the environment is slow.</li>
+        </ul>
+        <h3>waitForResponse misses a response</h3>
+        <p>Use <code>afterWaitFor.response</code> on the action that triggers the response, so the listener is armed before the action.</p>
+      </section>
+
+      <section id="operational-checklist">
+        <h2>Operational checklist</h2>
+        <h3>Before connecting an AI tool</h3>
+        <ul>
+          <li>Set a strong <code>SCRAPFORAI_API_KEY</code>.</li>
+          <li>Keep <code>ALLOWED_TARGET_ORIGINS</code> narrow.</li>
+          <li>Keep <code>ALLOWED_RESOURCE_ORIGINS</code> explicit.</li>
+          <li>Keep <code>ALLOW_EVALUATE=false</code> unless trusted local testing requires it.</li>
+          <li>Use disposable test credentials.</li>
+          <li>Keep artifact retention short.</li>
+          <li>Verify auth rejection, allowlist rejection, and invalid JSON rejection.</li>
+        </ul>
+        <h3>Before sharing artifacts</h3>
+        <ul>
+          <li>Review screenshots.</li>
+          <li>Review <code>result.json</code>.</li>
+          <li>Review trace contents.</li>
+          <li>Confirm credentials and tokens are redacted.</li>
+        </ul>
+      </section>
+
+      <section id="glossary">
+        <h2>Glossary</h2>
+        <table>
+          <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>Artifact</td><td>File produced by a job, such as <code>result.json</code>, screenshot PNG, or trace ZIP.</td></tr>
+            <tr><td>Credential</td><td>Secret input value supplied under <code>credentials</code> and redacted from output.</td></tr>
+            <tr><td>DOM inspection</td><td>Endpoint that returns forms, controls, selectors, text, and optional diagnostics for a page.</td></tr>
+            <tr><td>Evidence</td><td>Structured diagnostic data collected during a run.</td></tr>
+            <tr><td>Exploration</td><td>A browser automation job run from a routine.</td></tr>
+            <tr><td>Origin</td><td>Scheme, host, and optional port, such as <code>https://dev.example.com</code>.</td></tr>
+            <tr><td>Routine</td><td>JSON request containing target, options, and ordered steps.</td></tr>
+            <tr><td>Step</td><td>One browser action, wait, assertion, extraction, screenshot, or collection operation.</td></tr>
+            <tr><td>Variable</td><td>Non-secret reusable input value supplied under <code>variables</code>.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

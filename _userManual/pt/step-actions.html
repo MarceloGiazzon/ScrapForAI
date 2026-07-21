@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Referência de ações de passo · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/step-actions.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/step-actions.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link active" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Referência</div>
+      <h1>Referência de ações de passo</h1>
+      <p class="lede">Todas as ações de passo suportadas, o que fazem, seus campos principais, e o uso detalhado das ações com estrutura adicional.</p>
+
+<h2 id="supported-actions">Ações suportadas</h2>
+<table>
+<thead><tr><th>Ação</th><th>Finalidade</th><th>Campos principais</th></tr></thead>
+<tbody>
+<tr><td><code>goto</code></td><td>Navega para <code>$targetUrl</code> ou uma URL literal permitida.</td><td><code>url</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>reload</code></td><td>Recarrega a página atual.</td><td><code>timeoutMs</code></td></tr>
+<tr><td><code>waitForLoadState</code></td><td>Espera por <code>domcontentloaded</code>, <code>load</code> ou <code>networkidle</code>.</td><td><code>state</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>waitForUrlContains</code></td><td>Espera até a URL atual conter o texto.</td><td><code>value</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>waitForTimeout</code></td><td>Espera por um tempo fixo.</td><td><code>timeoutMs</code></td></tr>
+<tr><td><code>fill</code></td><td>Preenche um controle do tipo input.</td><td><code>selector</code>, uma fonte de valor</td></tr>
+<tr><td><code>click</code></td><td>Clica em um elemento.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>doubleClick</code></td><td>Clica duas vezes em um elemento.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>hover</code></td><td>Passa o mouse sobre um elemento.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>press</code></td><td>Pressiona uma tecla em um elemento.</td><td><code>selector</code>, <code>key</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>selectOption</code></td><td>Seleciona um valor de opção.</td><td><code>selector</code>, uma fonte de valor</td></tr>
+<tr><td><code>check</code></td><td>Marca uma checkbox ou radio.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>uncheck</code></td><td>Desmarca uma checkbox.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>waitForSelector</code></td><td>Espera pelo estado de um seletor.</td><td><code>selector</code>, <code>state</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>waitForResponse</code></td><td>Espera por uma resposta de rede.</td><td><code>urlContains</code>, <code>method</code>, <code>status</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertVisible</code></td><td>Falha a menos que o seletor esteja visível.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertHidden</code></td><td>Falha a menos que o seletor esteja oculto.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertEnabled</code></td><td>Falha a menos que o seletor esteja habilitado.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertDisabled</code></td><td>Falha a menos que o seletor esteja desabilitado.</td><td><code>selector</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertTextContains</code></td><td>Falha a menos que o texto do seletor contenha o texto esperado.</td><td><code>selector</code>, <code>text</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>assertUrlContains</code></td><td>Falha a menos que a URL atual contenha o texto.</td><td><code>value</code></td></tr>
+<tr><td><code>assertCount</code></td><td>Falha a menos que a contagem do seletor corresponda à condição.</td><td><code>selector</code>, <code>operator</code>, <code>count</code></td></tr>
+<tr><td><code>screenshot</code></td><td>Salva um screenshot nomeado.</td><td><code>name</code></td></tr>
+<tr><td><code>collect</code></td><td>Coleta as evidências selecionadas.</td><td><code>what</code></td></tr>
+<tr><td><code>extractText</code></td><td>Salva o texto interno do seletor em <code>extracted</code>.</td><td><code>selector</code>, <code>name</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>extractAttribute</code></td><td>Salva um atributo em <code>extracted</code>.</td><td><code>selector</code>, <code>attribute</code>, <code>name</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>evaluate</code></td><td>Executa JavaScript na página e salva o resultado. Requer <code>ALLOW_EVALUATE=true</code>.</td><td><code>name</code>, <code>script</code></td></tr>
+<tr><td><code>watch</code></td><td>Amostra JavaScript da página repetidamente. Requer <code>ALLOW_EVALUATE=true</code>.</td><td><code>name</code>, <code>script</code>, <code>intervalMs</code>, <code>durationMs</code></td></tr>
+<tr><td><code>waitForElapsed</code></td><td>Garante um tempo mínimo decorrido desde um passo anterior.</td><td><code>sinceStepId</code>, <code>minElapsedMs</code>, <code>timeoutMs</code></td></tr>
+<tr><td><code>setViewportSize</code></td><td>Redimensiona o viewport do navegador durante a execução.</td><td><code>width</code>, <code>height</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="collect-action">Ação collect</h2>
+<p><code>collect.what</code> pode incluir: <code>console</code>, <code>network</code>, <code>domText</code>, <code>url</code>, <code>pageErrors</code>.</p>
+<pre><code class="language-json">{
+  "action": "collect",
+  "what": ["console", "network", "domText", "url", "pageErrors"]
+}</code></pre>
+<p>Os coletores de console, rede e erros de página são registrados para o job. O passo collect controla principalmente snapshots extras, como texto do DOM e URL final.</p>
+
+<h2 id="assertion-operators">Operadores de asserção</h2>
+<p><code>assertCount</code> suporta: <code>=</code>, <code>!=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>.</p>
+<pre><code class="language-json">{
+  "action": "assertCount",
+  "selector": "[data-row]",
+  "operator": ">=",
+  "count": 1
+}</code></pre>
+
+<h2 id="waitforelapsed">waitForElapsed</h2>
+<p>Use <code>waitForElapsed</code> quando a aplicação exigir um intervalo mínimo de tempo entre ações.</p>
+<pre><code class="language-json">[
+  {
+    "id": "clicked-send",
+    "action": "click",
+    "selector": "#send-code"
+  },
+  {
+    "action": "waitForElapsed",
+    "sinceStepId": "clicked-send",
+    "minElapsedMs": 3000,
+    "timeoutMs": 5000
+  },
+  {
+    "action": "click",
+    "selector": "#resend-code"
+  }
+]</code></pre>
+<p>O <code>sinceStepId</code> deve referenciar um ID de passo anterior.</p>
+
+<h2 id="setviewportsize">setViewportSize</h2>
+<p>Use <code>setViewportSize</code> para redimensionar o navegador durante a execução &mdash; por exemplo, para verificar um layout responsivo após iniciar em tamanho desktop. <code>options.viewport</code> (veja <a href="routine-guide.html#options">opções da rotina</a>) controla o tamanho no início do job; este passo o altera para os passos subsequentes.</p>
+<pre><code class="language-json">[
+  {
+    "action": "goto",
+    "url": "$targetUrl"
+  },
+  {
+    "action": "screenshot",
+    "name": "desktop"
+  },
+  {
+    "action": "setViewportSize",
+    "width": 390,
+    "height": 844
+  },
+  {
+    "action": "screenshot",
+    "name": "mobile"
+  }
+]</code></pre>
+<p>Largura e altura aceitam, cada uma, de 50 a 4096 pixels.</p>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="routine-guide.html"><span class="dir">&larr; Anterior</span><span class="title">Guia da requisição de rotina</span></a>
+      <a class="pager-link next" href="schemas.html"><span class="dir">Próximo &rarr;</span><span class="title">Esquemas JSON</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

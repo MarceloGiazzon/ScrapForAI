@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solución de problemas · ScrapForAI Manual de Usuario</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="es">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menú">Menú</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual de Usuario · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/troubleshooting.html">EN</a>
+      <a class="lang-link" href="../pt/troubleshooting.html">PT</a>
+      <a class="lang-link active" href="#">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar en el manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeros pasos</div>
+        <a class="nav-link" href="index.html">Resumen general</a>
+        <a class="nav-link" href="installation.html">Instalación y configuración</a>
+        <a class="nav-link" href="quickstart.html">Inicio rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceptos y seguridad</div>
+        <a class="nav-link" href="security.html">Modelo de seguridad</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referencia</div>
+        <a class="nav-link" href="api-reference.html">Referencia de la API</a>
+        <a class="nav-link" href="routine-guide.html">Guía de solicitudes de rutina</a>
+        <a class="nav-link" href="step-actions.html">Referencia de acciones de paso</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guías</div>
+        <a class="nav-link" href="examples.html">Ejemplos prácticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspección del DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefactos y evidencia</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker y túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Proyecto</div>
+        <a class="nav-link" href="development.html">Flujo de desarrollo</a>
+        <a class="nav-link active" href="troubleshooting.html">Solución de problemas</a>
+        <a class="nav-link" href="glossary.html">Glosario</a>
+      </div>
+    <div class="sidebar-footer">
+      Ejecutor de exploración de navegador para entornos de desarrollo y QA controlados.<br><br>
+      &copy; Proyecto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Proyecto</div>
+      <h1>Solución de problemas</h1>
+      <p class="lede">Modos de fallo comunes y cómo diagnosticarlos, desde fallos en el chequeo de salud hasta esperas de respuesta con comportamiento inesperado.</p>
+
+<h2 id="health-fails">El endpoint de salud falla</h2>
+<p>Verifica:</p>
+<ul>
+  <li>¿El contenedor o el servidor de desarrollo está en ejecución?</li>
+  <li>¿El puerto <code>3000</code> ya está en uso?</li>
+  <li>¿Falló la validación del entorno durante el arranque?</li>
+  <li>¿Están disponibles Docker Desktop y la imagen de Playwright?</li>
+</ul>
+<pre><code class="language-powershell">docker logs scrapforai-api
+docker compose ps</code></pre>
+
+<h2 id="401">El endpoint protegido devuelve 401</h2>
+<p>Verifica:</p>
+<ul>
+  <li>El encabezado está presente.</li>
+  <li>El formato del encabezado es exactamente <code>Authorization: Bearer &lt;clave&gt;</code>.</li>
+  <li>La clave de API coincide con <code>SCRAPFORAI_API_KEY</code>.</li>
+  <li>La clave de API tiene al menos 16 caracteres.</li>
+</ul>
+<pre><code class="language-powershell">$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+
+<h2 id="400-validation">La solicitud devuelve 400 ValidationError</h2>
+<p>Verifica:</p>
+<ul>
+  <li>El cuerpo JSON es válido.</li>
+  <li>Existen los campos requeridos.</li>
+  <li><code>targetUrl</code> es una URL válida.</li>
+  <li>Los nombres de las acciones de paso están escritos correctamente.</li>
+  <li><code>steps</code> no está vacío y no excede <code>MAX_STEPS_PER_JOB</code>.</li>
+  <li>Los pasos basados en valor incluyen exactamente uno de <code>value</code>, <code>valueFromCredential</code> o <code>valueFromVariable</code>.</li>
+  <li>Las condiciones de espera incluyen exactamente una condición.</li>
+</ul>
+<p>La respuesta incluye detalles:</p>
+<pre><code class="language-json">{
+  "error": {
+    "type": "ValidationError",
+    "message": "Invalid exploration request",
+    "details": [
+      {
+        "path": "steps.0.selector",
+        "message": "Invalid input"
+      }
+    ]
+  }
+}</code></pre>
+
+<h2 id="url-rejected">La URL es rechazada</h2>
+<p>Verifica:</p>
+<ul>
+  <li>El origen de la URL está listado en <code>ALLOWED_TARGET_ORIGINS</code>.</li>
+  <li>El esquema coincide. <code>http://</code> y <code>https://</code> son orígenes diferentes.</li>
+  <li>El puerto coincide. <code>http://localhost:3000</code> y <code>http://localhost:5173</code> son orígenes diferentes.</li>
+  <li>Las redirecciones permanecen en orígenes permitidos.</li>
+</ul>
+<pre><code class="language-env">ALLOWED_TARGET_ORIGINS=http://localhost:5173,https://dev.example.com</code></pre>
+
+<h2 id="429">La rutina devuelve 429 TooManyRequests</h2>
+<p>El número de trabajos activos alcanzó <code>MAX_PARALLEL_JOBS</code>.</p>
+<p>Opciones de solución:</p>
+<ul>
+  <li>Espera a que terminen los trabajos actuales.</li>
+  <li>Aumenta <code>MAX_PARALLEL_JOBS</code>.</li>
+  <li>Reduce la duración del trabajo.</li>
+  <li>Reduce la concurrencia del cliente.</li>
+</ul>
+
+<h2 id="step-timeout">El paso agota el tiempo de espera</h2>
+<p>Verifica:</p>
+<ul>
+  <li>El selector es correcto.</li>
+  <li>El elemento está dentro de un iframe y necesita <code>frame</code>.</li>
+  <li>La página todavía está cargando.</li>
+  <li>La aplicación necesita un <code>waitFor</code> o <code>afterWaitFor</code> más preciso.</li>
+  <li><code>STEP_TIMEOUT_MS</code> es demasiado bajo para el entorno.</li>
+</ul>
+<p>Usa la <a href="dom-inspection.html">inspección del DOM</a> para encontrar selectores y una captura de pantalla de fallo para ver el estado de la página.</p>
+
+<h2 id="missed-response">waitForResponse no detecta una respuesta</h2>
+<p>Usa <code>afterWaitFor.response</code> en la acción que dispara la respuesta:</p>
+<pre><code class="language-json">{
+  "action": "click",
+  "selector": "#submit",
+  "afterWaitFor": {
+    "response": {
+      "urlContains": "/api/save",
+      "status": 200
+    },
+    "timeoutMs": 10000
+  }
+}</code></pre>
+<p>Esto arma el listener de respuesta antes del clic.</p>
+
+<h2 id="evaluate-rejected">evaluate o watch es rechazado</h2>
+<p>Verifica:</p>
+<pre><code class="language-env">ALLOW_EVALUATE=true</code></pre>
+<p>Verifica también:</p>
+<ul>
+  <li>La longitud del script está por debajo de <code>MAX_EVALUATE_SCRIPT_CHARS</code>.</li>
+  <li>El script devuelve valores seguros para JSON.</li>
+  <li>El script se completa antes de <code>EVALUATE_TIMEOUT_MS</code>.</li>
+</ul>
+
+<h2 id="missing-screenshots">Faltan capturas de pantalla</h2>
+<p>Verifica:</p>
+<ul>
+  <li><code>options.screenshots</code> no es <code>off</code>.</li>
+  <li>Un paso <code>screenshot</code> tiene un <code>name</code> válido.</li>
+  <li>El trabajo llegó al paso de captura de pantalla.</li>
+  <li>El directorio de artefactos tiene permisos de escritura.</li>
+</ul>
+
+<h2 id="missing-trace">Falta la traza</h2>
+<p>Verifica:</p>
+<ul>
+  <li><code>options.trace</code> es <code>true</code>.</li>
+  <li>El trabajo inició Playwright correctamente.</li>
+  <li>El directorio de artefactos tiene permisos de escritura.</li>
+  <li>El resultado incluye <code>evidence.tracePath</code>.</li>
+</ul>
+
+<h2 id="unexpected-requests">Solicitudes externas inesperadas</h2>
+<p>Si <code>unexpectedExternalRequests</code> contiene elementos:</p>
+<ul>
+  <li>Confirma si la aplicación llama legítimamente a esos orígenes.</li>
+  <li>Agrega los orígenes esperados a <code>ALLOWED_RESOURCE_ORIGINS</code>.</li>
+  <li>Investiga llamadas inesperadas de terceros en desarrollo o QA.</li>
+</ul>
+
+<h2 id="sensitive-output">La inspección del DOM devuelve sensitiveOutput true</h2>
+<p>Esto ocurre cuando <code>includeRenderedHtml</code> es verdadero. Trata la respuesta como sensible. Prefiere mantener <code>includeRenderedHtml</code> en falso a menos que realmente necesites el HTML.</p>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="development.html"><span class="dir">&larr; Anterior</span><span class="title">Flujo de desarrollo</span></a>
+      <a class="pager-link next" href="glossary.html"><span class="dir">Siguiente &rarr;</span><span class="title">Glosario</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">En esta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar en el manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Sin resultados para"};</script>
+<script src="../assets/search-index.es.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

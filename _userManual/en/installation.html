@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installation & setup · ScrapForAI User Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/installation.html">PT</a>
+      <a class="lang-link" href="../es/installation.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link active" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Get started</div>
+      <h1>Installation & setup</h1>
+      <p class="lede">Two supported ways to run ScrapForAI: Docker Compose for normal use, or local Node.js for development. Configuration is environment-variable driven in both cases.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+<p>Recommended runtime:</p>
+<ul>
+  <li>Docker Desktop.</li>
+  <li>Doppler CLI for secret management.</li>
+  <li>Node.js LTS for local development outside Docker.</li>
+  <li>npm.</li>
+</ul>
+<p>Optional:</p>
+<ul>
+  <li>Cloudflare <code>cloudflared</code>, if you want a temporary development tunnel. The Docker Compose file can run <code>cloudflared</code> for you through the <code>tunnel</code> profile.</li>
+</ul>
+
+<h2 id="install-docker">Option 1: Docker Compose installation</h2>
+<p>Recommended for normal use.</p>
+<ol>
+  <li>Open PowerShell.</li>
+  <li>Go to the project folder:
+<pre><code class="language-powershell">Set-Location -Path "D:\WorkSpace\ScrapForAI"</code></pre>
+  </li>
+  <li>Install and configure Doppler:
+<pre><code class="language-powershell">doppler login
+doppler setup</code></pre>
+  </li>
+  <li>Build and start the API:
+<pre><code class="language-powershell">doppler run -- docker compose up --build</code></pre>
+  </li>
+  <li>Verify health:
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+  </li>
+</ol>
+<p>Expected response:</p>
+<pre><code class="language-json">{
+  "status": "ok",
+  "service": "ScrapForAI",
+  "time": "2026-06-12T00:00:00.000Z"
+}</code></pre>
+
+<h2 id="install-local">Option 2: Local Node.js installation</h2>
+<p>Useful for development.</p>
+<ol>
+  <li>Open PowerShell.</li>
+  <li>Go to the project folder:
+<pre><code class="language-powershell">Set-Location -Path "D:\WorkSpace\ScrapForAI"</code></pre>
+  </li>
+  <li>Install dependencies:
+<pre><code class="language-powershell">npm ci</code></pre>
+  </li>
+  <li>Create a local <code>.env</code> file from <code>.env.example</code> and edit values:
+<pre><code class="language-powershell">Copy-Item .env.example .env</code></pre>
+  </li>
+  <li>Install Playwright browser dependencies if needed:
+<pre><code class="language-powershell">npx playwright install</code></pre>
+  </li>
+  <li>Start the development server:
+<pre><code class="language-powershell">npm run dev</code></pre>
+  </li>
+  <li>In another PowerShell window, verify health:
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+  </li>
+</ol>
+
+<h2 id="configuration">Configuration</h2>
+<p>ScrapForAI reads configuration from environment variables. In Docker Compose, these are passed to the container. In local development, <code>.env</code> is loaded by the application.</p>
+
+<h3 id="required-variables">Required variables</h3>
+<table>
+<thead><tr><th>Variable</th><th>Required</th><th>Example</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>SCRAPFORAI_API_KEY</code></td><td>Yes</td><td><code>use-a-long-random-secret</code></td><td>Bearer token required for protected endpoints. Must be at least 16 characters.</td></tr>
+<tr><td><code>ALLOWED_TARGET_ORIGINS</code></td><td>Yes</td><td><code>https://dev.example.com,https://qa.example.com</code></td><td>Origins ScrapForAI may visit as target URLs and main-frame redirects. Must contain at least one origin.</td></tr>
+</tbody>
+</table>
+
+<h3 id="common-server-variables">Common server variables</h3>
+<table>
+<thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>NODE_ENV</code></td><td><code>development</code></td><td>Runtime mode: <code>development</code>, <code>test</code>, or <code>production</code>.</td></tr>
+<tr><td><code>PORT</code></td><td><code>3000</code></td><td>HTTP port inside the app/container.</td></tr>
+<tr><td><code>HOST</code></td><td><code>0.0.0.0</code></td><td>Network interface to bind.</td></tr>
+<tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>Pino log level.</td></tr>
+<tr><td><code>MAX_REQUEST_BODY_SIZE</code></td><td><code>1mb</code></td><td>Maximum JSON request size accepted by Express.</td></tr>
+<tr><td><code>CORS_ALLOWED_ORIGINS</code></td><td>empty list</td><td>Browser origins allowed by CORS. Non-browser clients are not affected.</td></tr>
+</tbody>
+</table>
+
+<h3 id="browser-job-limits">Browser and job limits</h3>
+<table>
+<thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>PLAYWRIGHT_BROWSER</code></td><td><code>chromium</code></td><td>Browser engine: <code>chromium</code>, <code>firefox</code>, or <code>webkit</code>.</td></tr>
+<tr><td><code>MAX_STEPS_PER_JOB</code></td><td><code>50</code></td><td>Maximum steps in one routine.</td></tr>
+<tr><td><code>MAX_PARALLEL_JOBS</code></td><td><code>2</code></td><td>Maximum concurrent exploration or inspection jobs.</td></tr>
+<tr><td><code>JOB_TIMEOUT_MS</code></td><td><code>60000</code></td><td>Overall timeout for a routine.</td></tr>
+<tr><td><code>STEP_TIMEOUT_MS</code></td><td><code>10000</code></td><td>Maximum timeout for most step actions.</td></tr>
+<tr><td><code>MAX_DOM_SNAPSHOT_CHARS</code></td><td><code>20000</code></td><td>Maximum DOM text or rendered HTML snapshot length.</td></tr>
+</tbody>
+</table>
+
+<h3 id="evaluate-watch-limits">Evaluate and watch limits</h3>
+<table>
+<thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>ALLOW_EVALUATE</code></td><td><code>false</code></td><td>Enables <code>evaluate</code> and <code>watch</code> steps when true.</td></tr>
+<tr><td><code>MAX_EVALUATE_SCRIPT_CHARS</code></td><td><code>4000</code></td><td>Maximum JavaScript script length.</td></tr>
+<tr><td><code>MAX_EVALUATE_RESULT_CHARS</code></td><td><code>20000</code></td><td>Maximum serialized result length before truncation.</td></tr>
+<tr><td><code>EVALUATE_TIMEOUT_MS</code></td><td><code>5000</code></td><td>Timeout for one script evaluation.</td></tr>
+<tr><td><code>MAX_WATCH_DURATION_MS</code></td><td><code>30000</code></td><td>Maximum watch duration.</td></tr>
+<tr><td><code>MIN_WATCH_INTERVAL_MS</code></td><td><code>100</code></td><td>Minimum watch sampling interval.</td></tr>
+<tr><td><code>MAX_WATCH_SAMPLES</code></td><td><code>200</code></td><td>Maximum watch samples.</td></tr>
+</tbody>
+</table>
+
+<h3 id="artifact-variables">Artifact variables</h3>
+<table>
+<thead><tr><th>Variable</th><th>Default</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>ARTIFACT_DIR</code></td><td><code>/app/artifacts</code></td><td>Directory where job artifacts are saved. In Compose this maps to <code>./artifacts</code>.</td></tr>
+<tr><td><code>ARTIFACT_RETENTION_HOURS</code></td><td><code>4</code></td><td>Artifact folders older than this are pruned when new jobs create an artifact store.</td></tr>
+</tbody>
+</table>
+
+<h3 id="example-env">Example .env</h3>
+<pre><code class="language-env">NODE_ENV=development
+PORT=3000
+HOST=0.0.0.0
+
+SCRAPFORAI_API_KEY=replace-with-a-strong-random-value
+
+ALLOWED_TARGET_ORIGINS=https://dev.example.com,https://qa.example.com
+ALLOWED_RESOURCE_ORIGINS=https://dev.example.com,https://qa.example.com,https://api-dev.example.com
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
+MAX_STEPS_PER_JOB=50
+JOB_TIMEOUT_MS=60000
+STEP_TIMEOUT_MS=10000
+MAX_REQUEST_BODY_SIZE=1mb
+MAX_PARALLEL_JOBS=2
+MAX_DOM_SNAPSHOT_CHARS=20000
+
+ALLOW_EVALUATE=false
+MAX_EVALUATE_SCRIPT_CHARS=4000
+MAX_EVALUATE_RESULT_CHARS=20000
+EVALUATE_TIMEOUT_MS=5000
+MAX_WATCH_DURATION_MS=30000
+MIN_WATCH_INTERVAL_MS=100
+MAX_WATCH_SAMPLES=200
+
+ARTIFACT_RETENTION_HOURS=4
+ARTIFACT_DIR=/app/artifacts
+LOG_LEVEL=info
+PLAYWRIGHT_BROWSER=chromium</code></pre>
+
+<h2 id="running">Running ScrapForAI</h2>
+<h3 id="run-compose">Start with Docker Compose</h3>
+<pre><code class="language-powershell">Set-Location -Path "D:\WorkSpace\ScrapForAI"
+doppler run -- docker compose up --build</code></pre>
+<p>The Compose file binds the API to <code>http://localhost:3000</code>. The host mapping is restricted to <code>127.0.0.1:3000:3000</code>, so the service is exposed locally by default.</p>
+
+<h3 id="run-dev">Start for local development</h3>
+<pre><code class="language-powershell">Set-Location -Path "D:\WorkSpace\ScrapForAI"
+npm run dev</code></pre>
+
+<h3 id="run-prod-local">Start compiled production code locally</h3>
+<pre><code class="language-powershell">Set-Location -Path "D:\WorkSpace\ScrapForAI"
+npm run build
+npm start</code></pre>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="index.html"><span class="dir">&larr; Previous</span><span class="title">Overview</span></a>
+      <a class="pager-link next" href="quickstart.html"><span class="dir">Next &rarr;</span><span class="title">Quick start</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

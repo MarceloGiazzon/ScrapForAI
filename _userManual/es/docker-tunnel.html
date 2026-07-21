@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docker y túnel · ScrapForAI Manual de Usuario</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="es">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menú">Menú</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual de Usuario · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/docker-tunnel.html">EN</a>
+      <a class="lang-link" href="../pt/docker-tunnel.html">PT</a>
+      <a class="lang-link active" href="#">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar en el manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeros pasos</div>
+        <a class="nav-link" href="index.html">Resumen general</a>
+        <a class="nav-link" href="installation.html">Instalación y configuración</a>
+        <a class="nav-link" href="quickstart.html">Inicio rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceptos y seguridad</div>
+        <a class="nav-link" href="security.html">Modelo de seguridad</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referencia</div>
+        <a class="nav-link" href="api-reference.html">Referencia de la API</a>
+        <a class="nav-link" href="routine-guide.html">Guía de solicitudes de rutina</a>
+        <a class="nav-link" href="step-actions.html">Referencia de acciones de paso</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guías</div>
+        <a class="nav-link" href="examples.html">Ejemplos prácticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspección del DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefactos y evidencia</a>
+        <a class="nav-link active" href="docker-tunnel.html">Docker y túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Proyecto</div>
+        <a class="nav-link" href="development.html">Flujo de desarrollo</a>
+        <a class="nav-link" href="troubleshooting.html">Solución de problemas</a>
+        <a class="nav-link" href="glossary.html">Glosario</a>
+      </div>
+    <div class="sidebar-footer">
+      Ejecutor de exploración de navegador para entornos de desarrollo y QA controlados.<br><br>
+      &copy; Proyecto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guías</div>
+      <h1>Docker y túnel</h1>
+      <p class="lede">Cómo se configura el servicio Compose, y cómo ejecutar de forma segura un túnel rápido (Quick Tunnel) de Cloudflare solo para desarrollo.</p>
+
+<h2 id="docker-service">Servicio Docker</h2>
+<p>El servicio Compose se llama:</p>
+<pre><code class="language-text">scrapforai-api</code></pre>
+<p>Mapea:</p>
+<pre><code class="language-text">127.0.0.1:3000 -> puerto 3000 del contenedor
+./artifacts -> /app/artifacts</code></pre>
+<p><strong>Iniciar:</strong></p>
+<pre><code class="language-powershell">doppler run -- docker compose up --build</code></pre>
+<p><strong>Detener:</strong></p>
+<pre><code class="language-powershell">docker compose down</code></pre>
+<p><strong>Ver logs:</strong></p>
+<pre><code class="language-powershell">docker logs scrapforai-api</code></pre>
+
+<h2 id="dev-tunnel">Túnel rápido de Cloudflare solo para desarrollo</h2>
+<p>No inicies un túnel hasta que estas verificaciones funcionen localmente:</p>
+<ul>
+  <li><code>GET /health</code>.</li>
+  <li>Los endpoints protegidos rechazan claves de API faltantes.</li>
+  <li>El rechazo de la lista de permitidos de URL de destino funciona.</li>
+  <li>El rechazo de esquema JSON inválido funciona.</li>
+</ul>
+<p><strong>Iniciar la API más el túnel:</strong></p>
+<pre><code class="language-powershell">doppler run -- docker compose --profile tunnel up --build</code></pre>
+<p><strong>Encontrar la URL pública temporal:</strong></p>
+<pre><code class="language-powershell">docker logs scrapforai-cloudflared-quick-tunnel</code></pre>
+<div class="callout danger">
+  <span class="callout-title">Reglas importantes</span>
+  <ul style="margin-bottom:0;">
+    <li>Usa el túnel solo para desarrollo.</li>
+    <li>Mantén la clave de API habilitada.</li>
+    <li>No envíes credenciales de producción a través del túnel.</li>
+    <li>Mantén <code>ALLOWED_TARGET_ORIGINS</code> acotado.</li>
+    <li>Detén el túnel cuando termines.</li>
+  </ul>
+</div>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="artifacts.html"><span class="dir">&larr; Anterior</span><span class="title">Artefactos y evidencia</span></a>
+      <a class="pager-link next" href="development.html"><span class="dir">Siguiente &rarr;</span><span class="title">Flujo de desarrollo</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">En esta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar en el manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Sin resultados para"};</script>
+<script src="../assets/search-index.es.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

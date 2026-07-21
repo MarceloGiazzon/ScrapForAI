@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Esquemas JSON · ScrapForAI Manual de Usuario</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="es">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menú">Menú</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual de Usuario · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/schemas.html">EN</a>
+      <a class="lang-link" href="../pt/schemas.html">PT</a>
+      <a class="lang-link active" href="#">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar en el manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeros pasos</div>
+        <a class="nav-link" href="index.html">Resumen general</a>
+        <a class="nav-link" href="installation.html">Instalación y configuración</a>
+        <a class="nav-link" href="quickstart.html">Inicio rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceptos y seguridad</div>
+        <a class="nav-link" href="security.html">Modelo de seguridad</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referencia</div>
+        <a class="nav-link" href="api-reference.html">Referencia de la API</a>
+        <a class="nav-link" href="routine-guide.html">Guía de solicitudes de rutina</a>
+        <a class="nav-link" href="step-actions.html">Referencia de acciones de paso</a>
+        <a class="nav-link active" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guías</div>
+        <a class="nav-link" href="examples.html">Ejemplos prácticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspección del DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefactos y evidencia</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker y túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Proyecto</div>
+        <a class="nav-link" href="development.html">Flujo de desarrollo</a>
+        <a class="nav-link" href="troubleshooting.html">Solución de problemas</a>
+        <a class="nav-link" href="glossary.html">Glosario</a>
+      </div>
+    <div class="sidebar-footer">
+      Ejecutor de exploración de navegador para entornos de desarrollo y QA controlados.<br><br>
+      &copy; Proyecto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Referencia</div>
+      <h1>Esquemas JSON</h1>
+      <p class="lede">ScrapForAI publica JSON Schemas en vivo para solicitudes y resultados, además de los snapshots de esquema versionados en el repositorio.</p>
+
+<h2 id="live-schemas">Esquemas en vivo</h2>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.request.json"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.result.json"</code></pre>
+
+<h2 id="committed-schemas">Esquemas versionados</h2>
+<pre><code class="language-text">schema/routine.request.json
+schema/routine.result.json</code></pre>
+<p>Para regenerarlos:</p>
+<pre><code class="language-powershell">npm run generate:schema</code></pre>
+<p>El build también regenera los esquemas primero:</p>
+<pre><code class="language-powershell">npm run build</code></pre>
+<p>El esquema en vivo refleja los límites del entorno en ejecución. El esquema versionado refleja los valores predeterminados al momento de la generación.</p>
+
+<h2 id="cross-field-rules">Reglas de validación entre campos</h2>
+<p>La validación del lado del servidor también aplica reglas entre campos que no están completamente capturadas por el JSON Schema, entre ellas:</p>
+<ul>
+  <li>IDs de paso únicos.</li>
+  <li><code>waitForElapsed.sinceStepId</code> debe apuntar a un paso anterior.</li>
+  <li>Exactamente una fuente de valor para los pasos basados en valor.</li>
+  <li>Exactamente una condición de espera en <code>waitFor</code> y <code>afterWaitFor</code>.</li>
+  <li><code>evaluate</code> y <code>watch</code> requieren <code>ALLOW_EVALUATE=true</code>.</li>
+</ul>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="step-actions.html"><span class="dir">&larr; Anterior</span><span class="title">Referencia de acciones de paso</span></a>
+      <a class="pager-link next" href="examples.html"><span class="dir">Siguiente &rarr;</span><span class="title">Ejemplos prácticos</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">En esta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar en el manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Sin resultados para"};</script>
+<script src="../assets/search-index.es.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

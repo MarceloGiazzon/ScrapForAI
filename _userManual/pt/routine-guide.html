@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guia da requisição de rotina · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/routine-guide.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/routine-guide.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link active" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Referência</div>
+      <h1>Guia da requisição de rotina</h1>
+      <p class="lede">A estrutura completa de uma rotina de exploração: campos de nível superior, opções, campos de passo, direcionamento de frame, condições de espera e fontes de valor.</p>
+
+<h2 id="minimal-routine">Rotina mínima</h2>
+<pre><code class="language-json">{
+  "targetUrl": "https://dev.example.com",
+  "steps": [
+    {
+      "action": "goto",
+      "url": "$targetUrl"
+    }
+  ]
+}</code></pre>
+
+<h2 id="full-routine">Estrutura completa da rotina</h2>
+<pre><code class="language-json">{
+  "scenarioName": "login smoke test",
+  "targetUrl": "https://dev.example.com/login",
+  "credentials": {
+    "loginUser": "test-user",
+    "loginPassword": "test-password"
+  },
+  "variables": {
+    "expectedText": "Dashboard"
+  },
+  "caller": {
+    "correlationId": "ticket-1234",
+    "source": "local-ai-tool",
+    "metadata": {
+      "branch": "feature/login-fix"
+    }
+  },
+  "options": {
+    "headless": true,
+    "trace": false,
+    "screenshots": "onFailure",
+    "collectDomOnFailure": true
+  },
+  "steps": [
+    {
+      "label": "open login",
+      "action": "goto",
+      "url": "$targetUrl"
+    }
+  ]
+}</code></pre>
+
+<h2 id="top-level-fields">Campos de nível superior</h2>
+<table>
+<thead><tr><th>Campo</th><th>Obrigatório</th><th>Descrição</th></tr></thead>
+<tbody>
+<tr><td><code>scenarioName</code></td><td>Não</td><td>Nome legível da rotina, até 160 caracteres.</td></tr>
+<tr><td><code>targetUrl</code></td><td>Sim</td><td>URL de destino inicial. Deve corresponder a <code>ALLOWED_TARGET_ORIGINS</code>.</td></tr>
+<tr><td><code>credentials</code></td><td>Não</td><td>Valores secretos usados pelos passos. Os valores são ocultados nos resultados.</td></tr>
+<tr><td><code>variables</code></td><td>Não</td><td>Valores reutilizáveis não secretos usados pelos passos.</td></tr>
+<tr><td><code>caller</code></td><td>Não</td><td>Metadados opcionais sobre o chamador.</td></tr>
+<tr><td><code>options</code></td><td>Não</td><td>Opções de execução. Padrões são aplicados quando omitidos.</td></tr>
+<tr><td><code>steps</code></td><td>Sim</td><td>Lista ordenada de ações e asserções.</td></tr>
+</tbody>
+</table>
+
+<h2 id="options">Opções</h2>
+<table>
+<thead><tr><th>Opção</th><th>Padrão</th><th>Descrição</th></tr></thead>
+<tbody>
+<tr><td><code>headless</code></td><td><code>true</code></td><td>Executa o navegador sem interface quando verdadeiro.</td></tr>
+<tr><td><code>trace</code></td><td><code>false</code></td><td>Salva um ZIP de trace do Playwright quando verdadeiro.</td></tr>
+<tr><td><code>screenshots</code></td><td><code>onFailure</code></td><td><code>off</code>, <code>onFailure</code> ou <code>always</code>.</td></tr>
+<tr><td><code>collectDomOnFailure</code></td><td><code>false</code></td><td>Captura o texto do DOM quando um passo falha.</td></tr>
+<tr><td><code>viewport</code></td><td><code>{ width: 1366, height: 768 }</code></td><td>Tamanho do viewport do navegador no início do job, ex. <code>{ "width": 390, "height": 844 }</code> para uma execução em tamanho de celular. Largura/altura aceitam 50&ndash;4096 px.</td></tr>
+</tbody>
+</table>
+<div class="callout">
+  <span class="callout-title">Verificações responsivas</span>
+  <p style="margin-bottom:0;">Para testar vários tamanhos de tela dentro de um único job, defina <code>options.viewport</code> para o tamanho inicial e use o passo <code>setViewportSize</code> (veja <a href="step-actions.html#setviewportsize">ações de passo</a>) para redimensionar durante a execução.</p>
+</div>
+
+<h2 id="common-step-fields">Campos comuns de passo</h2>
+<p>Todo passo pode incluir estes campos opcionais:</p>
+<table>
+<thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>ID único do passo. Obrigatório se outro passo usar <code>waitForElapsed</code> referenciando este passo.</td></tr>
+<tr><td><code>label</code></td><td>Rótulo curto e legível.</td></tr>
+<tr><td><code>description</code></td><td>Descrição mais longa.</td></tr>
+<tr><td><code>frame</code></td><td>Direciona para um iframe por nome, fragmento de URL ou índice.</td></tr>
+<tr><td><code>delayMs</code></td><td>Espera antes da ação do passo.</td></tr>
+<tr><td><code>waitFor</code></td><td>Condição de espera executada antes da ação.</td></tr>
+<tr><td><code>afterWaitFor</code></td><td>Condição de espera executada após a ação. Esperas de resposta são armadas antes da ação.</td></tr>
+</tbody>
+</table>
+
+<h2 id="frame-targeting">Direcionamento de frame</h2>
+<p>Use <code>frame</code> quando o controle estiver dentro de um iframe.</p>
+<p><strong>Por nome do frame:</strong></p>
+<pre><code class="language-json">{
+  "action": "click",
+  "frame": { "name": "payment-frame" },
+  "selector": "button[type='submit']"
+}</code></pre>
+<p><strong>Por fragmento de URL do frame:</strong></p>
+<pre><code class="language-json">{
+  "action": "fill",
+  "frame": { "urlContains": "/embedded/search" },
+  "selector": "[name='q']",
+  "value": "ABC123"
+}</code></pre>
+<p><strong>Por índice do frame:</strong></p>
+<pre><code class="language-json">{
+  "action": "assertVisible",
+  "frame": { "index": 1 },
+  "selector": ".loaded"
+}</code></pre>
+<p>Se o frame não for encontrado, o ScrapForAI recorre ao frame principal.</p>
+
+<h2 id="wait-conditions">Condições de espera</h2>
+<p><code>waitFor</code> e <code>afterWaitFor</code> suportam exatamente uma condição: <code>selector</code>, <code>response</code>, <code>loadState</code> ou <code>urlContains</code>.</p>
+<p><strong>Espera por seletor:</strong></p>
+<pre><code class="language-json">{
+  "action": "click",
+  "selector": "#open-menu",
+  "afterWaitFor": {
+    "selector": ".menu-item",
+    "state": "visible",
+    "timeoutMs": 5000
+  }
+}</code></pre>
+<p><strong>Espera por resposta:</strong></p>
+<pre><code class="language-json">{
+  "action": "click",
+  "selector": "button[type='submit']",
+  "afterWaitFor": {
+    "response": {
+      "urlContains": "/api/login",
+      "status": 200
+    },
+    "timeoutMs": 10000
+  }
+}</code></pre>
+<p><strong>Espera por estado de carregamento:</strong></p>
+<pre><code class="language-json">{
+  "action": "goto",
+  "url": "$targetUrl",
+  "afterWaitFor": {
+    "loadState": "networkidle",
+    "timeoutMs": 10000
+  }
+}</code></pre>
+<p><strong>Espera por URL:</strong></p>
+<pre><code class="language-json">{
+  "action": "click",
+  "selector": "a[href='/dashboard']",
+  "afterWaitFor": {
+    "urlContains": "/dashboard",
+    "timeoutMs": 10000
+  }
+}</code></pre>
+<div class="callout">
+  <span class="callout-title">Dica</span>
+  <p style="margin-bottom:0;">Use <code>afterWaitFor.response</code> para respostas disparadas pela ação, porque o ScrapForAI arma o listener antes de executar a ação.</p>
+</div>
+
+<h2 id="value-sources">Fontes de valor</h2>
+<p>Alguns passos precisam de um valor, como <code>fill</code> e <code>selectOption</code>. É necessário exatamente uma fonte de valor: <code>value</code>, <code>valueFromCredential</code> ou <code>valueFromVariable</code>.</p>
+<p><strong>Valor literal:</strong></p>
+<pre><code class="language-json">{
+  "action": "fill",
+  "selector": "[name='search']",
+  "value": "ABC123"
+}</code></pre>
+<p><strong>Valor de credencial:</strong></p>
+<pre><code class="language-json">{
+  "action": "fill",
+  "selector": "#password",
+  "valueFromCredential": "loginPassword"
+}</code></pre>
+<p><strong>Valor de variável:</strong></p>
+<pre><code class="language-json">{
+  "action": "fill",
+  "selector": "[name='query']",
+  "valueFromVariable": "searchText"
+}</code></pre>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="api-reference.html"><span class="dir">&larr; Anterior</span><span class="title">Referência da API</span></a>
+      <a class="pager-link next" href="step-actions.html"><span class="dir">Próximo &rarr;</span><span class="title">Referência de ações de passo</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modelo de segurança · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/security.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/security.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link active" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Conceitos e segurança</div>
+      <h1>Modelo de segurança</h1>
+      <p class="lede">A segurança é central para o ScrapForAI. Configure-a com cuidado antes de conectar qualquer ferramenta de IA à API.</p>
+
+<h2 id="public-endpoints">Endpoints públicos</h2>
+<p>Estes endpoints não exigem autenticação de API:</p>
+<ul>
+  <li><code>GET /health</code> <span class="chip auth-public">público</span></li>
+  <li><code>GET /v1/schema</code> <span class="chip auth-public">público</span></li>
+  <li><code>GET /v1/schema/routine.request.json</code> <span class="chip auth-public">público</span></li>
+  <li><code>GET /v1/schema/routine.result.json</code> <span class="chip auth-public">público</span></li>
+</ul>
+
+<h2 id="protected-endpoints">Endpoints protegidos</h2>
+<p>Estes endpoints exigem um token bearer:</p>
+<pre><code class="language-http">Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;</code></pre>
+<ul>
+  <li><code>POST /v1/explorations/run</code> <span class="chip auth-required">requer autenticação</span></li>
+  <li><code>POST /v1/explorations/inspect-dom</code> <span class="chip auth-required">requer autenticação</span></li>
+</ul>
+
+<h2 id="target-origin-restrictions">Restrições de origem de destino</h2>
+<p><code>ALLOWED_TARGET_ORIGINS</code> controla:</p>
+<ul>
+  <li>A <code>targetUrl</code> inicial.</li>
+  <li>URLs literais usadas por passos <code>goto</code>.</li>
+  <li>Redirecionamentos do frame principal.</li>
+</ul>
+<p>Apenas origens nesta lista são permitidas. Se um destino ou redirecionamento não for permitido, a requisição falha.</p>
+<pre><code class="language-env">ALLOWED_TARGET_ORIGINS=https://dev.example.com,https://qa.example.com</code></pre>
+<p>A origem inclui esquema, host e porta opcional. Caminhos são ignorados quando o serviço normaliza a origem.</p>
+
+<h2 id="resource-origin-reporting">Relato de origem de recursos</h2>
+<p><code>ALLOWED_RESOURCE_ORIGINS</code> controla os recursos externos ou origens de API esperados. Origens de recursos externos inesperadas são relatadas na evidência para que o chamador possa inspecionar tráfego externo suspeito ou acidental.</p>
+<pre><code class="language-env">ALLOWED_RESOURCE_ORIGINS=https://dev.example.com,https://api-dev.example.com</code></pre>
+
+<h2 id="secret-redaction">Ocultação de segredos</h2>
+<p>O ScrapForAI oculta:</p>
+<ul>
+  <li>O <code>SCRAPFORAI_API_KEY</code> configurado.</li>
+  <li>Valores fornecidos em <code>credentials</code>.</li>
+  <li>Chaves e valores sensíveis detectados recursivamente nas estruturas de resultado.</li>
+  <li>Cabeçalhos de autorização e cookies nos logs.</li>
+</ul>
+<div class="callout warn">
+  <span class="callout-title">Credentials vs. variables</span>
+  <p style="margin-bottom:0;">As <code>variables</code> de uma rotina <strong>não</strong> são tratadas como segredos por padrão. Coloque senhas, tokens e outros valores sensíveis em <code>credentials</code>, não em <code>variables</code>.</p>
+</div>
+
+<h2 id="javascript-execution">Execução de JavaScript</h2>
+<p>Os passos <code>evaluate</code> e <code>watch</code> executam JavaScript fornecido pelo chamador dentro da página. Eles estão <strong>desabilitados por padrão</strong>.</p>
+<p>Mantenha essa configuração desabilitada, a menos que todas estas condições sejam verdadeiras:</p>
+<ul>
+  <li>O chamador é confiável.</li>
+  <li>O destino é um sistema de desenvolvimento ou teste controlado.</li>
+  <li>Os dados no navegador são seguros para uso diagnóstico local.</li>
+  <li>Você entende que os scripts podem ler e modificar o estado da página.</li>
+</ul>
+<p>Habilite apenas para uso local confiável:</p>
+<pre><code class="language-env">ALLOW_EVALUATE=true</code></pre>
+
+<h2 id="artifacts-sensitive">Artefatos podem conter dados sensíveis</h2>
+<p>Screenshots, traces, snapshots de texto do DOM, HTML renderizado e evidências de rede podem expor dados da aplicação. Armazene os artefatos localmente, mantenha a retenção curta e evite dados de produção.</p>
+<p>A retenção padrão é de 4 horas:</p>
+<pre><code class="language-env">ARTIFACT_RETENTION_HOURS=4</code></pre>
+
+<h2 id="operational-checklist">Checklist operacional</h2>
+<h3 id="before-connecting-ai">Antes de conectar uma ferramenta de IA</h3>
+<ul>
+  <li>Defina um <code>SCRAPFORAI_API_KEY</code> forte.</li>
+  <li>Mantenha <code>ALLOWED_TARGET_ORIGINS</code> restrito.</li>
+  <li>Mantenha <code>ALLOWED_RESOURCE_ORIGINS</code> explícito.</li>
+  <li>Mantenha <code>ALLOW_EVALUATE=false</code>, a menos que testes locais confiáveis exijam o contrário.</li>
+  <li>Use credenciais de teste descartáveis.</li>
+  <li>Mantenha a retenção de artefatos curta.</li>
+  <li>Verifique a rejeição de autenticação, a rejeição da allowlist de URL e a rejeição de JSON inválido.</li>
+  <li>Confirme que os artefatos são gravados apenas onde esperado.</li>
+  <li>Evite dados de produção.</li>
+</ul>
+<h3 id="before-opening-tunnel">Antes de abrir um túnel</h3>
+<ul>
+  <li>Confirme que a verificação de saúde local funciona.</li>
+  <li>Confirme que os endpoints protegidos exigem a chave de API.</li>
+  <li>Confirme o comportamento da allowlist.</li>
+  <li>Confirme que nenhuma credencial de produção está em uso.</li>
+  <li>Pare o túnel imediatamente após os testes.</li>
+</ul>
+<h3 id="before-sharing-artifacts">Antes de compartilhar artefatos</h3>
+<ul>
+  <li>Revise os screenshots.</li>
+  <li>Revise o <code>result.json</code>.</li>
+  <li>Revise o conteúdo do trace.</li>
+  <li>Confirme que credenciais e tokens estão ocultados.</li>
+  <li>Remova artefatos desnecessários.</li>
+</ul>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="quickstart.html"><span class="dir">&larr; Anterior</span><span class="title">Início rápido</span></a>
+      <a class="pager-link next" href="api-reference.html"><span class="dir">Próximo &rarr;</span><span class="title">Referência da API</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

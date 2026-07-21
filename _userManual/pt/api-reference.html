@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Referência da API · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/api-reference.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/api-reference.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link active" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Referência</div>
+      <h1>Referência da API</h1>
+      <p class="lede">Todos os endpoints HTTP expostos pelo ScrapForAI, seus requisitos de autenticação, formatos de requisição e códigos de status.</p>
+
+<h2 id="authentication">Autenticação da API</h2>
+<p>Chamadas protegidas da API exigem um token bearer.</p>
+<p><strong>Configuração do cabeçalho no PowerShell:</strong></p>
+<pre><code class="language-powershell">$ApiKey = "paste-your-scrapforai-api-key-here"
+$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+<p><strong>Configuração do cabeçalho com curl:</strong></p>
+<pre><code class="language-bash">API_KEY="paste-your-scrapforai-api-key-here"
+curl -H "Authorization: Bearer $API_KEY" http://localhost:3000/v1/schema</code></pre>
+<p>O endpoint de schema é público, mas usar o mesmo estilo de cabeçalho em todas as chamadas é conveniente.</p>
+<p>Comportamento esperado quando não autorizado:</p>
+<ul>
+  <li>Cabeçalho ausente: <code>401 Unauthorized</code>.</li>
+  <li>Chave de API incorreta: <code>401 Unauthorized</code>.</li>
+  <li>Endpoint protegido sem token bearer: <code>401 Unauthorized</code>.</li>
+</ul>
+
+<h2 id="get-health">GET /health</h2>
+<p><span class="chip method-get">GET</span><span class="chip auth-public">sem autenticação</span></p>
+<p>Verifica se o serviço está em execução.</p>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+<pre><code class="language-json">{
+  "status": "ok",
+  "service": "ScrapForAI",
+  "time": "2026-06-12T00:00:00.000Z"
+}</code></pre>
+
+<h2 id="get-schema">GET /v1/schema</h2>
+<p><span class="chip method-get">GET</span><span class="chip auth-public">sem autenticação</span></p>
+<p>Retorna links para os schemas JSON públicos de requisição e resultado.</p>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema"</code></pre>
+<pre><code class="language-json">{
+  "routineRequest": "/v1/schema/routine.request.json",
+  "routineResult": "/v1/schema/routine.result.json"
+}</code></pre>
+
+<h2 id="get-schema-request">GET /v1/schema/routine.request.json</h2>
+<p><span class="chip method-get">GET</span><span class="chip auth-public">sem autenticação</span></p>
+<p>Retorna o JSON Schema para requisições de rotina de exploração.</p>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.request.json"</code></pre>
+
+<h2 id="get-schema-result">GET /v1/schema/routine.result.json</h2>
+<p><span class="chip method-get">GET</span><span class="chip auth-public">sem autenticação</span></p>
+<p>Retorna o JSON Schema para resultados de rotina de exploração.</p>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.result.json"</code></pre>
+
+<h2 id="post-run">POST /v1/explorations/run</h2>
+<p><span class="chip method-post">POST</span><span class="chip auth-required">requer autenticação</span></p>
+<p>Executa uma rotina de exploração de navegador.</p>
+<pre><code class="language-powershell">$Body = @{
+    scenarioName = "basic page check"
+    targetUrl = "https://dev.example.com"
+    options = @{
+        trace = $false
+        screenshots = "onFailure"
+        collectDomOnFailure = $true
+    }
+    steps = @(
+        @{ action = "goto"; url = "`$targetUrl" },
+        @{ action = "assertTextContains"; selector = "body"; text = "Welcome" },
+        @{ action = "collect"; what = @("console", "network", "url") }
+    )
+} | ConvertTo-Json -Depth 20
+
+Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:3000/v1/explorations/run" `
+    -Headers $Headers `
+    -ContentType "application/json" `
+    -Body $Body</code></pre>
+<table>
+<thead><tr><th>Status</th><th>Significado</th></tr></thead>
+<tbody>
+<tr><td><code>200</code></td><td>A rotina foi executada e passou.</td></tr>
+<tr><td><code>500</code></td><td>Uma rotina válida foi executada, mas falhou (ex.: uma asserção de passo ou timeout).</td></tr>
+<tr><td><code>400</code></td><td>A requisição é inválida, ou uma URL não é permitida.</td></tr>
+<tr><td><code>401</code></td><td>A autenticação falhou.</td></tr>
+<tr><td><code>429</code></td><td>Já existem muitos jobs em execução (veja <code>MAX_PARALLEL_JOBS</code>).</td></tr>
+</tbody>
+</table>
+
+<h2 id="post-inspect-dom">POST /v1/explorations/inspect-dom</h2>
+<p><span class="chip method-post">POST</span><span class="chip auth-required">requer autenticação</span></p>
+<p>Inspeciona a página de destino e retorna controles, formulários, seletores, texto e evidências diagnósticas opcionais.</p>
+<pre><code class="language-powershell">$Body = @{
+    targetUrl = "https://dev.example.com/login"
+    waitUntil = "domcontentloaded"
+    includeRenderedHtml = $false
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20
+
+Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:3000/v1/explorations/inspect-dom" `
+    -Headers $Headers `
+    -ContentType "application/json" `
+    -Body $Body</code></pre>
+<p>Veja o <a href="dom-inspection.html">guia de inspeção de DOM</a> para o formato completo da resposta e referência de campos.</p>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="security.html"><span class="dir">&larr; Anterior</span><span class="title">Modelo de segurança</span></a>
+      <a class="pager-link next" href="routine-guide.html"><span class="dir">Próximo &rarr;</span><span class="title">Guia da requisição de rotina</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

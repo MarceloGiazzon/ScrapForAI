@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artefatos e evidências · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/artifacts.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/artifacts.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link active" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guias</div>
+      <h1>Artefatos e evidências</h1>
+      <p class="lede">Onde a saída do job é gravada no disco, como screenshots e traces são controlados, e a estrutura do objeto de evidência nos resultados.</p>
+
+<h2 id="artifact-layout">Layout de artefatos</h2>
+<p>Cada job recebe sua própria pasta:</p>
+<pre><code class="language-text">artifacts/
+  job_&lt;id&gt;/
+    result.json
+    screenshots/
+      failure.png
+      custom-name.png
+    trace.zip</code></pre>
+
+<h2 id="screenshot-behavior">Comportamento de screenshots</h2>
+<p>Controlado por <code>options.screenshots</code>:</p>
+<table>
+<thead><tr><th>Valor</th><th>Comportamento</th></tr></thead>
+<tbody>
+<tr><td><code>off</code></td><td>Nenhum screenshot é salvo.</td></tr>
+<tr><td><code>onFailure</code></td><td>O screenshot de falha é salvo quando um passo falha. Passos de screenshot nomeados também salvam quando screenshots não está desligado.</td></tr>
+<tr><td><code>always</code></td><td>Screenshots nomeados são salvos, e o screenshot de falha é salvo em caso de falha.</td></tr>
+</tbody>
+</table>
+
+<h2 id="trace-behavior">Comportamento de trace</h2>
+<pre><code class="language-json">{
+  "options": {
+    "trace": true
+  }
+}</code></pre>
+<p>Quando habilitado, o ScrapForAI salva um trace do Playwright em:</p>
+<pre><code class="language-text">artifacts/job_&lt;id&gt;/trace.zip</code></pre>
+
+<h2 id="result-file">Arquivo de resultado</h2>
+<p>A resposta da API também é salva em:</p>
+<pre><code class="language-text">artifacts/job_&lt;id&gt;/result.json</code></pre>
+
+<h2 id="evidence-object">Objeto de evidência</h2>
+<pre><code class="language-json">{
+  "screenshots": [],
+  "tracePath": "artifacts/job_abc123/trace.zip",
+  "console": [],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "network": [],
+  "networkFailures": [],
+  "unexpectedExternalRequests": [],
+  "domTextSnapshot": "text...",
+  "finalUrl": "https://dev.example.com/dashboard"
+}</code></pre>
+
+<h2 id="result-shape">Formato completo do resultado</h2>
+<p>O resultado de exploração de nível superior inclui:</p>
+<table>
+<thead><tr><th>Campo</th><th>Descrição</th></tr></thead>
+<tbody>
+<tr><td><code>jobId</code></td><td>Nome da pasta de artefatos.</td></tr>
+<tr><td><code>scenarioName</code></td><td>Repetido a partir da requisição, se fornecido.</td></tr>
+<tr><td><code>status</code></td><td><code>passed</code> ou <code>failed</code>.</td></tr>
+<tr><td><code>startedAt</code> / <code>finishedAt</code> / <code>durationMs</code></td><td>Tempo de todo o job.</td></tr>
+<tr><td><code>targetUrl</code> / <code>finalUrl</code></td><td>URL solicitada e resultante.</td></tr>
+<tr><td><code>caller</code></td><td>Metadados do chamador repetidos, ou <code>null</code>.</td></tr>
+<tr><td><code>failedStepIndex</code></td><td>Índice do passo que falhou, quando aplicável.</td></tr>
+<tr><td><code>error</code></td><td><code>{ type, message }</code> de alto nível quando há falha.</td></tr>
+<tr><td><code>steps</code></td><td>Array de resultados por passo: <code>index</code>, <code>id</code>, <code>label</code>, <code>action</code>, <code>status</code>, tempos e <code>error</code>.</td></tr>
+<tr><td><code>extracted</code></td><td>Mapa de nomes para valores salvos por <code>extractText</code>, <code>extractAttribute</code>, <code>evaluate</code> ou <code>watch</code>.</td></tr>
+<tr><td><code>evidence</code></td><td>O objeto de evidência descrito acima.</td></tr>
+</tbody>
+</table>
+
+<h2 id="artifact-retention">Retenção de artefatos</h2>
+<p>Pastas de artefatos antigas são removidas quando um novo repositório de artefatos é criado. O corte é controlado por:</p>
+<pre><code class="language-env">ARTIFACT_RETENTION_HOURS=4</code></pre>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="dom-inspection.html"><span class="dir">&larr; Anterior</span><span class="title">Inspeção do DOM</span></a>
+      <a class="pager-link next" href="docker-tunnel.html"><span class="dir">Próximo &rarr;</span><span class="title">Docker e túnel</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

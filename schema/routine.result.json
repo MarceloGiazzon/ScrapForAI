@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "jobId": {
+      "type": "string"
+    },
+    "scenarioName": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "startedAt": {
+      "type": "string"
+    },
+    "finishedAt": {
+      "type": "string"
+    },
+    "durationMs": {
+      "type": "number"
+    },
+    "targetUrl": {
+      "type": "string"
+    },
+    "caller": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "correlationId": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "source": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "metadata": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 5000
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "finalUrl": {
+      "type": "string"
+    },
+    "failedStepIndex": {
+      "type": "number"
+    },
+    "error": {
+      "$ref": "#/$defs/__schema0"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped"
+            ]
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "error": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "required": [
+          "index",
+          "action",
+          "status",
+          "startedAt",
+          "finishedAt",
+          "durationMs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "extracted": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema1"
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "screenshots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "path"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "tracePath": {
+          "type": "string"
+        },
+        "console": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          }
+        },
+        "consoleErrors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema2"
+          }
+        },
+        "pageErrors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "network": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "networkFailures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "unexpectedExternalRequests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "domTextSnapshot": {
+          "type": "string"
+        },
+        "finalUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "screenshots",
+        "console",
+        "consoleErrors",
+        "pageErrors",
+        "network",
+        "networkFailures",
+        "unexpectedExternalRequests"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "jobId",
+    "status",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "targetUrl",
+    "caller",
+    "steps",
+    "extracted",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          }
+        }
+      ]
+    },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "lineNumber": {
+              "type": "number"
+            },
+            "columnNumber": {
+              "type": "number"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "__schema3": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string"
+        },
+        "pathname": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "resourceType": {
+          "type": "string"
+        },
+        "status": {
+          "type": "number"
+        },
+        "failureText": {
+          "type": "string"
+        },
+        "unexpectedExternalOrigin": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "origin",
+        "pathname",
+        "method"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

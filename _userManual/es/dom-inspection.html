@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inspección del DOM · ScrapForAI Manual de Usuario</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="es">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menú">Menú</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual de Usuario · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/dom-inspection.html">EN</a>
+      <a class="lang-link" href="../pt/dom-inspection.html">PT</a>
+      <a class="lang-link active" href="#">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar en el manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeros pasos</div>
+        <a class="nav-link" href="index.html">Resumen general</a>
+        <a class="nav-link" href="installation.html">Instalación y configuración</a>
+        <a class="nav-link" href="quickstart.html">Inicio rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceptos y seguridad</div>
+        <a class="nav-link" href="security.html">Modelo de seguridad</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referencia</div>
+        <a class="nav-link" href="api-reference.html">Referencia de la API</a>
+        <a class="nav-link" href="routine-guide.html">Guía de solicitudes de rutina</a>
+        <a class="nav-link" href="step-actions.html">Referencia de acciones de paso</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guías</div>
+        <a class="nav-link" href="examples.html">Ejemplos prácticos</a>
+        <a class="nav-link active" href="dom-inspection.html">Inspección del DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefactos y evidencia</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker y túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Proyecto</div>
+        <a class="nav-link" href="development.html">Flujo de desarrollo</a>
+        <a class="nav-link" href="troubleshooting.html">Solución de problemas</a>
+        <a class="nav-link" href="glossary.html">Glosario</a>
+      </div>
+    <div class="sidebar-footer">
+      Ejecutor de exploración de navegador para entornos de desarrollo y QA controlados.<br><br>
+      &copy; Proyecto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guías</div>
+      <h1>Inspección del DOM</h1>
+      <p class="lede">Usa la inspección del DOM antes de construir una rutina cuando aún no conoces los selectores de la página.</p>
+
+<h2 id="basic-inspection">Inspección básica</h2>
+<pre><code class="language-powershell">$Body = @{
+    targetUrl = "https://dev.example.com/login"
+    waitUntil = "domcontentloaded"
+    includeRenderedHtml = $false
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20
+
+$Inspection = Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:3000/v1/explorations/inspect-dom" `
+    -Headers $Headers `
+    -ContentType "application/json" `
+    -Body $Body</code></pre>
+
+<h2 id="request-fields">Campos de la solicitud</h2>
+<table>
+<thead><tr><th>Campo</th><th>Predeterminado</th><th>Descripción</th></tr></thead>
+<tbody>
+<tr><td><code>targetUrl</code></td><td>&mdash;</td><td>Requerido. Debe coincidir con <code>ALLOWED_TARGET_ORIGINS</code>.</td></tr>
+<tr><td><code>waitUntil</code></td><td><code>domcontentloaded</code></td><td><code>commit</code>, <code>domcontentloaded</code>, <code>load</code> o <code>networkidle</code>.</td></tr>
+<tr><td><code>timeoutMs</code></td><td><code>STEP_TIMEOUT_MS</code></td><td>Tiempo de espera de navegación.</td></tr>
+<tr><td><code>includeRenderedHtml</code></td><td><code>false</code></td><td>Incluye el HTML renderizado. Marca la respuesta como salida sensible.</td></tr>
+<tr><td><code>includeHiddenControls</code></td><td><code>true</code></td><td>Incluye controles ocultos en <code>allControls</code>.</td></tr>
+<tr><td><code>includeConsole</code></td><td><code>true</code></td><td>Recopila mensajes de consola.</td></tr>
+<tr><td><code>includeNetwork</code></td><td><code>false</code></td><td>Recopila eventos de red.</td></tr>
+<tr><td><code>redactSensitiveValues</code></td><td><code>true</code></td><td>Oculta valores que parecen sensibles (contraseñas, tokens, etc.).</td></tr>
+<tr><td><code>viewport</code></td><td><code>{ width: 1366, height: 768 }</code></td><td>Viewport del navegador para la carga de la página de inspección.</td></tr>
+</tbody>
+</table>
+
+<h2 id="important-response-fields">Campos importantes de la respuesta</h2>
+<table>
+<thead><tr><th>Campo</th><th>Descripción</th></tr></thead>
+<tbody>
+<tr><td><code>status</code></td><td><code>passed</code> o <code>failed</code>.</td></tr>
+<tr><td><code>targetUrl</code></td><td>URL de destino normalizada.</td></tr>
+<tr><td><code>finalUrl</code></td><td>URL después de la navegación.</td></tr>
+<tr><td><code>title</code></td><td>Título de la página.</td></tr>
+<tr><td><code>bodyText</code></td><td>Texto del cuerpo truncado.</td></tr>
+<tr><td><code>forms</code></td><td>Metadatos de formulario e índices de controles relacionados.</td></tr>
+<tr><td><code>visibleControls</code></td><td>Controles que aparecen visibles.</td></tr>
+<tr><td><code>allControls</code></td><td>Controles visibles y ocultos cuando se solicitan.</td></tr>
+<tr><td><code>consoleMessages</code></td><td>Mensajes de consola del navegador cuando está habilitado.</td></tr>
+<tr><td><code>pageErrors</code></td><td>Errores de nivel de página.</td></tr>
+<tr><td><code>network</code></td><td>Eventos de red cuando está habilitado.</td></tr>
+<tr><td><code>renderedHtml</code></td><td>HTML renderizado opcional. Salida sensible.</td></tr>
+<tr><td><code>sensitiveOutput</code></td><td>Verdadero cuando se solicitó el HTML renderizado.</td></tr>
+<tr><td><code>warning</code></td><td>Advertencia sobre salida sensible cuando corresponde.</td></tr>
+</tbody>
+</table>
+
+<h2 id="control-fields">Campos de control</h2>
+<p>Cada control puede incluir:</p>
+<ul>
+  <li><code>index</code>, <code>tag</code>, <code>id</code>, <code>name</code>, <code>type</code>, <code>role</code>, <code>className</code></li>
+  <li><code>visible</code>, <code>disabled</code>, <code>readonly</code></li>
+  <li><code>text</code>, <code>labelContext</code></li>
+  <li><code>attrs</code>, <code>selectors</code>, <code>rect</code></li>
+</ul>
+
+<h2 id="selector-advice">Consejos para elegir selectores</h2>
+<p>Prefiere selectores estables en este orden:</p>
+<ol>
+  <li><code>id</code> único.</li>
+  <li><code>data-testid</code>, si está presente en <code>attrs</code>.</li>
+  <li>Selectores de input con nombre, como <code>input[name="email"]</code>.</li>
+  <li>Selectores de rol o etiqueta accesible solo si los conviertes en selectores CSS admitidos por ScrapForAI.</li>
+  <li>Selectores de clase solo cuando sean estables y no generados.</li>
+</ol>
+<p>Evita:</p>
+<ul>
+  <li>Rutas CSS generadas y profundas.</li>
+  <li>Selectores basados en un diseño inestable.</li>
+  <li>Controles ocultos, salvo que los necesites intencionalmente.</li>
+  <li>Texto que cambia según el idioma o el rol del usuario.</li>
+</ul>
+
+<h2 id="rendered-html-caution">Precaución con el HTML renderizado</h2>
+<p><code>includeRenderedHtml</code> es <code>false</code> de forma predeterminada. Si se establece en <code>true</code>, la respuesta incluye <code>sensitiveOutput: true</code> y una advertencia. El HTML renderizado puede contener estado oculto de la aplicación incluso después de la sanitización.</p>
+<div class="callout warn">
+  <span class="callout-title">Usa esto solo cuando</span>
+  <ul style="margin-bottom:0;">
+    <li>Los controles del DOM y el texto del cuerpo no sean suficientes.</li>
+    <li>Estés inspeccionando una página de prueba controlada.</li>
+    <li>No estés manejando secretos reales de producción.</li>
+  </ul>
+</div>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="examples.html"><span class="dir">&larr; Anterior</span><span class="title">Ejemplos prácticos</span></a>
+      <a class="pager-link next" href="artifacts.html"><span class="dir">Siguiente &rarr;</span><span class="title">Artefactos y evidencia</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">En esta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar en el manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Sin resultados para"};</script>
+<script src="../assets/search-index.es.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

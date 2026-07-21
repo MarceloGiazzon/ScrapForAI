@@ -1,0 +1,44 @@
+{
+  "name": "scrapforai",
+  "version": "1.0.0",
+  "description": "Security-first Playwright exploration runner for controlled development and test sites.",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "test": "tsx --test test/**/*.test.ts",
+    "test:smoke": "tsx --test test/routine-runner.smoke.ts",
+    "test:all": "npm test && npm run test:smoke",
+    "generate:schema": "tsx scripts/generate-schema.ts",
+    "prebuild": "npm run generate:schema",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "nanoid": "^5.1.11",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "playwright": "1.60.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.5.0",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

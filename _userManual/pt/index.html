@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visão geral · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/index.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/index.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link active" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Introdução</div>
+      <h1>Visão geral</h1>
+      <p class="lede">O ScrapForAI é um executor de exploração de navegador com segurança em primeiro lugar, para sites de desenvolvimento e teste controlados. Este manual cobre tudo, desde a instalação até a API completa de rotinas.</p>
+
+<h2 id="what-it-is">O que o ScrapForAI é</h2>
+<p>O ScrapForAI expõe uma API HTTP que aceita uma <strong>rotina</strong> JSON restrita, abre um navegador com o Playwright, executa os passos solicitados, coleta evidências úteis, oculta segredos conhecidos e retorna um resultado estruturado que uma ferramenta de IA ou cliente de automação pode consumir.</p>
+<p>Use-o quando precisar que um agente automatizado inspecione, navegue, valide ou colete evidências de uma aplicação web de forma previsível e controlada.</p>
+
+<div class="card-grid">
+  <div class="card"><h4>Abrir e verificar</h4><p>Abra uma URL de desenvolvimento ou QA e valide seu estado.</p></div>
+  <div class="card"><h4>Preencher e enviar</h4><p>Preencha formulários de login com credenciais de teste descartáveis e envie-os.</p></div>
+  <div class="card"><h4>Navegar pela UI</h4><p>Clique em menus, botões, links, abas e controles de formulário em sequência.</p></div>
+  <div class="card"><h4>Esperar com precisão</h4><p>Aguarde carregamentos de página, seletores, URLs ou respostas de rede específicas.</p></div>
+  <div class="card"><h4>Validar condições</h4><p>Valide texto, visibilidade, estado habilitado, contagem de elementos ou condições de URL.</p></div>
+  <div class="card"><h4>Capturar evidências</h4><p>Tire screenshots, colete dados de console/rede e salve traces do Playwright.</p></div>
+  <div class="card"><h4>Extrair dados</h4><p>Extraia texto ou atributos em uma resposta JSON estruturada.</p></div>
+  <div class="card"><h4>Inspecionar o DOM</h4><p>Descubra seletores seguros e estáveis antes de escrever um cenário.</p></div>
+</div>
+
+<p>O ScrapForAI foi projetado como uma <strong>ferramenta de exploração limitada</strong> para ambientes confiáveis. Seu maior valor é dar a uma ferramenta de IA contexto de navegador suficiente para depurar ou verificar uma aplicação web sem conceder capacidade ilimitada de scraping.</p>
+
+<h2 id="what-it-is-not">O que o ScrapForAI não é</h2>
+<p>O ScrapForAI <strong>não</strong> é um scraper genérico para a web aberta. Ele não oferece:</p>
+<ul>
+  <li>Evasão de anti-bot</li>
+  <li>Contorno de CAPTCHA</li>
+  <li>Sessões de navegador persistentes</li>
+  <li>Cofre de credenciais</li>
+  <li>Lógica de scraping específica de site</li>
+  <li>Execução ilimitada de JavaScript</li>
+  <li>Navegação livre para sites arbitrários</li>
+  <li>Garantias de extração de dados de produção</li>
+</ul>
+<div class="callout warn">
+  <span class="callout-title">Por que isso importa</span>
+  <p>O serviço restringe intencionalmente origens de destino, origens de recursos, estrutura da requisição, timeouts, tamanhos de payload e jobs paralelos. A configuração padrão é conservadora porque screenshots, snapshots de DOM, evidências de rede, traces e valores extraídos podem conter informações sensíveis.</p>
+</div>
+
+<h2 id="who-should-use-it">Quem deve usar o ScrapForAI</h2>
+<p>O ScrapForAI é útil para:</p>
+<ul>
+  <li>Desenvolvedores que querem que um assistente de IA reproduza bugs de UI em ambientes locais, de dev ou QA.</li>
+  <li>Engenheiros de QA que precisam de verificações de smoke test repetíveis com evidências estruturadas.</li>
+  <li>Engenheiros de plataforma que querem um executor de navegador pequeno com limites de segurança explícitos.</li>
+  <li>Criadores de ferramentas de IA que precisam de uma API controlada para inspeção e interação com aplicações web.</li>
+  <li>Engenheiros de suporte que precisam de evidências reproduzíveis de sistemas de teste sem conceder acesso amplo de navegação.</li>
+</ul>
+<p>O ScrapForAI deve ser usado por pessoas que entendem a aplicação de destino, controlam ou têm permissão para testá-la, e podem configurar uma allowlist estrita de origens de destino.</p>
+<div class="callout danger">
+  <span class="callout-title">Evite usar o ScrapForAI contra</span>
+  <ul style="margin-bottom:0;">
+    <li>Sites públicos que você não controla.</li>
+    <li>Sistemas de produção com dados reais de clientes.</li>
+    <li>Aplicações cujos termos proíbem acesso automatizado.</li>
+    <li>Qualquer sistema em que screenshots, traces ou texto de DOM possam expor dados sensíveis que você não pode armazenar com segurança.</li>
+  </ul>
+</div>
+
+<h2 id="core-concepts">Conceitos fundamentais</h2>
+<h3 id="routine">Rotina</h3>
+<p>Uma rotina é a requisição JSON enviada para <code>POST /v1/explorations/run</code>. Ela contém uma <code>targetUrl</code>, metadados opcionais (<code>scenarioName</code>, <code>caller</code>), <code>credentials</code> e <code>variables</code> opcionais, <code>options</code> de execução, e uma lista ordenada de <code>steps</code>.</p>
+<h3 id="step">Passo (step)</h3>
+<p>Um passo é uma ação ou asserção do navegador &mdash; por exemplo <code>goto</code>, <code>fill</code>, <code>click</code>, <code>waitForSelector</code>, <code>assertTextContains</code>, <code>screenshot</code>, <code>collect</code> ou <code>extractText</code>. Os passos executam em ordem. Quando um passo falha, a rotina para e o resultado é retornado com <code>status: "failed"</code>.</p>
+<h3 id="evidence">Evidência</h3>
+<p>Evidência é o dado de diagnóstico coletado durante a execução da rotina: screenshots, o caminho do trace do Playwright, mensagens e erros de console, erros de página, eventos e falhas de rede, requisições externas inesperadas, um snapshot de texto do DOM, e a URL final.</p>
+<h3 id="artifact">Artefato</h3>
+<p>Um artefato é um arquivo gravado no diretório de artefatos configurado: tipicamente <code>result.json</code>, <code>screenshots/*.png</code> e <code>trace.zip</code>.</p>
+<h3 id="allowlist">Allowlist</h3>
+<p>Uma allowlist é uma lista configurada de origens que o ScrapForAI tem permissão para visitar ou esperar. A allowlist principal é <code>ALLOWED_TARGET_ORIGINS</code>, que controla a URL de destino principal, URLs literais usadas em passos <code>goto</code> e redirecionamentos do frame principal.</p>
+<h3 id="dom-inspection-concept">Inspeção de DOM</h3>
+<p>A inspeção de DOM é um endpoint separado que abre uma página de destino e retorna formulários, controles, seletores, texto visível e, opcionalmente, dados de console ou rede. Use-a para descobrir seletores estáveis antes de escrever uma rotina.</p>
+
+<h2 id="architecture">Visão geral da arquitetura</h2>
+<p>O ScrapForAI é um serviço Node.js e TypeScript construído sobre:</p>
+<ul>
+  <li><strong>Express</strong> para roteamento HTTP.</li>
+  <li><strong>Playwright</strong> para automação de navegador.</li>
+  <li><strong>Zod</strong> para validação de requisições.</li>
+  <li><strong>Pino</strong> para logging estruturado.</li>
+  <li><strong>Helmet, CORS, rate limiting e autenticação por bearer token</strong> para proteção da API.</li>
+  <li><strong>Docker</strong> com a imagem oficial do Playwright para um runtime de navegador consistente.</li>
+</ul>
+<h3 id="high-level-flow">Fluxo de alto nível</h3>
+<ol>
+  <li>Um cliente envia uma requisição JSON ao ScrapForAI.</li>
+  <li>O Express autentica a requisição, exceto para <code>GET /health</code> ou <code>GET /v1/schema*</code>.</li>
+  <li>O Zod valida a estrutura da requisição e regras entre campos.</li>
+  <li>A URL de destino é verificada contra <code>ALLOWED_TARGET_ORIGINS</code>.</li>
+  <li>O Playwright abre um contexto de navegador.</li>
+  <li>Os passos são executados em ordem.</li>
+  <li>Os coletores de evidência registram console, rede, erros de página, screenshots e dados de trace.</li>
+  <li>Segredos conhecidos são ocultados dos resultados.</li>
+  <li>Um resultado JSON estruturado é retornado e também salvo como artefato.</li>
+</ol>
+
+    <div class="page-pager">
+      <span class="pager-link prev" style="visibility:hidden"></span>
+      <a class="pager-link next" href="installation.html"><span class="dir">Próximo &rarr;</span><span class="title">Instalação e configuração</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

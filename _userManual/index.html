@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScrapForAI User Manual</title>
+<meta http-equiv="refresh" content="2; url=en/index.html">
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #10182b;
+    color: #d4dceb;
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .box { text-align: center; }
+  .box a {
+    display: inline-block;
+    margin: 6px;
+    padding: 8px 16px;
+    border-radius: 7px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .box a:hover { background: rgba(255,255,255,0.16); }
+  p { color: #8693ad; }
+</style>
+<script>
+  (function () {
+    var lang = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    var supported = ['en', 'pt', 'es'];
+    var target = supported.indexOf(lang) !== -1 ? lang : 'en';
+    window.location.replace(target + '/index.html');
+  })();
+</script>
+</head>
+<body>
+  <div class="box">
+    <p>Redirecting to the ScrapForAI manual&hellip;</p>
+    <a href="en/index.html">English</a>
+    <a href="pt/index.html">Português</a>
+    <a href="es/index.html">Español</a>
+  </div>
+</body>
+</html>

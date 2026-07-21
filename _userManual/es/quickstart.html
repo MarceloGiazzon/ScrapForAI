@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inicio rápido · ScrapForAI Manual de Usuario</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="es">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menú">Menú</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual de Usuario · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/quickstart.html">EN</a>
+      <a class="lang-link" href="../pt/quickstart.html">PT</a>
+      <a class="lang-link active" href="#">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar en el manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeros pasos</div>
+        <a class="nav-link" href="index.html">Resumen general</a>
+        <a class="nav-link" href="installation.html">Instalación y configuración</a>
+        <a class="nav-link active" href="quickstart.html">Inicio rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceptos y seguridad</div>
+        <a class="nav-link" href="security.html">Modelo de seguridad</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referencia</div>
+        <a class="nav-link" href="api-reference.html">Referencia de la API</a>
+        <a class="nav-link" href="routine-guide.html">Guía de solicitudes de rutina</a>
+        <a class="nav-link" href="step-actions.html">Referencia de acciones de paso</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guías</div>
+        <a class="nav-link" href="examples.html">Ejemplos prácticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspección del DOM</a>
+        <a class="nav-link" href="artifacts.html">Artefactos y evidencia</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker y túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Proyecto</div>
+        <a class="nav-link" href="development.html">Flujo de desarrollo</a>
+        <a class="nav-link" href="troubleshooting.html">Solución de problemas</a>
+        <a class="nav-link" href="glossary.html">Glosario</a>
+      </div>
+    <div class="sidebar-footer">
+      Ejecutor de exploración de navegador para entornos de desarrollo y QA controlados.<br><br>
+      &copy; Proyecto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Primeros pasos</div>
+      <h1>Inicio rápido</h1>
+      <p class="lede">Una primera ejecución completa: confirma que el servicio está saludable, autentícate, inspecciona una página de login para encontrar selectores, construye una rutina, ejecútala y lee el resultado.</p>
+
+<div class="callout">
+  <span class="callout-title">Supuestos</span>
+  <p style="margin-bottom:0;">ScrapForAI se está ejecutando en <code>http://localhost:3000</code>, tu clave de API está configurada, y <code>https://dev.example.com</code> está en <code>ALLOWED_TARGET_ORIGINS</code>.</p>
+</div>
+
+<h2 id="qs-step1">Paso 1: Confirma que el servicio está activo</h2>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/health"</code></pre>
+<p>Deberías recibir <code>status: "ok"</code>.</p>
+
+<h2 id="qs-step2">Paso 2: Configura el encabezado de tu clave de API</h2>
+<pre><code class="language-powershell">$ApiKey = "paste-your-scrapforai-api-key-here"
+$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+
+<h2 id="qs-step3">Paso 3: Inspecciona la página de login</h2>
+<pre><code class="language-powershell">$InspectBody = @{
+    targetUrl = "https://dev.example.com/login"
+    includeHiddenControls = $true
+    includeConsole = $true
+    includeNetwork = $false
+    redactSensitiveValues = $true
+} | ConvertTo-Json -Depth 20
+
+$Inspection = Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:3000/v1/explorations/inspect-dom" `
+    -Headers $Headers `
+    -ContentType "application/json" `
+    -Body $InspectBody
+
+$Inspection.visibleControls | Select-Object index, tag, id, name, type, text, labelContext</code></pre>
+<p>Usa los valores de <code>selectors</code> devueltos para elegir selectores estables. Consulta la <a href="dom-inspection.html">guía de inspección del DOM</a> para más consejos de selección.</p>
+
+<h2 id="qs-step4">Paso 4: Construye una rutina de login</h2>
+<pre><code class="language-powershell">$RunBody = @{
+    scenarioName = "first login smoke"
+    targetUrl = "https://dev.example.com/login"
+    credentials = @{
+        loginUser = "test-user"
+        loginPassword = "test-password"
+    }
+    options = @{
+        trace = $false
+        screenshots = "onFailure"
+        collectDomOnFailure = $true
+    }
+    steps = @(
+        @{ label = "open login"; action = "goto"; url = "`$targetUrl" },
+        @{ label = "fill user"; action = "fill"; selector = "#username"; valueFromCredential = "loginUser" },
+        @{ label = "fill password"; action = "fill"; selector = "#password"; valueFromCredential = "loginPassword" },
+        @{
+            label = "submit"
+            action = "click"
+            selector = "button[type='submit']"
+            afterWaitFor = @{
+                urlContains = "/dashboard"
+                timeoutMs = 10000
+            }
+        },
+        @{ label = "assert dashboard"; action = "assertTextContains"; selector = "body"; text = "Dashboard" },
+        @{ label = "collect diagnostics"; action = "collect"; what = @("console", "network", "url", "pageErrors") }
+    )
+} | ConvertTo-Json -Depth 30</code></pre>
+
+<h2 id="qs-step5">Paso 5: Ejecuta la rutina</h2>
+<pre><code class="language-powershell">$Result = Invoke-RestMethod `
+    -Method Post `
+    -Uri "http://localhost:3000/v1/explorations/run" `
+    -Headers $Headers `
+    -ContentType "application/json" `
+    -Body $RunBody
+
+$Result.status
+$Result.jobId
+$Result.evidence.screenshots</code></pre>
+
+<h2 id="qs-step6">Paso 6: Lee el resultado</h2>
+<p>Campos importantes:</p>
+<ul>
+  <li><code>status</code>: <code>passed</code> o <code>failed</code>.</li>
+  <li><code>jobId</code>: nombre de la carpeta de artefactos.</li>
+  <li><code>failedStepIndex</code>: índice del paso que falló, cuando corresponda.</li>
+  <li><code>error</code>: error de alto nivel cuando falla.</li>
+  <li><code>steps</code>: estado y tiempos de cada paso.</li>
+  <li><code>extracted</code>: valores guardados por los pasos extract/evaluate/watch.</li>
+  <li><code>evidence</code>: datos de diagnóstico.</li>
+</ul>
+
+<h2 id="qs-step7">Paso 7: Inspecciona los artefactos</h2>
+<p>Con Docker Compose, los artefactos se escriben en:</p>
+<pre><code class="language-text">D:\WorkSpace\ScrapForAI\artifacts</code></pre>
+<p>Para el job <code>job_abc123</code>, inspecciona:</p>
+<pre><code class="language-text">artifacts/job_abc123/result.json
+artifacts/job_abc123/screenshots/failure.png
+artifacts/job_abc123/trace.zip</code></pre>
+<p>La traza solo existe cuando <code>options.trace</code> es verdadero. Consulta <a href="artifacts.html">Artefactos y evidencia</a> para el diseño completo.</p>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="installation.html"><span class="dir">&larr; Anterior</span><span class="title">Instalación y configuración</span></a>
+      <a class="pager-link next" href="security.html"><span class="dir">Siguiente &rarr;</span><span class="title">Modelo de seguridad</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">En esta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar en el manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Sin resultados para"};</script>
+<script src="../assets/search-index.es.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

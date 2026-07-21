@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JSON schemas · ScrapForAI User Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/schemas.html">PT</a>
+      <a class="lang-link" href="../es/schemas.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link active" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Reference</div>
+      <h1>JSON schemas</h1>
+      <p class="lede">ScrapForAI publishes live JSON Schemas for requests and results, plus the committed schema snapshots checked into the repository.</p>
+
+<h2 id="live-schemas">Live schemas</h2>
+<pre><code class="language-powershell">Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.request.json"
+Invoke-RestMethod -Method Get -Uri "http://localhost:3000/v1/schema/routine.result.json"</code></pre>
+
+<h2 id="committed-schemas">Committed schemas</h2>
+<pre><code class="language-text">schema/routine.request.json
+schema/routine.result.json</code></pre>
+<p>Regenerate them:</p>
+<pre><code class="language-powershell">npm run generate:schema</code></pre>
+<p>Build also regenerates schemas first:</p>
+<pre><code class="language-powershell">npm run build</code></pre>
+<p>The live schema reflects the running environment limits. The committed schema reflects the defaults at generation time.</p>
+
+<h2 id="cross-field-rules">Cross-field validation rules</h2>
+<p>Server-side validation also enforces cross-field rules that are not fully captured by JSON Schema, including:</p>
+<ul>
+  <li>Unique step IDs.</li>
+  <li><code>waitForElapsed.sinceStepId</code> must point to an earlier step.</li>
+  <li>Exactly one value source for value-based steps.</li>
+  <li>Exactly one wait condition in <code>waitFor</code> and <code>afterWaitFor</code>.</li>
+  <li><code>evaluate</code> and <code>watch</code> require <code>ALLOW_EVALUATE=true</code>.</li>
+</ul>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="step-actions.html"><span class="dir">&larr; Previous</span><span class="title">Step actions reference</span></a>
+      <a class="pager-link next" href="examples.html"><span class="dir">Next &rarr;</span><span class="title">Practical examples</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

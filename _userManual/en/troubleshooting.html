@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting · ScrapForAI User Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/troubleshooting.html">PT</a>
+      <a class="lang-link" href="../es/troubleshooting.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link active" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Project</div>
+      <h1>Troubleshooting</h1>
+      <p class="lede">Common failure modes and how to diagnose them, from health-check failures to misbehaving response waits.</p>
+
+<h2 id="health-fails">Health endpoint fails</h2>
+<p>Check:</p>
+<ul>
+  <li>Is the container or dev server running?</li>
+  <li>Is port <code>3000</code> already in use?</li>
+  <li>Did environment validation fail during startup?</li>
+  <li>Are Docker Desktop and Playwright image available?</li>
+</ul>
+<pre><code class="language-powershell">docker logs scrapforai-api
+docker compose ps</code></pre>
+
+<h2 id="401">Protected endpoint returns 401</h2>
+<p>Check:</p>
+<ul>
+  <li>Header is present.</li>
+  <li>Header format is exactly <code>Authorization: Bearer &lt;key&gt;</code>.</li>
+  <li>API key matches <code>SCRAPFORAI_API_KEY</code>.</li>
+  <li>API key is at least 16 characters.</li>
+</ul>
+<pre><code class="language-powershell">$Headers = @{ Authorization = "Bearer $ApiKey" }</code></pre>
+
+<h2 id="400-validation">Request returns 400 ValidationError</h2>
+<p>Check:</p>
+<ul>
+  <li>JSON body is valid.</li>
+  <li>Required fields exist.</li>
+  <li><code>targetUrl</code> is a valid URL.</li>
+  <li>Step action names are spelled correctly.</li>
+  <li><code>steps</code> is not empty and does not exceed <code>MAX_STEPS_PER_JOB</code>.</li>
+  <li>Value-based steps include exactly one of <code>value</code>, <code>valueFromCredential</code>, or <code>valueFromVariable</code>.</li>
+  <li>Wait conditions include exactly one condition.</li>
+</ul>
+<p>The response includes details:</p>
+<pre><code class="language-json">{
+  "error": {
+    "type": "ValidationError",
+    "message": "Invalid exploration request",
+    "details": [
+      {
+        "path": "steps.0.selector",
+        "message": "Invalid input"
+      }
+    ]
+  }
+}</code></pre>
+
+<h2 id="url-rejected">URL is rejected</h2>
+<p>Check:</p>
+<ul>
+  <li>The URL origin is listed in <code>ALLOWED_TARGET_ORIGINS</code>.</li>
+  <li>The scheme matches. <code>http://</code> and <code>https://</code> are different origins.</li>
+  <li>The port matches. <code>http://localhost:3000</code> and <code>http://localhost:5173</code> are different origins.</li>
+  <li>Redirects stay on allowed origins.</li>
+</ul>
+<pre><code class="language-env">ALLOWED_TARGET_ORIGINS=http://localhost:5173,https://dev.example.com</code></pre>
+
+<h2 id="429">Routine returns 429 TooManyRequests</h2>
+<p>The number of active jobs reached <code>MAX_PARALLEL_JOBS</code>.</p>
+<p>Fix options:</p>
+<ul>
+  <li>Wait for current jobs to finish.</li>
+  <li>Increase <code>MAX_PARALLEL_JOBS</code>.</li>
+  <li>Reduce job duration.</li>
+  <li>Reduce client concurrency.</li>
+</ul>
+
+<h2 id="step-timeout">Step times out</h2>
+<p>Check:</p>
+<ul>
+  <li>The selector is correct.</li>
+  <li>The element is inside an iframe and needs <code>frame</code>.</li>
+  <li>The page is still loading.</li>
+  <li>The app needs a more precise <code>waitFor</code> or <code>afterWaitFor</code>.</li>
+  <li><code>STEP_TIMEOUT_MS</code> is too low for the environment.</li>
+</ul>
+<p>Use <a href="dom-inspection.html">DOM inspection</a> to find selectors and a screenshot on failure to see page state.</p>
+
+<h2 id="missed-response">waitForResponse misses a response</h2>
+<p>Use <code>afterWaitFor.response</code> on the action that triggers the response:</p>
+<pre><code class="language-json">{
+  "action": "click",
+  "selector": "#submit",
+  "afterWaitFor": {
+    "response": {
+      "urlContains": "/api/save",
+      "status": 200
+    },
+    "timeoutMs": 10000
+  }
+}</code></pre>
+<p>This arms the response listener before the click.</p>
+
+<h2 id="evaluate-rejected">evaluate or watch is rejected</h2>
+<p>Check:</p>
+<pre><code class="language-env">ALLOW_EVALUATE=true</code></pre>
+<p>Also check:</p>
+<ul>
+  <li>Script length is under <code>MAX_EVALUATE_SCRIPT_CHARS</code>.</li>
+  <li>Script returns JSON-safe values.</li>
+  <li>Script completes before <code>EVALUATE_TIMEOUT_MS</code>.</li>
+</ul>
+
+<h2 id="missing-screenshots">Missing screenshots</h2>
+<p>Check:</p>
+<ul>
+  <li><code>options.screenshots</code> is not <code>off</code>.</li>
+  <li>A <code>screenshot</code> step has a valid <code>name</code>.</li>
+  <li>The job reached the screenshot step.</li>
+  <li>The artifact directory is writable.</li>
+</ul>
+
+<h2 id="missing-trace">Missing trace</h2>
+<p>Check:</p>
+<ul>
+  <li><code>options.trace</code> is <code>true</code>.</li>
+  <li>The job started Playwright successfully.</li>
+  <li>The artifact directory is writable.</li>
+  <li>The result includes <code>evidence.tracePath</code>.</li>
+</ul>
+
+<h2 id="unexpected-requests">Unexpected external requests</h2>
+<p>If <code>unexpectedExternalRequests</code> contains entries:</p>
+<ul>
+  <li>Confirm whether the app legitimately calls those origins.</li>
+  <li>Add expected origins to <code>ALLOWED_RESOURCE_ORIGINS</code>.</li>
+  <li>Investigate unexpected third-party calls in development or QA.</li>
+</ul>
+
+<h2 id="sensitive-output">DOM inspection returns sensitiveOutput true</h2>
+<p>This happens when <code>includeRenderedHtml</code> is true. Treat the response as sensitive. Prefer keeping <code>includeRenderedHtml</code> false unless you truly need the HTML.</p>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="development.html"><span class="dir">&larr; Previous</span><span class="title">Development workflow</span></a>
+      <a class="pager-link next" href="glossary.html"><span class="dir">Next &rarr;</span><span class="title">Glossary</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
