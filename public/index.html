@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Run history</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="config.html">Configuration</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+
+  <main>
+    <div class="stat-row" id="stats"></div>
+
+    <div class="filters">
+      <input type="search" id="filter-q" placeholder="Search scenario, URL or job id">
+      <select id="filter-status">
+        <option value="">All statuses</option>
+        <option value="passed">Passed</option>
+        <option value="failed">Failed</option>
+      </select>
+      <select id="filter-scenario"><option value="">All scenarios</option></select>
+      <button class="secondary" id="refresh">Refresh</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Started</th><th>Scenario</th><th>Target</th><th>Status</th>
+              <th>Steps</th><th>Duration</th><th>Issues</th>
+            </tr>
+          </thead>
+          <tbody id="runs-body"></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="secondary" id="prev">Previous</button>
+        <span class="muted" id="page-info"></span>
+        <button class="secondary" id="next">Next</button>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="detail"><div id="detail-body"></div>
+    <div class="dialog-actions"><button class="secondary" id="detail-close">Close</button></div>
+  </dialog>
+
+  <script type="module" src="history.js"></script>
+</body>
+</html>

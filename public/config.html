@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Configuration</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="config.html">Configuration</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+
+  <main>
+    <div id="banners"></div>
+    <form id="config-form"><div id="groups"></div>
+      <button type="submit">Save changes</button>
+      <span class="muted" id="save-state"></span>
+    </form>
+  </main>
+
+  <script type="module" src="config.js"></script>
+</body>
+</html>

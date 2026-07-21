@@ -6,11 +6,15 @@ import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 
 import { env, getLiveAllowedOrigins } from './config/env.js';
+import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
+import { authRouter } from './routes/auth.routes.js';
+import { configRouter } from './routes/config.routes.js';
 import { domInspectionRouter } from './routes/domInspection.routes.js';
 import { explorationRouter } from './routes/exploration.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
+import { statusRouter } from './routes/status.routes.js';
 import { apiAuth } from './security/apiAuth.js';
 import { redactSecrets } from './security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from './security/validateTargetUrl.js';
@@ -25,7 +29,25 @@ const logger = pino({
 
 const app = express();
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        // No inline scripts or styles: everything lives in external files under /ui.
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        // Screenshots are served same-origin from /v1/runs/:jobId/artifacts/...
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+  }),
+);
 app.use(
   cors({
     origin(origin, callback) {
@@ -38,14 +60,23 @@ app.use(
     },
   }),
 );
-app.use(
-  rateLimit({
-    windowMs: 60_000,
-    limit: 30,
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-);
+// Generous ceiling for read-only and UI traffic.
+const generalLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// The original strict budget, now scoped to the endpoints that actually drive a browser.
+const explorationLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(generalLimiter);
 app.use(
   pinoHttp({
     logger,
@@ -80,12 +111,20 @@ app.get('/v1/debug/config', (_req, res) => {
   });
 });
 
+app.use('/v1/auth', authRouter);
 app.use('/v1/schema', schemaRouter);
 
-app.use('/v1/explorations', explorationRouter);
-app.use('/v1/explorations/inspect-dom', domInspectionRouter);
+app.use('/v1/explorations', explorationLimiter, explorationRouter);
+app.use('/v1/explorations/inspect-dom', explorationLimiter, domInspectionRouter);
 
 app.use('/v1/runs', runsRouter);
+app.use('/v1/config', configRouter);
+app.use('/v1/status', statusRouter);
+
+if (env.UI_ENABLED) {
+  app.use('/ui', express.static(publicDir(), { index: 'index.html', maxAge: 0 }));
+  app.get('/', (_req, res) => res.redirect('/ui/'));
+}
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (error instanceof TargetUrlNotAllowedError) {

@@ -43,7 +43,10 @@ function isPublicPath(req: Request): boolean {
   }
 
   // Static UI assets contain no data; every data route behind them is authenticated.
-  if (req.method === 'GET' && (req.path === '/ui' || req.path.startsWith('/ui/'))) {
+  // '/' is included because it only issues a redirect to /ui/, which is itself public:
+  // without it, opening the server root in a browser returns a JSON 401 instead of the
+  // login page.
+  if (req.method === 'GET' && (req.path === '/' || req.path === '/ui' || req.path.startsWith('/ui/'))) {
     return true;
   }
 

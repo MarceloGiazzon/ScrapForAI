@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Sign in</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main class="login-wrap">
+    <div class="card">
+      <h1>ScrapForAI</h1>
+      <p class="muted">Enter your API key to open the console.</p>
+      <form id="login-form">
+        <div class="field">
+          <label for="api-key">API key</label>
+          <input type="password" id="api-key" autocomplete="current-password" required>
+        </div>
+        <button type="submit">Sign in</button>
+      </form>
+      <p id="login-error" class="hidden login-error"></p>
+      <p class="muted mono login-note">
+        The key is exchanged for a short-lived session cookie and is never stored in the browser.
+      </p>
+    </div>
+  </main>
+  <script type="module" src="login.js"></script>
+</body>
+</html>
