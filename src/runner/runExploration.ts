@@ -5,6 +5,8 @@ import type { Frame, Page } from 'playwright';
 
 import { createArtifactStore, saveJsonFile } from '../artifacts/artifactStore.js';
 import { env } from '../config/env.js';
+import { appendRun } from '../history/runHistoryStore.js';
+import { summarizeResult } from '../history/summarizeResult.js';
 import type { ExplorationRequest, ExplorationStep, FrameRef, WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
@@ -585,5 +587,10 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
 
   const result = redactSecrets(rawResult, knownSecrets);
   await saveJsonFile(artifactStore.resultPath().absolutePath, result);
+
+  // Record in the durable index. appendRun() swallows its own errors by design: a history
+  // write must never turn a successful exploration into a failed request.
+  await appendRun(summarizeResult(result));
+
   return result;
 }
