@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
+import { artifactsDir } from './paths.js';
+
 // Resolve .env relative to this file's own location (src/config/env.ts -> project root),
 // not process.cwd(). Callers of this process (an MCP client spawning the server, a task
 // runner, systemd, etc.) don't reliably set cwd to the project root, and process.cwd()
@@ -40,7 +42,10 @@ const originListFromEnv = z
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: integerFromEnv.default(3000),
-  HOST: z.string().min(1).default('0.0.0.0'),
+  // Loopback by default: a bare-metal start must not expose the browser-automation engine
+  // to the LAN. Docker overrides this to 0.0.0.0 (the host-side bind is already restricted
+  // to 127.0.0.1 in docker-compose.yml).
+  HOST: z.string().min(1).default('127.0.0.1'),
   SCRAPFORAI_API_KEY: z.string().min(16, 'SCRAPFORAI_API_KEY must be at least 16 characters'),
   ALLOWED_TARGET_ORIGINS: originListFromEnv.refine((origins) => origins.length > 0, {
     message: 'ALLOWED_TARGET_ORIGINS must contain at least one origin',
@@ -61,12 +66,29 @@ const envSchema = z.object({
   MIN_WATCH_INTERVAL_MS: integerFromEnv.default(100),
   MAX_WATCH_SAMPLES: integerFromEnv.default(200),
   ARTIFACT_RETENTION_HOURS: integerFromEnv.default(4),
-  ARTIFACT_DIR: z.string().min(1).default('/app/artifacts'),
+
+  // --- Run history index (separate retention from evidence above) ---
+  HISTORY_RETENTION_DAYS: integerFromEnv.default(90),
+  HISTORY_MAX_RUNS: integerFromEnv.default(5000),
+
+  // --- Web UI ---
+  UI_ENABLED: booleanFromEnv,
+  SESSION_TTL_MINUTES: integerFromEnv.default(480),
+
+  // Optional: resolved after parsing (see below) so the default can be platform-aware.
+  ARTIFACT_DIR: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   PLAYWRIGHT_BROWSER: z.enum(['chromium', 'firefox', 'webkit']).default('chromium'),
 });
 
-export const env = envSchema.parse(process.env);
+const parsedEnv = envSchema.parse(process.env);
+
+// ARTIFACT_DIR is resolved after parsing so its default can depend on the platform.
+// Zod defaults are evaluated when the schema is constructed, which is too early here.
+export const env = {
+  ...parsedEnv,
+  ARTIFACT_DIR: parsedEnv.ARTIFACT_DIR ?? artifactsDir(),
+};
 
 export type AppEnv = typeof env;
 
