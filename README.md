@@ -4,9 +4,31 @@ ScrapForAI is a security-first browser exploration runner for controlled develop
 
 It is not a generic open-web scraper. It does not include anti-bot evasion, stored sessions, or application-specific behavior. In-page JavaScript execution is available only through the disabled-by-default `ALLOW_EVALUATE` flag for trusted local development/test targets.
 
+## Install (end users)
+
+1. Download `ScrapForAI-Setup-x.y.z.exe` from the release page.
+2. Run it. No administrator rights are required — it installs per-user into
+   `%LOCALAPPDATA%\ScrapForAI`, and bundles both Node and Chromium, so nothing else needs to
+   be installed first.
+3. On first launch the app generates a strong API key, writes it to `.env`, and prints it.
+   **Copy it** — it is what you sign in with.
+4. A browser opens at `http://127.0.0.1:3000/ui/`. Sign in with that key.
+
+The service listens on loopback only. It is not reachable from other machines.
+
+## Install (developers)
+
+```powershell
+npm ci
+npx playwright install chromium
+Copy-Item .env.example .env      # then set SCRAPFORAI_API_KEY and ALLOWED_TARGET_ORIGINS
+npm run dev
+```
+
 ## Security Model
 
-- Every endpoint except `GET /health` and `GET /v1/schema*` requires `Authorization: Bearer <SCRAPFORAI_API_KEY>`.
+- Every endpoint except `GET /health`, `GET /v1/schema*` and the static UI under `/ui` requires
+  either `Authorization: Bearer <SCRAPFORAI_API_KEY>` or a UI session cookie.
 - `ALLOWED_TARGET_ORIGINS` controls `targetUrl`, literal `goto` URLs, and main-frame redirects.
 - `ALLOWED_RESOURCE_ORIGINS` controls expected external resource/API origins.
 - Unexpected resource/API origins are reported in evidence for MVP.
@@ -15,6 +37,43 @@ It is not a generic open-web scraper. It does not include anti-bot evasion, stor
 - Extracted results redact credential values and sensitive keys recursively. Routine `variables` values are not treated as secrets by default.
 - Trace defaults to `false`; screenshots default to `onFailure`; artifact retention defaults to `4` hours.
 - Cloudflare Quick Tunnel is development-only, disabled by default, and available only through the Compose `tunnel` profile.
+
+See [docs/SECURITY.md](SECURITY.md) for the full threat model.
+
+## Web UI
+
+Set `UI_ENABLED=true` and open `http://127.0.0.1:<PORT>/ui/`. Three screens:
+
+- **History** — every past run, filterable by status, scenario or free text. Click a row for
+  steps, screenshots, console errors and network failures.
+- **Configuration** — edit `.env` from the browser. Security-critical fields
+  (`SCRAPFORAI_API_KEY`, the origin allowlists, `ALLOW_EVALUATE`, `HOST`) are shown but
+  **locked**: changing them requires the bearer API key, so a UI session alone cannot widen
+  the allowlist or enable arbitrary JavaScript. Most fields apply only after a restart, and
+  the UI says so per field.
+- **Status** — runtime, listen address, data paths, disk usage and retention.
+
+**Authentication model:** you sign in with the API key, and the server exchanges it for an
+`httpOnly; SameSite=Strict` session cookie. The key itself is never stored in `localStorage`
+or in any JavaScript variable. Cookie-authenticated writes additionally require an
+`X-ScrapForAI-UI: 1` header, which cross-origin pages cannot set — this is what keeps the
+cookie from reintroducing CSRF.
+
+## Run history
+
+Run records and run evidence are stored separately, with different lifetimes:
+
+| Store | Contents | Size per run | Retention |
+|---|---|---|---|
+| **Run index** | jobId, scenario, target, status, timings, counts, error | ~500 bytes | `HISTORY_RETENTION_DAYS` (90) / `HISTORY_MAX_RUNS` (5000) |
+| **Evidence** | screenshots, `trace.zip`, DOM snapshots, `result.json` | 1–20 MB | `ARTIFACT_RETENTION_HOURS` (4) |
+
+So the list of what ran stays available for months while the heavy artifacts are pruned
+within hours. Opening a run whose evidence has expired shows the record with an "evidence
+expired" banner rather than an error.
+
+Both live under the per-user data directory — `%LOCALAPPDATA%\ScrapForAI` on Windows,
+`~/.local/share/scrapforai` on Linux — overridable with `SCRAPFORAI_DATA_DIR`.
 
 ## Prerequisites
 
@@ -321,8 +380,26 @@ Quick Tunnel exposes the local API to a temporary public URL. Keep it running on
 
 ## Development
 
+From the repository root:
+
 ```powershell
-Set-Location -Path "D:\WorkSpace\ScrapForAI"
 npm run typecheck
+npm test
 npm run build
 ```
+
+## Building the installer
+
+Requires [Inno Setup 6](https://jrsoftware.org/isdl.php) on `PATH` (or installed in its
+default location) and network access the first time, to fetch the portable Node runtime and
+Chromium.
+
+```powershell
+.\installer\Build-Release.ps1 -Version 1.0.0
+```
+
+This stages a self-contained payload under `installer/staging` (app, Node, Chromium, docs),
+compiles it, and prints the installer path and its SHA256. Expect roughly 250–350 MB — Chromium
+dominates.
+
+Before publishing, work through [docs/RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).

@@ -12,12 +12,18 @@
     "generate:schema": "tsx scripts/generate-schema.ts",
     "prebuild": "npm run generate:schema",
     "start": "node dist/server.js",
+    "start:ui": "node dist/server.js",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/Build-Release.ps1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Punto Exe",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
