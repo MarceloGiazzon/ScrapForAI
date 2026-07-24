@@ -39,7 +39,7 @@ const originListFromEnv = z
   )
   .pipe(z.array(z.string().url()).transform((origins) => origins.map((origin) => new URL(origin).origin)));
 
-const envSchema = z.object({
+export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: integerFromEnv.default(3000),
   // Loopback by default: a bare-metal start must not expose the browser-automation engine

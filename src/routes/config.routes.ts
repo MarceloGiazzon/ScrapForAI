@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Router } from 'express';
 
-import { env, getLiveAllowedOrigins } from '../config/env.js';
+import { env, envSchema, getLiveAllowedOrigins } from '../config/env.js';
 import { hasValidBearerToken } from '../security/apiAuth.js';
 
 export const configRouter = Router();
@@ -202,6 +202,28 @@ configRouter.put('/', async (req, res, next) => {
     if (rejected.length > 0) {
       res.status(400).json({
         error: { type: 'ValidationError', message: 'Some fields were rejected', details: rejected.map((item) => ({ path: item.key, message: item.reason })) },
+      });
+      return;
+    }
+
+    // Re-validate the FULL merged environment, not just each field's shape, so a value that
+    // passes the per-field checks but would break the schema on next boot (PORT=abc, an
+    // invalid origin, an out-of-range enum) is never persisted. process.env is what the
+    // server booted from, so it supplies the required fields the schema needs.
+    const validation = envSchema.safeParse({ ...process.env, ...accepted });
+    if (!validation.success) {
+      // Prefer to blame only fields the caller actually changed; the pre-existing env is
+      // known-good because the server booted from it.
+      const changedIssues = validation.error.issues
+        .filter((issue) => accepted[String(issue.path[0] ?? '')] !== undefined)
+        .map((issue) => ({ path: String(issue.path[0] ?? ''), message: issue.message }));
+      const details =
+        changedIssues.length > 0
+          ? changedIssues
+          : validation.error.issues.map((issue) => ({ path: String(issue.path[0] ?? ''), message: issue.message }));
+
+      res.status(400).json({
+        error: { type: 'ValidationError', message: 'Resulting configuration is invalid; nothing was written', details },
       });
       return;
     }

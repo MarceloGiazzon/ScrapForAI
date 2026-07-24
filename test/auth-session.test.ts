@@ -161,6 +161,26 @@ test('a cookie session cannot change a locked field even with the UI header', as
   assert.equal(payload.error.details[0]?.path, 'ALLOW_EVALUATE');
 });
 
+test('a value that passes shape checks but violates the schema is rejected without writing', async () => {
+  // LOG_LEVEL is editable and unlocked, so a bearer request clears every per-field check;
+  // only the full-schema re-validation catches that "bogus-level" is not a valid enum value.
+  // The real .env (which the route writes to) must be left untouched.
+  const realEnvPath = path.resolve('.env');
+  const before = fs.readFileSync(realEnvPath, 'utf8');
+
+  const response = await fetch(`${baseUrl}/v1/config`, {
+    method: 'PUT',
+    headers: { ...bearer, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates: { LOG_LEVEL: 'bogus-level' } }),
+  });
+
+  assert.equal(response.status, 400);
+  const payload = (await response.json()) as { error: { details: Array<{ path: string }> } };
+  assert.equal(payload.error.details[0]?.path, 'LOG_LEVEL');
+
+  assert.equal(fs.readFileSync(realEnvPath, 'utf8'), before, '.env must not change when the merged config is invalid');
+});
+
 test('artifact paths cannot escape the artifact root', async () => {
   // The primitive itself: a sibling directory sharing a prefix must NOT be considered inside.
   assert.equal(isPathInside('/app/artifacts', '/app/artifacts'), true);
