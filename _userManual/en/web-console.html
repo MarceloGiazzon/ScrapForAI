@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web console · ScrapForAI User Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/web-console.html">PT</a>
+      <a class="lang-link" href="../es/web-console.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link active" href="web-console.html">Web console</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guides</div>
+      <h1>Web console</h1>
+      <p class="lede">A built-in browser console for reviewing run history, editing configuration, and checking service status &mdash; served by ScrapForAI itself, with no separate app to install.</p>
+
+<h2 id="enabling">Enabling the console</h2>
+<p>Set <code>UI_ENABLED=true</code> in your <code>.env</code> and open the console at:</p>
+<pre><code class="language-text">http://127.0.0.1:&lt;PORT&gt;/ui/</code></pre>
+<p>Installed builds ship with the console on by default. Visiting the server root (<code>/</code>) redirects there.</p>
+
+<h2 id="signing-in">Signing in</h2>
+<p>You sign in with your API key. The server exchanges it for an <code>httpOnly; SameSite=Strict</code> session cookie, so the key itself is <strong>never</strong> stored in the browser or readable by page JavaScript. Signing out, or restarting the server, ends the session.</p>
+<p>Cookie-authenticated writes also carry an <code>X-ScrapForAI-UI: 1</code> header that cross-origin pages cannot set &mdash; this is what keeps the session cookie from reintroducing CSRF. See the <a href="security.html">Security model</a> for the full rationale.</p>
+
+<h2 id="history">Run history</h2>
+<p>The <strong>History</strong> screen lists every past run, newest first, with pass/fail counts across the top and filters for status, scenario and free text.</p>
+<figure>
+  <img src="../assets/screenshots/ui-history.png" alt="Run history screen with stat tiles, filters and a table of past runs" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+<p>Run records and the heavy evidence they point at are kept on <strong>two independent schedules</strong>: the compact index survives for <code>HISTORY_RETENTION_DAYS</code> (90 by default), while screenshots and traces are pruned after <code>ARTIFACT_RETENTION_HOURS</code> (4 by default).</p>
+<p>Click any row to open its detail: the step-by-step breakdown, screenshots, console errors and network failures. When the evidence has already been pruned, the record still opens with an &ldquo;evidence expired&rdquo; note instead of an error.</p>
+<figure>
+  <img src="../assets/screenshots/ui-history-detail.png" alt="Run detail dialog showing the steps table and a screenshot thumbnail" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+
+<h2 id="configuration">Configuration</h2>
+<p>The <strong>Configuration</strong> screen edits <code>.env</code> from the browser, grouped into Safety, Limits, Runtime and History.</p>
+<figure>
+  <img src="../assets/screenshots/ui-config.png" alt="Configuration screen with a locked Safety group and an ALLOW_EVALUATE warning banner" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+<ul>
+  <li><strong>Locked fields</strong> &mdash; <code>SCRAPFORAI_API_KEY</code>, the origin allowlists, <code>ALLOW_EVALUATE</code> and <code>HOST</code> &mdash; are shown but cannot be changed from a UI session alone. Changing them requires presenting the API key as a bearer token, so a hijacked session cannot widen the SSRF allowlist or enable arbitrary in-page JavaScript.</li>
+  <li><strong>Restart-required fields</strong> are labelled as such. Most configuration is read once at startup, so the console writes <code>.env</code> (backing up to <code>.env.bak</code>) and tells you when a restart is needed for a change to take effect.</li>
+  <li>A red banner appears whenever <code>ALLOW_EVALUATE</code> is on, because that setting permits arbitrary JavaScript in the target page.</li>
+</ul>
+
+<h2 id="status">Status</h2>
+<p>The <strong>Status</strong> screen reports the running service and its storage: listen address, uptime, browser engine, active sessions, data and artifact directories, disk usage, and the retention windows. It surfaces a warning if the service is listening on <code>0.0.0.0</code> or if <code>ALLOW_EVALUATE</code> is on.</p>
+<figure>
+  <img src="../assets/screenshots/ui-status.png" alt="Status screen showing service and storage details" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="dom-inspection.html"><span class="dir">&larr; Previous</span><span class="title">DOM inspection</span></a>
+      <a class="pager-link next" href="artifacts.html"><span class="dir">Next &rarr;</span><span class="title">Artifacts & evidence</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console web · ScrapForAI Manual do Usuário</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/web-console.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/web-console.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Buscar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link active" href="web-console.html">Console web</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guias</div>
+      <h1>Console web</h1>
+      <p class="lede">Um console de navegador integrado para revisar o histórico de execuções, editar a configuração e verificar o estado do serviço &mdash; servido pelo próprio ScrapForAI, sem nenhum aplicativo separado para instalar.</p>
+
+<h2 id="enabling">Ativar o console</h2>
+<p>Defina <code>UI_ENABLED=true</code> no seu <code>.env</code> e abra o console em:</p>
+<pre><code class="language-text">http://127.0.0.1:&lt;PORT&gt;/ui/</code></pre>
+<p>As versões instaladas vêm com o console ativado por padrão. Ao visitar a raiz do servidor (<code>/</code>), você é redirecionado para lá.</p>
+
+<h2 id="signing-in">Entrar</h2>
+<p>Você entra com sua chave de API. O servidor a troca por um cookie de sessão <code>httpOnly; SameSite=Strict</code>, de modo que a chave <strong>nunca</strong> é armazenada no navegador nem pode ser lida pelo JavaScript da página. Ao sair, ou ao reiniciar o servidor, a sessão termina.</p>
+<p>As escritas autenticadas por cookie também carregam um cabeçalho <code>X-ScrapForAI-UI: 1</code> que páginas de outra origem não conseguem definir &mdash; é isso que impede o cookie de sessão de reintroduzir CSRF. Consulte o <a href="security.html">Modelo de segurança</a> para a justificativa completa.</p>
+
+<h2 id="history">Histórico de execuções</h2>
+<p>A tela <strong>Histórico</strong> lista todas as execuções anteriores, da mais recente para a mais antiga, com contagens de sucesso/falha no topo e filtros por estado, cenário e texto livre.</p>
+<figure>
+  <img src="../assets/screenshots/ui-history.png" alt="Tela de histórico com blocos de estatísticas, filtros e uma tabela de execuções anteriores" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+<p>Os registros de execução e a evidência pesada para a qual apontam são mantidos em <strong>dois cronogramas independentes</strong>: o índice compacto sobrevive por <code>HISTORY_RETENTION_DAYS</code> (90 por padrão), enquanto capturas e traces são removidos após <code>ARTIFACT_RETENTION_HOURS</code> (4 por padrão).</p>
+<p>Clique em qualquer linha para abrir seu detalhe: o desdobramento passo a passo, as capturas, os erros de console e as falhas de rede. Quando a evidência já foi removida, o registro ainda abre com um aviso de &ldquo;evidência expirada&rdquo; em vez de um erro.</p>
+<figure>
+  <img src="../assets/screenshots/ui-history-detail.png" alt="Diálogo de detalhe da execução mostrando a tabela de passos e uma miniatura de captura" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+
+<h2 id="configuration">Configuração</h2>
+<p>A tela <strong>Configuração</strong> edita o <code>.env</code> pelo navegador, agrupada em Segurança, Limites, Runtime e Histórico.</p>
+<figure>
+  <img src="../assets/screenshots/ui-config.png" alt="Tela de configuração com um grupo de Segurança bloqueado e um aviso de ALLOW_EVALUATE" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+<ul>
+  <li>Os <strong>campos bloqueados</strong> &mdash; <code>SCRAPFORAI_API_KEY</code>, as listas de origens permitidas, <code>ALLOW_EVALUATE</code> e <code>HOST</code> &mdash; são exibidos, mas não podem ser alterados apenas com uma sessão da interface. Alterá-los exige apresentar a chave de API como token bearer, de modo que uma sessão sequestrada não pode ampliar a lista de permitidos SSRF nem habilitar JavaScript arbitrário na página.</li>
+  <li>Os <strong>campos que exigem reinício</strong> são rotulados como tais. A maior parte da configuração é lida uma única vez na inicialização, então o console grava o <code>.env</code> (com backup em <code>.env.bak</code>) e informa quando um reinício é necessário para uma alteração ter efeito.</li>
+  <li>Um aviso vermelho aparece sempre que <code>ALLOW_EVALUATE</code> está ligado, porque essa opção permite JavaScript arbitrário na página alvo.</li>
+</ul>
+
+<h2 id="status">Estado</h2>
+<p>A tela <strong>Estado</strong> informa sobre o serviço em execução e seu armazenamento: endereço de escuta, tempo ativo, motor de navegador, sessões ativas, diretórios de dados e de artefatos, uso de disco e as janelas de retenção. Ela exibe um aviso se o serviço estiver escutando em <code>0.0.0.0</code> ou se <code>ALLOW_EVALUATE</code> estiver ligado.</p>
+<figure>
+  <img src="../assets/screenshots/ui-status.png" alt="Tela de estado mostrando os detalhes do serviço e do armazenamento" style="max-width:100%;border-radius:8px;border:1px solid #d0d5dd">
+</figure>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="dom-inspection.html"><span class="dir">&larr; Anterior</span><span class="title">Inspeção do DOM</span></a>
+      <a class="pager-link next" href="artifacts.html"><span class="dir">Próximo &rarr;</span><span class="title">Artefatos e evidências</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Buscar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
