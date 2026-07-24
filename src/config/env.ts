@@ -101,7 +101,15 @@ function readLiveDotEnv(): Record<string, string> {
 }
 
 export function getLiveAllowedOrigins(key: 'ALLOWED_TARGET_ORIGINS' | 'ALLOWED_RESOURCE_ORIGINS'): string[] {
-  const liveValue = readLiveDotEnv()[key];
+  // Union the hot-reloadable .env file value with the value the server was launched with
+  // in process.env (e.g. a task runner / harness that injects an allowlisted origin via the
+  // environment instead of editing .env). The previous `liveValue ?? process.env[key]` made
+  // the process.env branch dead code: .env almost always defines the key, so `liveValue` was
+  // always set and a launcher-injected origin was silently dropped -- every such target then
+  // failed validateTargetUrl at the first navigation. Merge both sources and de-dupe.
+  const liveValue = readLiveDotEnv()[key] ?? '';
+  const procValue = process.env[key] ?? '';
+  const combined = [liveValue, procValue].filter((value) => value.length > 0).join(',');
 
-  return originListFromEnv.parse(liveValue ?? process.env[key] ?? '');
+  return Array.from(new Set(originListFromEnv.parse(combined)));
 }
