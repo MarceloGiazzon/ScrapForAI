@@ -3,10 +3,10 @@ dist/
 .env
 .env.*
 !.env.example
-artifacts/
-results/
-logs/
-data/
+/artifacts/
+/results/
+/logs/
+/data/
 local-api-key.txt
 *.key
 *.pem
