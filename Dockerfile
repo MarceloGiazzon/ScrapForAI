@@ -11,6 +11,10 @@ COPY scripts ./scripts
 
 RUN npm run build
 
+# Static web-console assets are served at runtime from <root>/public by publicDir();
+# they are not needed for the build, so copy them after it to keep the build cache warm.
+COPY public ./public
+
 ENV NODE_ENV=production
 
 EXPOSE 3000
