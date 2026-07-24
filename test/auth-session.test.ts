@@ -164,9 +164,11 @@ test('a cookie session cannot change a locked field even with the UI header', as
 test('a value that passes shape checks but violates the schema is rejected without writing', async () => {
   // LOG_LEVEL is editable and unlocked, so a bearer request clears every per-field check;
   // only the full-schema re-validation catches that "bogus-level" is not a valid enum value.
-  // The real .env (which the route writes to) must be left untouched.
+  // The route must not write .env at all on failure. Snapshot tolerates a missing .env (CI),
+  // where the assertion instead proves the route did not create one.
   const realEnvPath = path.resolve('.env');
-  const before = fs.readFileSync(realEnvPath, 'utf8');
+  const snapshot = (): string | null => (fs.existsSync(realEnvPath) ? fs.readFileSync(realEnvPath, 'utf8') : null);
+  const before = snapshot();
 
   const response = await fetch(`${baseUrl}/v1/config`, {
     method: 'PUT',
@@ -178,7 +180,7 @@ test('a value that passes shape checks but violates the schema is rejected witho
   const payload = (await response.json()) as { error: { details: Array<{ path: string }> } };
   assert.equal(payload.error.details[0]?.path, 'LOG_LEVEL');
 
-  assert.equal(fs.readFileSync(realEnvPath, 'utf8'), before, '.env must not change when the merged config is invalid');
+  assert.equal(snapshot(), before, '.env must not change (or be created) when the merged config is invalid');
 });
 
 test('artifact paths cannot escape the artifact root', async () => {
