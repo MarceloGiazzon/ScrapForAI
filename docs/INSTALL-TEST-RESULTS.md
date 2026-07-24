@@ -9,8 +9,36 @@ Tracks the two release gates that require a Windows build/release box:
 
 | Gate | Status | Blocker |
 |---|---|---|
-| T3.4 — installer compiles | **Not run** | Inno Setup 6 is not installed on the development machine. |
+| T3.4 — installer compiles | **DONE (2026-07-23)** | — |
 | T3.5 — clean-machine install | **Not run** | Requires a Windows VM/host without Node.js installed. |
+
+## T3.4 result
+
+`installer\Build-Release.ps1 -Version 1.0.0` completed successfully on the development
+machine after installing Inno Setup 6.
+
+| Field | Value |
+|---|---|
+| Installer | `installer\output\ScrapForAI-Setup-1.0.0.exe` |
+| Size | 237.9 MB (249,420,696 bytes) |
+| SHA256 | `56b689ec65968c8f20be2634672579e010d7512b1c05d3a7108d475a427f26a4` |
+| Staging | 827 MB (Chromium dominates) |
+
+Verified: the file is a valid Windows PE (`MZ`) executable, and the staging bundle contains
+`node\node.exe`, `app\dist\server.js`, `app\public\index.html` (the web console), the
+production `node_modules`, the pre-downloaded Chromium, and `.env.example`. The `.exe` and
+`installer\staging\` are git-ignored, so they are not committed.
+
+## Related: Docker clean-run validated (2026-07-23)
+
+Separately from the Windows installer, the **Docker** deployment was rebuilt and run on Linux
+to validate a no-Node-on-host execution path (the cross-platform equivalent of what T3.5
+proves for the native installer):
+
+- Node runs only inside the container (v24.15.0); the host does not need it.
+- `/health` ok, `/` -> 302 `/ui/`, `/ui/` and assets 200, `/v1/runs` 401 unauth / 200 with
+  key, login issues an `HttpOnly; SameSite=Strict` cookie.
+- Required fixing the Dockerfile, which did not copy `public/` (committed).
 
 These are the only two plan tasks that cannot be completed on the development
 workstation. Everything they depend on has been prepared and verified as far as this
@@ -61,4 +89,8 @@ below.
 
 - 2026-07-23 — Gates recorded as blocked on this workstation (no Inno Setup, no Node-free
   VM). Installer scripts, staging assumptions and path handling verified as far as possible
-  here. To be executed on a release box before the first published build.
+  here.
+- 2026-07-23 — Installed Inno Setup 6 and ran the release build: **T3.4 done**,
+  `ScrapForAI-Setup-1.0.0.exe` produced and verified (see above). Docker clean-run validated
+  as the no-Node execution path. **T3.5** (native Windows clean-machine test) still requires
+  a Node-free Windows VM/host; the `.exe` now exists to run it against.
