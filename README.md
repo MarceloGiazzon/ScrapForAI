@@ -419,3 +419,25 @@ history, artifacts and `.env` under `.\data` (a `portable.txt` marker selects th
 the installer omits it and uses `%LOCALAPPDATA%\ScrapForAI`). Removal is just deleting the
 folder. A plain `.zip` is larger than the LZMA2 installer (Deflate vs LZMA2) — expect
 ~330–450 MB.
+
+### Light vs Complete distributions
+
+Playwright uses two Chromium builds: the **headless shell** for `headless: true` (the default)
+and the **full browser** for `headless: false` (headed runs). Two distributions trade one for size:
+
+| | Complete | Light (`-Light`) |
+|---|---|---|
+| Chromium bundled | shell + full | shell only |
+| Headed runs (`headless:false`) | supported | forced to headless (`FORCE_HEADLESS=true`) |
+| Installer `.exe` | ~238 MB | ~110 MB |
+| Portable `.zip` | ~350 MB | ~163 MB |
+
+```powershell
+.\installer\Build-Release.ps1 -Version 1.1.0            # Complete .exe
+.\installer\Build-Zip.ps1     -Version 1.1.0            # Complete .zip
+.\installer\Build-Release.ps1 -Version 1.1.0 -Light     # Light .exe
+.\installer\Build-Zip.ps1     -Version 1.1.0 -Light     # Light .zip  (run Build-Staging -Light first)
+```
+
+Pick Light for agent/automation use (always headless); Complete if you need a visible browser
+for debugging routines.
