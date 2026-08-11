@@ -49,6 +49,8 @@ statusRouter.get('/', async (_req, res, next) => {
 
       // Surfaced prominently in the UI: this one is dangerous when true.
       allowEvaluate: env.ALLOW_EVALUATE,
+      // True on the Light distribution (headless-shell only): headed runs are forced headless.
+      forceHeadless: env.FORCE_HEADLESS,
 
       dataDir: dataDir(),
       artifactDir: env.ARTIFACT_DIR,

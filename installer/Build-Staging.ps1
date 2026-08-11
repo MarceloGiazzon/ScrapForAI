@@ -17,7 +17,10 @@
 [CmdletBinding()]
 param(
     [string]$NodeVersion = "22.17.0",
-    [switch]$SkipNodeDownload
+    [switch]$SkipNodeDownload,
+    # Light: bundle only the headless-shell Chromium (no full browser) and force headless.
+    # ~410 MB smaller, at the cost of headed (headless:false) runs.
+    [switch]$Light
 )
 
 $ErrorActionPreference = "Stop"
@@ -49,6 +52,14 @@ Copy-Item (Join-Path $Root "public")          (Join-Path $AppDir "public") -Recu
 Copy-Item (Join-Path $Root "package.json")    $AppDir
 Copy-Item (Join-Path $Root "package-lock.json") $AppDir
 Copy-Item (Join-Path $Root ".env.example")    $Staging
+
+if ($Light) {
+    # The Light build ships only the headless shell, so headed runs must be forced headless.
+    $StagedEnv = Join-Path $Staging ".env.example"
+    (Get-Content $StagedEnv -Raw) -replace '(?m)^FORCE_HEADLESS=.*$', 'FORCE_HEADLESS=true' |
+        Set-Content $StagedEnv -NoNewline
+    Write-Host "Light variant: FORCE_HEADLESS=true baked into the shipped .env.example"
+}
 
 $DocsDir = Join-Path $Staging "docs"
 New-Item -ItemType Directory -Path $DocsDir -Force | Out-Null
@@ -82,14 +93,18 @@ if (-not $SkipNodeDownload) {
 Write-Section "Pre-downloading Playwright Chromium"
 # Shipping the browser is what makes offline and corporate installs work: no install-time
 # network fetch, no npx, no registry access.
+#
+# Full build ships BOTH Chromium builds Playwright uses: the headless shell (headless:true,
+# the default) and the full browser (headless:false). Light ships only the shell.
+$BrowsersTarget = if ($Light) { "chromium-headless-shell" } else { "chromium" }
 $BrowsersDir = Join-Path $Staging "browsers"
 New-Item -ItemType Directory -Path $BrowsersDir -Force | Out-Null
 
 $env:PLAYWRIGHT_BROWSERS_PATH = $BrowsersDir
 Push-Location $AppDir
 try {
-    npx playwright install chromium
-    if ($LASTEXITCODE -ne 0) { throw "playwright install chromium failed" }
+    npx playwright install $BrowsersTarget
+    if ($LASTEXITCODE -ne 0) { throw "playwright install $BrowsersTarget failed" }
 }
 finally {
     Pop-Location

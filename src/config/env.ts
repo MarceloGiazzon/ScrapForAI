@@ -79,6 +79,12 @@ export const envSchema = z.object({
   ARTIFACT_DIR: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   PLAYWRIGHT_BROWSER: z.enum(['chromium', 'firefox', 'webkit']).default('chromium'),
+
+  // When true, every run is forced headless regardless of the request's options.headless.
+  // The "Light" distribution sets this because it bundles only the headless-shell Chromium,
+  // not the full browser a headed (headless:false) run would need. Default false: the full
+  // distribution honors the per-request headless flag.
+  FORCE_HEADLESS: booleanFromEnv,
 });
 
 const parsedEnv = envSchema.parse(process.env);

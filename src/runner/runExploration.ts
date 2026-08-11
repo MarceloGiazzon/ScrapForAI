@@ -249,7 +249,11 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
   let finalUrl: string | undefined;
 
   try {
-    playwright = await createPlaywrightContext(request.options.headless, request.options.viewport);
+    // FORCE_HEADLESS (set by the Light distribution, which bundles only the headless shell)
+    // overrides a headed request so it degrades to headless instead of failing to launch a
+    // browser that was never bundled.
+    const headless = env.FORCE_HEADLESS || request.options.headless;
+    playwright = await createPlaywrightContext(headless, request.options.viewport);
     evidence = registerEvidenceCollectors(playwright.page, artifactStore);
 
     if (request.options.trace) {

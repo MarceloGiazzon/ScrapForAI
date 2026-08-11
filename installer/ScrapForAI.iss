@@ -6,6 +6,9 @@
 #ifndef AppVersion
   #define AppVersion   "1.0.0"
 #endif
+#ifndef VariantSuffix
+  #define VariantSuffix ""
+#endif
 #define AppPublisher   "Punto Exe"
 
 [Setup]
@@ -18,7 +21,7 @@ DefaultDirName={localappdata}\{#AppName}\app
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 OutputDir=output
-OutputBaseFilename=ScrapForAI-Setup-{#AppVersion}
+OutputBaseFilename=ScrapForAI-Setup{#VariantSuffix}-{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

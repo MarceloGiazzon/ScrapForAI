@@ -18,9 +18,15 @@
     node\  app\  browsers\  docs\  .env.example
 #>
 [CmdletBinding()]
-param([string]$Version = "1.0.0")
+param(
+    [string]$Version = "1.0.0",
+    # Light: only affects the output filename; run Build-Staging -Light first so staging is
+    # the shell-only variant.
+    [switch]$Light
+)
 
 $ErrorActionPreference = "Stop"
+$VariantSuffix = if ($Light) { "-Light" } else { "" }
 $Staging = Join-Path $PSScriptRoot "staging"
 $Portable = Join-Path $PSScriptRoot "portable"
 $AssetsSrc = Join-Path $PSScriptRoot "assets"
@@ -55,7 +61,7 @@ try {
         [System.IO.File]::WriteAllText($p, $t)
     }
 
-    $Zip = Join-Path $OutDir "ScrapForAI-Portable-$Version.zip"
+    $Zip = Join-Path $OutDir "ScrapForAI-Portable$VariantSuffix-$Version.zip"
     if (Test-Path $Zip) { Remove-Item $Zip -Force }
 
     Write-Host "Compressing (this takes a minute; Chromium is large)..."
