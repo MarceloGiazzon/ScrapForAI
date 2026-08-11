@@ -15,7 +15,8 @@
     "start:ui": "node dist/server.js",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/Build-Release.ps1"
+    "release": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/Build-Release.ps1",
+    "release:zip": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/Build-Zip.ps1"
   },
   "keywords": [],
   "author": "Punto Exe",

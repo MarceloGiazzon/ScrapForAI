@@ -403,3 +403,19 @@ compiles it, and prints the installer path and its SHA256. Expect roughly 250–
 dominates.
 
 Before publishing, work through [docs/RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+
+### Portable ZIP (no install)
+
+For a download-and-run distribution that needs no installation, no admin, and writes nothing
+outside its own folder:
+
+```powershell
+.\installer\Build-Zip.ps1 -Version 1.0.0     # reuses installer/staging; run Build-Release first
+```
+
+This produces `installer/output/ScrapForAI-Portable-1.0.0.zip`. The user extracts it anywhere
+and double-clicks `ScrapForAI.cmd`; it runs on the bundled Node + Chromium and keeps run
+history, artifacts and `.env` under `.\data` (a `portable.txt` marker selects that behavior —
+the installer omits it and uses `%LOCALAPPDATA%\ScrapForAI`). Removal is just deleting the
+folder. A plain `.zip` is larger than the LZMA2 installer (Deflate vs LZMA2) — expect
+~330–450 MB.

@@ -1,0 +1,5 @@
+This marker tells ScrapForAI to run in PORTABLE mode: all data (run history, artifacts,
+your .env) stays inside this folder, under .\data. Delete the folder to remove everything.
+
+Do not delete this file if you want portable behavior. (The installed build omits it and
+stores data under %LOCALAPPDATA%\ScrapForAI instead.)

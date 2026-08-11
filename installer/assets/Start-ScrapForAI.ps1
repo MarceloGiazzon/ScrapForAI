@@ -12,7 +12,15 @@ $InstallRoot = Split-Path -Path $PSScriptRoot -Parent
 $AppDir      = Join-Path $InstallRoot "app"
 $NodeExe     = Join-Path $InstallRoot "node\node.exe"
 $ServerJs    = Join-Path $AppDir "dist\server.js"
-$DataDir     = Join-Path $env:LOCALAPPDATA "ScrapForAI"
+
+# Portable mode: when a marker sits next to the runtime (the ZIP ships one; the installer does
+# not), keep ALL state inside the extracted folder so deleting the folder removes everything.
+# Otherwise use the per-user location, which is what an installed copy wants.
+if (Test-Path (Join-Path $InstallRoot "portable.txt")) {
+    $DataDir = Join-Path $InstallRoot "data"
+} else {
+    $DataDir = Join-Path $env:LOCALAPPDATA "ScrapForAI"
+}
 
 # IMPORTANT: the server resolves .env relative to its own compiled location
 # (dist/config/env.js -> ../../.env), so the file MUST live in $AppDir, next to dist/.
