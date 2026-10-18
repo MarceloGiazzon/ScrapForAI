@@ -79,6 +79,12 @@ export const envSchema = z.object({
   ARTIFACT_DIR: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   PLAYWRIGHT_BROWSER: z.enum(['chromium', 'firefox', 'webkit']).default('chromium'),
+  // Optional Playwright launch channel for the chromium browser type: 'chrome' or 'msedge'
+  // launch the REAL installed browser instead of the bundled Chrome-for-Testing build. Google
+  // rejects the bundled build at the OAuth sign-in screen ("this browser or app may not be
+  // secure"); a real browser has a genuine UA + Sec-CH-UA pair that the bundled build cannot
+  // fake consistently. Empty = the default bundled browser.
+  PLAYWRIGHT_CHANNEL: z.enum(['chrome', 'msedge', 'chrome-beta', 'chrome-dev', 'chrome-canary', 'msedge-beta', 'msedge-dev']).optional(),
 
   // When true, every run is forced headless regardless of the request's options.headless.
   // The "Light" distribution sets this because it bundles only the headless-shell Chromium,

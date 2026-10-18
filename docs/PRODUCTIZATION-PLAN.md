@@ -3,7 +3,7 @@
 **Version:** 1.0
 **Created:** 2026-07-20
 **Target audience:** an AI coding assistant implementing this incrementally.
-**Repository root:** `D:\WorkSpace\ScrapForAILegacy`
+**Repository root:** `D:\WorkSpace\ScrapForAI`
 
 ---
 
@@ -197,7 +197,7 @@ and unrevertable until it is.
 
 1. Confirm there is no repo:
    ```powershell
-   Test-Path "D:\WorkSpace\ScrapForAILegacy\.git"    # expect: False
+   Test-Path "D:\WorkSpace\ScrapForAI\.git"    # expect: False
    ```
 2. Initialize and make the first commit **only after T0.2 is complete** (so no secret is ever
    in history):
@@ -279,7 +279,7 @@ installer/staging/
 2. Set `SCRAPFORAI_API_KEY=<new key>` in `.env`.
 3. Delete the loose file:
    ```powershell
-   Remove-Item "D:\WorkSpace\ScrapForAILegacy\local-api-key.txt"
+   Remove-Item "D:\WorkSpace\ScrapForAI\local-api-key.txt"
    ```
 4. Update any local MCP client config that referenced the old key.
 

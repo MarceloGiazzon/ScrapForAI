@@ -9,7 +9,7 @@ Worked example and a real bug it caught: see the `panel_nested_masterdetail_prim
 ## Starting it
 
 ```powershell
-cd D:\WorkSpace\ScrapForAILegacy
+cd D:\WorkSpace\ScrapForAI
 npm run dev
 ```
 
@@ -24,7 +24,7 @@ existing process:
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-  Where-Object { $_.CommandLine -like "*ScrapForAILegacy*server.ts*" } |
+  Where-Object { $_.CommandLine -like "*ScrapForAI*server.ts*" } |
   Select-Object ProcessId, CommandLine
 ```
 

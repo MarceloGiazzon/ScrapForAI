@@ -53,7 +53,7 @@ function Test-ScrapForAICommandLine {
         return $false
     }
 
-    return $CommandLine -match '(?i)(ScrapForAILegacy|ScrapForAI|\\scrapforai\\|/scrapforai/|src[\\/]server\.ts|dist[\\/]server\.js|tsx\s+watch\s+src[\\/]server\.ts|npm\s+run\s+(dev|start))'
+    return $CommandLine -match '(?i)(ScrapForAI|\\scrapforai\\|/scrapforai/|src[\\/]server\.ts|dist[\\/]server\.js|tsx\s+watch\s+src[\\/]server\.ts|npm\s+run\s+(dev|start))'
 }
 
 function Get-ProcessCommandLine {
