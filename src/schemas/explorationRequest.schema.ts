@@ -107,6 +107,7 @@ const gotoStep = z
   .strict();
 
 const reloadStep = z.object({ ...baseStep, action: z.literal('reload'), timeoutMs: stepTimeout }).strict();
+const setOfflineStep = z.object({ ...baseStep, action: z.literal('setOffline'), offline: z.boolean() }).strict();
 const waitForLoadStateStep = z
   .object({
     ...baseStep,
@@ -238,6 +239,7 @@ const setViewportSizeStep = z
 export const explorationStepSchema = z.discriminatedUnion('action', [
   gotoStep,
   reloadStep,
+  setOfflineStep,
   waitForLoadStateStep,
   waitForUrlContainsStep,
   waitForTimeoutStep,

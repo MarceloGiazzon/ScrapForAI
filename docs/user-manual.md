@@ -896,6 +896,7 @@ Variable value:
 | `watch` | Sample page JavaScript repeatedly. | `name`, `script`, `intervalMs`, `durationMs` |
 | `waitForElapsed` | Ensure a minimum elapsed time since an earlier step. | `sinceStepId`, `minElapsedMs`, `timeoutMs` |
 | `setViewportSize` | Resize the browser viewport mid-run. | `width`, `height` |
+| `setOffline` | Cut (`true`) or restore (`false`) the browser's network for the rest of the run, to test offline behaviour. | `offline` |
 
 ### Collect action
 
