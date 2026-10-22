@@ -310,6 +310,11 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
             validateTargetUrl(page.url());
             break;
           }
+          case 'setOffline':
+            // Cuts (or restores) the network for the whole browser context: fetch/XHR fail, navigator.onLine
+            // flips and the page gets its online/offline events, exactly as a real connection drop does.
+            await playwright.context.setOffline(step.offline);
+            break;
           case 'waitForLoadState':
             await frame.waitForLoadState(step.state, { timeout });
             break;
