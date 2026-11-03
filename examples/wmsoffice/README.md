@@ -16,7 +16,8 @@ ScrapForAI job ids had expired (see [../../docs/T2.5-MIGRATION-TRIAGE.md](../../
 
 - Both routines passed against the real app, and each **fails** when the page is not what it expects (a missing button, a
   required error banner, an invalid CSV). `confirm-green` pinned a GREEN with a signed manifest; `evidence verify` and
-  `vault run --impact` were green. All of it in a **temporary** ScrapForAI data directory, **not** in your real vault.
+  `vault run --impact` were green. First in a temporary data directory; on 2026-11-03 both were loaded into the **real**
+  vault (firstGreen `job_FDyTf-2qh1Mw` / `job_K9k2TD6oPtGK`, chain #1–#2, exports VERIFIED, impact suite GREEN 2/2).
 - **No RED was captured.** The bugs were fixed on 2026-09-19 and cannot be reproduced on a fixed build, so the items carry
   `redNotCapturedReason`. They prove "still fixed", not "it was broken". Count them accordingly toward G1.
 - The REG-218 routine does not check the `divergente` flag of each row: grid cells are `<input>`s, which `assertTextContains`
@@ -58,6 +59,18 @@ answers `missing_api_key`.
    `NPDEV_AUTH_JWT_PUBLICKEYPATH` and `NPDEV_AUTH_JWT_PRIVATEKEYPATH` (the `wmsoffice-keys\` pair; a throwaway RSA pair is fine for local use).
 3. On an empty database: `POST /api/auth/bootstrap-admin` with `{"username","displayName","password"}`. It works once per tenant.
 4. `http://localhost:8100` must be in `ALLOWED_TARGET_ORIGINS` **and** `ALLOWED_RESOURCE_ORIGINS`.
+
+**Write the credential set first, bootstrap second.** `bootstrap-admin` can't be repeated. If the vault write fails after it, the
+password is lost and the only way back is wiping `data\`. So `PUT /v1/credentials/wms-admin` first (body keys: `boundOrigins`,
+`values`, `tags`, `notes` — the schema is strict), then bootstrap with the same value, then `POST /api/auth/login` to check.
+
+The instance loaded into the real vault on 2026-11-03 lives at `%LOCALAPPDATA%\ScrapForAI\targets\wmsoffice\` (a copy of the
+NPDev app, its own H2 database). `Start-WmsOffice.ps1` there starts it in JWT mode in the background, and does nothing if
+:8100 is already up. Its admin password exists only in the `wms-admin` credential set. To recreate it: stop the app, delete
+`App\data\`, start, and repeat the step above with a new generated password. Build id used: `wmsoffice-20260929.ab56a129`
+(build date + jar sha256 prefix; `/actuator/info` reports `commit: UNKNOWN`).
+
+Friction found doing this, written up for NPDev: [../../docs/NPDEV-FEEDBACK-WMSOFFICE.md](../../docs/NPDEV-FEEDBACK-WMSOFFICE.md).
 
 ## Lessons from writing these
 
