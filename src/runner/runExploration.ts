@@ -263,7 +263,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // browser that was never bundled.
     const headless = env.FORCE_HEADLESS || request.options.headless;
     playwright = await createPlaywrightContext(headless, request.options.viewport);
-    evidence = registerEvidenceCollectors(playwright.page, artifactStore);
+    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isAborted);
 
     if (request.options.trace) {
       await playwright.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
@@ -639,6 +639,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   const consoleEvidence = evidence?.console ?? [];
   const networkEvidence = evidence?.network ?? [];
   const consoleErrors = consoleEvidence.filter((item) => item.type === 'error');
+  const routingEntries = playwright?.routing.entries ?? [];
   const networkFailures = networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400));
   const rawResult: ExplorationResult = {
     jobId,
@@ -674,6 +675,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       network: networkEvidence,
       networkFailures,
       unexpectedExternalRequests: evidence?.unexpectedExternalRequests ?? [],
+      ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
       domTextSnapshot,
       finalUrl,
     },

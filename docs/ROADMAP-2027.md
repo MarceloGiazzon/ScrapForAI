@@ -946,6 +946,9 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.1 — Camada de roteamento de rede · M · `[compartilhado]`
 
+> **Implementada em 2026-11-03** (`src/runner/routing.ts`, ver AGENTS.md, "Network routing"). Entrega a guarda de allowlist
+> (`BLOCK_UNEXPECTED_RESOURCES`, fecha o achado A7) e os encaixes `faults` (T7.2) e `resources` (T5.2), que ainda não existem.
+
 **Usado por:** T5.2, T7.2, T7.8.
 
 **Especificação:**

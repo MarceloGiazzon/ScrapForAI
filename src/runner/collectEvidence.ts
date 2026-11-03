@@ -76,7 +76,12 @@ function networkEvidenceFromResponse(response: Response): NetworkEvidence {
   });
 }
 
-export function registerEvidenceCollectors(page: Page, artifactStore: ArtifactStore): EvidenceCollector {
+export function registerEvidenceCollectors(
+  page: Page,
+  artifactStore: ArtifactStore,
+  // T5.1: a request a policy aborted on purpose is not a failure of the application.
+  isAbortedByPolicy: (request: Request) => boolean = () => false,
+): EvidenceCollector {
   const screenshots: ScreenshotEvidence[] = [];
   const consoleEvents: ConsoleEvidence[] = [];
   const pageErrors: string[] = [];
@@ -117,6 +122,9 @@ export function registerEvidenceCollectors(page: Page, artifactStore: ArtifactSt
   });
 
   page.on('requestfailed', (request) => {
+    if (isAbortedByPolicy(request)) {
+      return;
+    }
     const item = sanitizeNetworkEvidence({
       url: request.url(),
       method: request.method(),

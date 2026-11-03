@@ -68,6 +68,8 @@ export const envSchema = z.object({
   // Capped at MAX_PARALLEL_JOBS - 1 (a suite always has at least one slot). 0 disables the reservation.
   INTERACTIVE_RESERVED_SLOTS: z.coerce.number().int().min(0).default(1),
   MAX_DOM_SNAPSHOT_CHARS: integerFromEnv.default(20000),
+  // T5.1: abort (instead of only reporting) sub-resources from origins outside the allowlists. Off by default.
+  BLOCK_UNEXPECTED_RESOURCES: booleanFromEnv,
   ALLOW_EVALUATE: booleanFromEnv,
   MAX_EVALUATE_SCRIPT_CHARS: integerFromEnv.default(4000),
   MAX_EVALUATE_RESULT_CHARS: integerFromEnv.default(20000),

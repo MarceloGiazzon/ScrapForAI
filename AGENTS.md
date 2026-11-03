@@ -190,6 +190,16 @@ step limits, artifact retention, etc.).
   Not in the snapshot yet: `perf.json` (T3.4), accessibility summary (T7.5) and the permission matrix (T6.1 results) - those
   producers do not exist or are not wired. `test/evolution-snapshot.smoke.ts` proves no seeded value or password reaches disk, the
   run state or the git history.
+- **Network routing** (`src/runner/routing.ts`, T5.1): the ONE `context.route('**/*')` of a browser context, created in
+  `createPlaywrightContext` (so runs and `inspect_dom` share it). Policies are composed in a fixed order: allowlist guard
+  (`BLOCK_UNEXPECTED_RESOURCES=true`: a sub-resource, websocket included, from an origin in neither `ALLOWED_TARGET_ORIGINS` nor
+  `ALLOWED_RESOURCE_ORIGINS` is **aborted**), then fault injection (T7.2) and resource policy (T5.2) through the `faults` / `resources`
+  slots of `buildPolicies`, then the request continues. **With no active policy nothing is installed**, so a default run is byte-for-byte
+  what it was. Main-frame navigations are NOT the guard's business (`validateTargetUrl` still owns them) and `data:`/`blob:`/`about:`
+  never leave the browser. Every request a policy touched is recorded in `result.evidence.routing` (`origin`, `pathname` without the
+  query, `handledBy`, `action`; present only when non-empty, capped at 200); a request ABORTED by policy is still listed in
+  `unexpectedExternalRequests` (that is the evidence) but is not counted in `networkFailures`, because the application did not fail.
+  A policy that throws fails open for that request. Off by default: a page that depends on a CDN would break.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

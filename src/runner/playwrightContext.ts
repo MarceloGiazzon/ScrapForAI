@@ -1,11 +1,14 @@
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { env } from '../config/env.js';
+import { buildPolicies, installRouting, type RoutingHandle } from './routing.js';
 
 export interface PlaywrightJobContext {
   browser: Browser;
   context: BrowserContext;
   page: Page;
+  /** T5.1: the request interception of this context (inactive when no policy is on). */
+  routing: RoutingHandle;
   close(): Promise<void>;
 }
 
@@ -29,9 +32,15 @@ const DEFAULT_VIEWPORT: Viewport = { width: 1366, height: 768 };
 const CHROME_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.96 Safari/537.36';
 
+export interface ContextOptions {
+  /** Overrides BLOCK_UNEXPECTED_RESOURCES for this context. */
+  blockUnexpected?: boolean;
+}
+
 export async function createPlaywrightContext(
   headless: boolean,
   viewport: Viewport = DEFAULT_VIEWPORT,
+  options: ContextOptions = {},
 ): Promise<PlaywrightJobContext> {
   const browserType = { chromium, firefox, webkit }[env.PLAYWRIGHT_BROWSER];
   const browser = await browserType.launch({
@@ -58,12 +67,15 @@ export async function createPlaywrightContext(
 Object.defineProperty(navigator, 'webdriver', { get: function () { return undefined; } });`,
   });
 
+  const routing = await installRouting(context, buildPolicies({ blockUnexpected: options.blockUnexpected ?? env.BLOCK_UNEXPECTED_RESOURCES }));
+
   const page = await context.newPage();
 
   return {
     browser,
     context,
     page,
+    routing,
     async close() {
       await page.close().catch(() => undefined);
       await context.close().catch(() => undefined);

@@ -63,6 +63,16 @@ export const networkEvidenceSchema = z.object({
 });
 export type NetworkEvidence = z.infer<typeof networkEvidenceSchema>;
 
+/** T5.1: a request a routing policy touched (aborted or answered) and which policy did. */
+export const routingEvidenceSchema = z.object({
+  origin: z.string(),
+  pathname: z.string(),
+  method: z.string(),
+  resourceType: z.string().optional(),
+  handledBy: z.string(),
+  action: z.enum(['abort', 'fulfill']),
+});
+
 export const explorationResultSchema = z.object({
   jobId: z.string(),
   scenarioName: z.string().optional(),
@@ -103,6 +113,8 @@ export const explorationResultSchema = z.object({
     network: z.array(networkEvidenceSchema),
     networkFailures: z.array(networkEvidenceSchema),
     unexpectedExternalRequests: z.array(networkEvidenceSchema),
+    // Present only when a routing policy touched at least one request (T5.1).
+    routing: z.array(routingEvidenceSchema).optional(),
     domTextSnapshot: z.string().optional(),
     finalUrl: z.string().optional(),
   }),

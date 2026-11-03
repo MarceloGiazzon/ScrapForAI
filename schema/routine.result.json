@@ -230,6 +230,44 @@
             "$ref": "#/$defs/__schema4"
           }
         },
+        "routing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "type": "string"
+              },
+              "pathname": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
+              },
+              "resourceType": {
+                "type": "string"
+              },
+              "handledBy": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "abort",
+                  "fulfill"
+                ]
+              }
+            },
+            "required": [
+              "origin",
+              "pathname",
+              "method",
+              "handledBy",
+              "action"
+            ],
+            "additionalProperties": false
+          }
+        },
         "domTextSnapshot": {
           "type": "string"
         },
