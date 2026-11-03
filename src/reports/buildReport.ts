@@ -12,6 +12,7 @@ import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import { getTarget } from '../targets/targetStore.js';
 import type { ReportLang } from './i18n.js';
 import { type IntegrityInfo, renderRunReport, renderSuiteReport, type ReportStep } from './render.js';
+import { readFileRetry } from '../storage/transientIo.js';
 
 const MAX_SCREENSHOTS = 12;
 const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024;
@@ -20,7 +21,7 @@ async function readJson<T>(jobId: string, name: string): Promise<T | undefined> 
   const file = resolveJobFile(jobId, name);
   if (!file) return undefined;
   try {
-    return JSON.parse(await fs.readFile(file, 'utf8')) as T;
+    return JSON.parse(await readFileRetry(file, 'utf8')) as T;
   } catch {
     return undefined;
   }
@@ -78,7 +79,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
   for (const shot of result.evidence.screenshots.slice(0, MAX_SCREENSHOTS)) {
     const file = resolveJobFile(jobId, `screenshots/${path.basename(shot.path)}`);
     if (!file) continue;
-    const data = await fs.readFile(file).catch(() => undefined);
+    const data = await readFileRetry(file).catch(() => undefined);
     if (data && data.length <= MAX_SCREENSHOT_BYTES) {
       screenshots.push({ name: shot.name, dataUri: `data:image/png;base64,${data.toString('base64')}` });
     }

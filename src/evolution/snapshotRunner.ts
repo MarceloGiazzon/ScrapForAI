@@ -36,6 +36,7 @@ import {
   snapshotFolderName,
 } from './snapshotPlan.js';
 import { commitSnapshot, findSnapshotOfBuild, MANIFEST_FILE, sha256, type SnapshotFile, writeSnapshotFolder } from './snapshotStore.js';
+import { readFileRetry } from '../storage/transientIo.js';
 
 /**
  * T4.4 runner. A snapshot is split into browser sessions (planSnapshotSessions) that go through the job queue like a
@@ -299,7 +300,7 @@ async function finalize(
         let why = data.screenshotPath ? 'its evidence folder is gone (expired or pruned)' : "the run's evidence has no screenshot of it";
         if (absolute) {
           try {
-            image = await fs.readFile(absolute);
+            image = await readFileRetry(absolute);
           } catch (error) {
             why = `${(error as NodeJS.ErrnoException).code ?? 'read error'} on ${path.basename(absolute)}`;
           }

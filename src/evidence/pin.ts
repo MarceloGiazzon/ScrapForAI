@@ -19,6 +19,7 @@ import {
   writeManifest,
   type ManifestProblem,
 } from './manifest.js';
+import { readFileRetry } from '../storage/transientIo.js';
 
 export class EvidenceError extends Error {
   constructor(
@@ -58,7 +59,7 @@ const withLock = createMutex();
 /** What the evidence is about, read from the run's own result.json. Missing fields are simply omitted. */
 async function contextOf(dir: string): Promise<NonNullable<EvidenceManifest['context']>> {
   try {
-    const result = JSON.parse(await fs.readFile(path.join(dir, 'result.json'), 'utf8')) as Record<string, any>;
+    const result = JSON.parse(await readFileRetry(path.join(dir, 'result.json'), 'utf8')) as Record<string, any>;
     return {
       ...(typeof result.scenarioName === 'string' ? { scenarioName: result.scenarioName } : {}),
       ...(typeof result.targetUrl === 'string' ? { targetUrl: result.targetUrl } : {}),

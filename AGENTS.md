@@ -208,6 +208,15 @@ step limits, artifact retention, etc.).
   (but screenshots/trace stay off). Available on a direct run, `POST /v1/routines/:id/run` / `run_routine` (`profile`), a suite (`profile`) and
   `scrapforai run --profile`; deliberately NOT on regression-vault runs (proof needs full evidence). **The acceptance benchmark is still pending**
   (3 real routines x 10 runs per profile on WmsOffice): `npm run bench:profile -- <routine>... --runs 10`. The speed-up is measured, not promised.
+- **Transient file errors on Windows** (`src/storage/transientIo.ts`): Windows briefly answers `EPERM`/`EBUSY`/`EACCES` when another process (antivirus,
+  indexer) holds a file that was just written. Evidence reads and writes (manifest hash and read, `result.json`, screenshots for reports and
+  snapshots, pin, export) and the atomic rename go through `retryTransient` / `readFileRetry` (6 attempts, growing pause; any other error is thrown
+  at once) and the manifest is now written atomically. A retry prints `[fs] <code> on <file>, retry n/m` on stderr, and a manifest that still cannot be
+  written prints `[evidence] manifest of <job> could not be written` (the run still does not fail for it). **Why:** the full smoke suite failed in about
+  4 of 7 runs with an unrelated test each time ("evidence not found" right after a run: a screenshot unreadable, `evidenceAvailable` false, a missing
+  manifest), never in isolation; a real `EPERM` on a rename was captured in one run. After the change 3 consecutive full runs passed 52/52, with no
+  `[fs]` line in the last two, so the cause is the best explanation, not a proven one. If a "not found right after a run" failure returns, look for
+  `[fs]`/`[evidence]` lines first.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

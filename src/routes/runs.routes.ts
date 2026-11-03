@@ -14,6 +14,7 @@ import { findJobDir, resolveJobFile } from '../evidence/locate.js';
 import { readManifest, verifyManifest } from '../evidence/manifest.js';
 import { requireBearer } from '../security/apiAuth.js';
 import { getRun, historyStats, listRuns, listScenarioNames } from '../history/runHistoryStore.js';
+import { readFileRetry } from '../storage/transientIo.js';
 
 export const runsRouter = Router();
 
@@ -103,7 +104,7 @@ runsRouter.get('/:jobId', async (req, res, next) => {
     if (resultPath && existsSync(resultPath)) {
       evidenceAvailable = true;
       try {
-        detail = JSON.parse(await fs.readFile(resultPath, 'utf8'));
+        detail = JSON.parse(await readFileRetry(resultPath, 'utf8'));
       } catch {
         evidenceAvailable = false;
       }

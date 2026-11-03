@@ -8,6 +8,7 @@ import { checkSignature } from './signature.js';
 import { loadPublicKey } from './signingKey.js';
 import { PUBLIC_KEY_FILE } from './verify.js';
 import { createZip, type ZipEntry } from './zip.js';
+import { readFileRetry } from '../storage/transientIo.js';
 
 const README = (keyId: string, jobId: string): string => `ScrapForAI evidence export: ${jobId}
 
@@ -53,10 +54,10 @@ export async function exportEvidence(jobId: string): Promise<{ zip: Buffer; file
 
   const entries: ZipEntry[] = [];
   for (const file of stored.manifest.files) {
-    entries.push({ name: file.path, data: await fs.readFile(path.join(located.dir, file.path)) });
+    entries.push({ name: file.path, data: await readFileRetry(path.join(located.dir, file.path)) });
   }
   entries.push(
-    { name: MANIFEST_FILE, data: await fs.readFile(path.join(located.dir, MANIFEST_FILE)) },
+    { name: MANIFEST_FILE, data: await readFileRetry(path.join(located.dir, MANIFEST_FILE)) },
     { name: PUBLIC_KEY_FILE, data: Buffer.from(publicKeyPem, 'utf8') },
     { name: 'README.txt', data: Buffer.from(README(keyId, jobId), 'utf8') },
   );

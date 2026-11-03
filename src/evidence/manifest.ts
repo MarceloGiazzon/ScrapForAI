@@ -5,6 +5,9 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { writeFileAtomic } from '../storage/atomicWrite.js';
+import { readFileRetry, retryTransient } from '../storage/transientIo.js';
+
 /**
  * T1.5 evidence manifest: <jobDir>/manifest.json lists every file of a run with its sha256, so any
  * later change to a screenshot or to result.json is detectable. T2.6 builds signing and the
@@ -76,13 +79,18 @@ export interface ManifestVerification {
 }
 
 export function sha256File(file: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
-    createReadStream(file)
-      .on('data', (chunk) => hash.update(chunk))
-      .on('error', reject)
-      .on('end', () => resolve(hash.digest('hex')));
-  });
+  // Each attempt starts a fresh hash: a transient open error must never leave a half-fed digest behind.
+  return retryTransient(
+    () =>
+      new Promise<string>((resolve, reject) => {
+        const hash = createHash('sha256');
+        createReadStream(file)
+          .on('data', (chunk) => hash.update(chunk))
+          .on('error', reject)
+          .on('end', () => resolve(hash.digest('hex')));
+      }),
+    { label: path.basename(file) },
+  );
 }
 
 export function sha256Text(text: string | Buffer): string {
@@ -144,14 +152,14 @@ export async function buildManifest(
 
 export async function writeManifest(dir: string, manifest: EvidenceManifest): Promise<string> {
   const text = `${JSON.stringify(manifest, null, 2)}\n`;
-  await fs.writeFile(path.join(dir, MANIFEST_FILE), text, 'utf8');
+  await writeFileAtomic(path.join(dir, MANIFEST_FILE), text);
   return sha256Text(text);
 }
 
 export async function readManifest(dir: string): Promise<{ manifest: EvidenceManifest; sha256: string } | undefined> {
   let text: string;
   try {
-    text = await fs.readFile(path.join(dir, MANIFEST_FILE), 'utf8');
+    text = await readFileRetry(path.join(dir, MANIFEST_FILE), 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined;
