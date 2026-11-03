@@ -174,6 +174,27 @@ server.registerTool(
 );
 
 server.registerTool(
+  'list_schedules',
+  {
+    title: 'List schedules',
+    description:
+      'The schedules stored on the server (cron + time zone + target: a routine, a suite, the regression vault or a system-evolution snapshot), ' +
+      'each with its next occurrences, the run in progress, the last run and a count of outcomes (passed/failed/error/skipped-overlap/missed). ' +
+      'schedulerRunning=false means the server was started without SCHEDULER_ENABLED, so nothing fires on its own. Read-only: schedules are ' +
+      'created and changed by a person (PUT /v1/schedules/:id), because they start browsers unattended.',
+    inputSchema: z.object({ id: safeName.optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id }) => {
+    try {
+      return toToolResult(await getJson(id ? `/v1/schedules/${encodeURIComponent(id)}` : '/v1/schedules'));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
   'shrink_failure',
   {
     title: 'Shrink a failing sample to the smallest input',

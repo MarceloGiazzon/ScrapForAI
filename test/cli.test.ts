@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 23);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 26);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -701,6 +701,58 @@ test('shrink: an API refusal is exit 2 with its type; bad usage never reaches th
     seen.length = 0;
     const result = await cli(args);
     assert.equal(result.code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
+  }
+});
+
+// T3.2: `scrapforai schedules list|show|run-now`
+
+const scheduleView = (extra: Record<string, unknown> = {}) => ({
+  schedule: { id: 'nightly', cron: '30 2 * * *', timezone: 'America/Montevideo', target: { kind: 'routine', routineId: 'crud' }, enabled: true, overlap: 'skip', jitterSeconds: 0, notify: [] },
+  createdAt: '2026-11-03T10:00:00.000Z',
+  updatedAt: '2026-11-03T10:00:00.000Z',
+  next: ['2026-11-04T05:30:00.000Z'],
+  counts: { passed: 2, missed: 3 },
+  lastRun: { at: '2026-11-03T05:30:00.000Z', outcome: 'passed' },
+  ...extra,
+});
+
+test('schedules list/show: print the next occurrence and the history; --json matches the contract', async () => {
+  handler = (_req, respond) => respond(200, { schedulerRunning: false, schedules: [scheduleView()] });
+  const list = await cli(['schedules', 'list']);
+  assert.equal(list.code, 0);
+  assert.match(list.stdout, /NOT running in this server/);
+  assert.match(list.stdout, /on\s+nightly\s+30 2 \* \* \* \(America\/Montevideo\)\s+routine\s+next 2026-11-04T05:30:00.000Z\s+last passed/);
+  assert.equal(validJson((await cli(['schedules', 'list', '--json'])).stdout).command, 'schedules list');
+
+  handler = (_req, respond) =>
+    respond(200, {
+      schedulerRunning: true,
+      ...scheduleView({ history: [{ at: '2026-11-03T05:30:00.000Z', outcome: 'started', recovered: true, run: { kind: 'run', id: 'job_1' } }, { at: '2026-11-02T05:30:00.000Z', outcome: 'missed', count: 3, message: 'down' }] }),
+    });
+  const show = await cli(['schedules', 'show', 'nightly']);
+  assert.match(show.stdout, /2026-11-03T05:30:00.000Z\s+started \(recovery\)\s+job_1/);
+  assert.match(show.stdout, /missed x3/);
+  assert.equal(validJson((await cli(['schedules', 'show', 'nightly', '--json'])).stdout).command, 'schedules show');
+  assert.equal(seen.at(-1)!.url, '/v1/schedules/nightly');
+});
+
+test('schedules run-now: POSTs with the bearer; a refusal is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(202, { at: '2026-11-03T12:00:00.000Z', outcome: 'started', manual: true, run: { kind: 'suite', id: 'suite_1' } });
+  const ok = await cli(['schedules', 'run-now', 'nightly', '--json']);
+  assert.equal(ok.code, 0);
+  assert.equal(validJson(ok.stdout).command, 'schedules run-now');
+  assert.equal(seen.at(-1)!.method, 'POST');
+  assert.equal(seen.at(-1)!.auth, `Bearer ${KEY}`);
+
+  handler = (_req, respond) => respond(409, { error: { type: 'SchedulerDisabled', message: 'not running' } });
+  const refused = await cli(['schedules', 'run-now', 'nightly']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /SchedulerDisabled/);
+
+  for (const args of [['schedules'], ['schedules', 'show'], ['schedules', 'run-now'], ['schedules', 'list', 'x'], ['schedules', 'show', 'a', 'b']]) {
+    seen.length = 0;
+    assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
   }
 });

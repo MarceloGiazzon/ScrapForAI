@@ -779,6 +779,10 @@ homologação útil.
 
 ### T3.2 — Agendador · G
 
+> **Implementada em 2026-11-03** (`src/scheduler/`, ver AGENTS.md, "Scheduler"). Parser de cron próprio com tabela de casos e testes de horário de verão; sobreposição vira `skipped-overlap`; no
+> máximo uma recuperação por lacuna (as demais ocorrências viram uma entrada `missed` com contagem); `evaluate`/`watch` recusados em execuções agendadas (também via include e em suítes) salvo
+> `SCHEDULED_ALLOW_EVALUATE`. **`SCHEDULER_ENABLED` é `false` por padrão.** Alvos: rotina, suíte, cofre e snapshot de evolução. Não feito: tela na UI (T3.7), nova tentativa (T3.5), notificações (T3.3).
+
 **Especificação:**
 - `src/scheduler/`, com a entidade `Schedule` ([Apêndice A](#a9-agendamento)): `cron` de 5
   campos, fuso (default `America/Montevideo`), alvo (`routineId`, `suite`, `vaultTag` ou

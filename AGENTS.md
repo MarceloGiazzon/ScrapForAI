@@ -282,6 +282,24 @@ step limits, artifact retention, etc.).
   a single case (and each inline generator as the literal it produced), so the item fails on every run; a value of an included routine's parameter cannot be pinned (422
   `ParametersNotPinnable`). The probes' evidence is ephemeral: save before it expires. MCP `shrink_failure` + `get_shrink_result`; CLI `scrapforai shrink --from-job <id> | <routine> --seed s
   --sample N` (exit 0 for `minimal`/`independent`, 2 otherwise: it is not a test verdict). Not done: a button in the web UI, shrinking inside a suite automatically, several failures at once.
+- **Scheduler** (`src/scheduler/`, T3.2): `PUT /v1/schedules/:id` (bearer only: it makes the server start browsers on its own) stores `{ cron, timezone (default
+  America/Montevideo), target, enabled, overlap: 'skip', jitterSeconds, notify }` in `<dataDir>/schedules/<id>.json`; the cursor, the run in progress and the last 100 outcomes live in
+  `schedules/state/<id>.json`. `target` = `{ kind: 'routine', routineId, version?, credentialSet?, targetProfile?, profile?, buildId? }` | `{ kind: 'suite', suite }` | `{ kind: 'vault', tags? }`
+  (every ACTIVE item, as a suite) | `{ kind: 'evolutionSnapshot', targetProfile, buildId? }`. Saving checks what can be checked without running: the cron and zone, that the expression can fire at all
+  (not 31 February), that the routine / suite items / target profile exist (400/404). **`SCHEDULER_ENABLED=false` by default**: without it schedules are stored and listed but nothing fires, and `run-now`
+  is 409 `SchedulerDisabled`; `SCHEDULER_TICK_SECONDS` (15). The cron parser is our own (`cron.ts`, pure, no dependency): 5 fields, lists/ranges/steps, JAN-DEC / SUN-SAT, `@daily`-style macros; day-of-month and
+  day-of-week are OR when both are restricted, AND otherwise (Vixie); `?`, `L`, `W`, `#`, seconds and years are refused. Time zones come from Intl: a wall-clock time that does not exist (spring forward) is skipped
+  that day, one that happens twice (fall back) fires once. **Decision** (`plan.ts`, pure): the occurrences in (cursor, now] whose jittered time has come are "ready"; **at most one run per tick per schedule**
+  (the latest), the older ones are recorded as ONE `missed` entry with a `count`, and a run more than 2 minutes after its time is flagged `recovered`: this is the "at most one recovery" after downtime,
+  since the cursor is persisted. `jitterSeconds` adds a stable pseudo-random delay per (schedule, occurrence). **Overlap**: if the previous run of that schedule is still going the occurrence is recorded
+  `skipped-overlap` and consumed, never queued. A target that cannot start (routine gone, vault empty, ...) is recorded `error` with the reason and consumed (no retry loop). At startup a run left "in
+  progress" by a dead process is settled: from the suite/snapshot state if it can be told, else `error`. Routine runs go through the job queue at `scheduled` priority with the credential lock.
+  **Scheduled runs never use `evaluate`/`watch`** (also through an include, and in every routine of a suite) unless `SCHEDULED_ALLOW_EVALUATE=true`: recorded `skipped-evaluate`. Outcomes: `started`
+  (running) -> `passed`/`failed`/`error`, `skipped-overlap`, `skipped-evaluate`, `missed`. `POST /v1/schedules/:id/run-now` (bearer) starts one outside the clock (honors overlap, does not move the
+  cursor). `GET /v1/schedules[/:id]` return the next 3 occurrences, the run in progress, the last run and counts; MCP `list_schedules` (read-only: schedules are a person's decision); CLI
+  `scrapforai schedules list|show|run-now`. `notify` is stored but nothing is sent until T3.3 exists. **Limit (D5)**: a scheduler inside the server only works while the process is up; on a dev machine
+  register a Windows task that calls the CLI instead (`scripts/ops/Register-VaultNightlyTask.ps1`) or run the server somewhere always on. Not done: schedule editing in the web UI (T3.7), flaky retry
+  (T3.5), notifications (T3.3). `test/cron.test.ts` (case table, DST), `test/scheduler.test.ts` (fake clock and dispatcher), `test/scheduler.smoke.ts` (Chromium, HTTP).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -297,6 +315,7 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   credential vault. `POST|GET /v1/suites`, `GET /v1/suites/:id`, `POST /v1/suites/:id/cancel` — suites.
   `GET|PUT /v1/routines[/:id]`, `POST /v1/routines/:id/run` — the routine library.
   `GET /v1/targets[/:id]` and `PUT /v1/targets/:id` (bearer only) — target profiles.
+  `GET /v1/schedules[/:id]`, `PUT|DELETE /v1/schedules/:id`, `POST /v1/schedules/:id/run-now` (bearer for writes) — schedules.
   `POST /v1/shrinks`, `GET /v1/shrinks/:id`, `POST /v1/shrinks/:id/cancel` — shrinking a failing sample.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
@@ -316,7 +335,7 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, `list_schedules` (read-only), and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
 matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
@@ -355,7 +374,7 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`routines list`, `schedules list|show <id>|run-now <id>`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
 `permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
 `evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
 `evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),

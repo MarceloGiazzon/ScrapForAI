@@ -55,6 +55,7 @@ Commands
   suite <file.json|-> [--timeout-seconds N] [--no-wait]
   shrink --from-job <jobId> | <routineId> --seed s --sample N  [--max-runs N] [--max-seconds N] [--profile functional] [--no-wait]
                                     (smallest input that still fails; exit 0 when found, 2 otherwise)
+  schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -279,7 +280,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -658,6 +659,48 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
           lastLine = line;
         }
       }
+    }
+
+    if (command === 'schedules list' || command === 'schedules show' || command === 'schedules run-now') {
+      // T3.2: read the schedules, or start one now. Creating and editing them is `PUT /v1/schedules/:id` (a person's decision, not a flag).
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: common });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [id] = positionals;
+
+      if (command === 'schedules list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai schedules list');
+        const response = await api('GET', '/v1/schedules');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { schedulerRunning: boolean; schedules: Array<Record<string, any>> };
+        const lines = body.schedules.map(
+          (item) => `${item.schedule.enabled ? 'on ' : 'off'}  ${item.schedule.id}  ${item.schedule.cron} (${item.schedule.timezone})  ${item.schedule.target.kind}  next ${item.next[0] ?? '-'}${item.running ? `  RUNNING ${item.running.id}` : ''}${item.lastRun ? `  last ${item.lastRun.outcome}` : ''}`,
+        );
+        const text = `${body.schedulerRunning ? 'Scheduler: running in this server' : 'Scheduler: NOT running in this server (SCHEDULER_ENABLED=false)'}\n${lines.length === 0 ? 'No schedules.' : lines.join('\n')}\n`;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'schedules list', exitCode: 0, result: body as never }, text);
+        return 0;
+      }
+
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', `usage: scrapforai ${command} <scheduleId>`);
+      if (command === 'schedules show') {
+        const response = await api('GET', `/v1/schedules/${encodeURIComponent(id)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as Record<string, any>;
+        const lines = [
+          `${body.schedule.id}: ${body.schedule.enabled ? 'enabled' : 'DISABLED'}  ${body.schedule.cron} (${body.schedule.timezone})  ${JSON.stringify(body.schedule.target)}`,
+          `  next: ${(body.next as string[]).join(', ') || '-'}`,
+          ...(body.running ? [`  running: ${body.running.kind} ${body.running.id} since ${body.running.startedAt}`] : []),
+          ...((body.history ?? []) as Array<Record<string, any>>).slice(0, 10).map((entry) => `  ${entry.at}  ${entry.outcome}${entry.count > 1 ? ` x${entry.count}` : ''}${entry.recovered ? ' (recovery)' : ''}${entry.manual ? ' (manual)' : ''}${entry.run ? `  ${entry.run.id}` : ''}${entry.message ? `  ${entry.message}` : ''}`),
+        ];
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'schedules show', exitCode: 0, result: body as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      const started = await api('POST', `/v1/schedules/${encodeURIComponent(id)}/run-now`);
+      if (started.status !== 202) throw errorOf(started);
+      const entry = started.body as Record<string, any>;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'schedules run-now', exitCode: 0, result: entry as never }, `${entry.outcome}${entry.run ? `: ${entry.run.kind} ${entry.run.id}` : ''}${entry.message ? ` - ${entry.message}` : ''}\n`);
+      return 0;
     }
 
     if (command === 'shrink') {

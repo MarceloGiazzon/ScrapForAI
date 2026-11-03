@@ -161,6 +161,10 @@ qty=1000, passes with qty=999") and which parameters matter, within `maxShrinkRu
 input, just not proven minimal. To keep it: `vault_add_from_run` with `result.minimalJobId` and `type: "SCENARIO"` (the values are saved fixed), while the evidence still exists, and only for
 a failure you believe is a real bug.
 
+Recurring runs are schedules (`list_schedules`: cron + time zone + target, next occurrences, last outcome). You can read them but not create them: a person does, with `PUT /v1/schedules/:id`,
+because they start browsers unattended. `schedulerRunning: false` means nothing fires on its own. A scheduled run never uses `evaluate`/`watch`, and an occurrence that finds the previous run
+still going is recorded as `skipped-overlap`, so a long run is not a pile-up.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

@@ -87,6 +87,11 @@ export function suitesDir(): string {
   return path.join(dataDir(), 'suites');
 }
 
+/** Schedules (T3.2): <dataDir>/schedules/<id>.json (definition) and schedules/state/<id>.json (cursor, running, history). */
+export function schedulesDir(): string {
+  return path.join(dataDir(), 'schedules');
+}
+
 /** Shrink run states (T5.6): <dataDir>/shrinks/<shrinkId>.json. */
 export function shrinksDir(): string {
   return path.join(dataDir(), 'shrinks');

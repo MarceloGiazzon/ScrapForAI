@@ -111,6 +111,13 @@ export const envSchema = z.object({
   HISTORY_RETENTION_DAYS: integerFromEnv.default(90),
   HISTORY_MAX_RUNS: integerFromEnv.default(5000),
 
+  // --- Scheduler (T3.2) ---
+  // Off by default: a server that starts browsers on its own is something to turn on deliberately. Schedules can be stored and inspected either way.
+  SCHEDULER_ENABLED: booleanFromEnv,
+  SCHEDULER_TICK_SECONDS: integerFromEnv.default(15),
+  // Scheduled runs never use evaluate/watch (arbitrary in-page JavaScript, unattended) unless this is true.
+  SCHEDULED_ALLOW_EVALUATE: booleanFromEnv,
+
   // --- Web UI ---
   UI_ENABLED: booleanFromEnv,
   SESSION_TTL_MINUTES: integerFromEnv.default(480),

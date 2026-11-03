@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runSummarySchema } from '../history/runSummary.js';
 import { snapshotRunStateSchema } from './evolution.schema.js';
 import { matrixRunStateSchema } from './permissionMatrix.schema.js';
+import { scheduleHistoryEntrySchema, scheduleSchema } from './schedule.schema.js';
 import { shrinkStateSchema } from './shrink.schema.js';
 import { suiteStateSchema } from './suiteRequest.schema.js';
 
@@ -105,6 +106,22 @@ export const cliSnapshotStartedSchema = z
   .object({ snapshotId: z.string(), targetProfile: z.string(), status: z.string(), screens: z.number(), sessions: z.number() })
   .strict();
 
+/** `schedules list|show`: a schedule with its next occurrences and what happened lately. */
+const cliScheduleViewSchema = z
+  .object({
+    schedule: scheduleSchema,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    next: z.array(z.string()),
+    running: z.object({ kind: z.string(), id: z.string(), startedAt: z.string() }).strict().optional(),
+    lastRun: scheduleHistoryEntrySchema.optional(),
+    counts: z.record(z.string(), z.number()),
+    history: z.array(scheduleHistoryEntrySchema).optional(),
+    schedulerRunning: z.boolean().optional(),
+  })
+  .strict();
+export const cliSchedulesListSchema = z.object({ schedulerRunning: z.boolean(), schedules: z.array(cliScheduleViewSchema) }).strict();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -166,6 +183,9 @@ export const cliOutputSchema = z.union([
   success('permissions run', z.union([matrixRunStateSchema, cliMatrixStartedSchema])),
   success('permissions show', matrixRunStateSchema),
   success('evolution snapshot', z.union([snapshotRunStateSchema, cliSnapshotStartedSchema])),
+  success('schedules list', cliSchedulesListSchema),
+  success('schedules show', cliScheduleViewSchema),
+  success('schedules run-now', scheduleHistoryEntrySchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),

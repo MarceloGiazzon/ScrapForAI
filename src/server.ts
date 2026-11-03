@@ -24,7 +24,9 @@ import { routinesRouter } from './routes/routines.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
 import { statusRouter } from './routes/status.routes.js';
+import { schedulesRouter } from './routes/schedules.routes.js';
 import { shrinksRouter } from './routes/shrinks.routes.js';
+import { startScheduler } from './scheduler/runtime.js';
 import { suitesRouter } from './routes/suites.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
 import { vaultRouter } from './routes/vault.routes.js';
@@ -137,6 +139,7 @@ app.post('/v1/suites', explorationLimiter); // starting a suite drives browsers,
 app.use('/v1/suites', suitesRouter);
 app.post('/v1/shrinks', explorationLimiter); // a shrink drives browsers, like a suite
 app.use('/v1/shrinks', shrinksRouter);
+app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/evidence', evidenceRouter);
 app.use('/v1/vault', vaultRouter);
 app.use('/v1/permissions', permissionsRouter);
@@ -211,6 +214,12 @@ async function start(): Promise<void> {
   app.listen(env.PORT, env.HOST, () => {
     logger.info({ host: env.HOST, port: env.PORT }, 'ScrapForAI API listening');
   });
+
+  // After the recoveries above, so a run left over from a dead process is already closed when the scheduler reconciles it.
+  if (env.SCHEDULER_ENABLED) {
+    await startScheduler((message, error) => logger.error({ err: error }, message));
+    logger.info({ tickSeconds: env.SCHEDULER_TICK_SECONDS }, 'Scheduler started');
+  }
 }
 
 start().catch((error: unknown) => {
