@@ -254,6 +254,18 @@ step limits, artifact retention, etc.).
   are rewritten to the new name, two includes of one routine draw independently, and an included routine does NOT see its includer's parameters (it could not be saved alone if it did).
   An implicit parameter from an inline generator in an included step is named `gen_<include>_<stepId>` (any character a name cannot hold becomes `_`; two ids that collapse to one
   name are a `DuplicateParameter`). A name already taken by the includer is a 400, never a silent overwrite.
+- **Formula oracle** (`src/oracle/`, T5.5): the step `assertEquals { actual: { extracted: name }, expected: { expr } | { value }, tolerance?: { absolute?, relative? },
+  locale?: 'en'|'pt'|'es' }` compares a number the page showed with what it SHOULD show. `expr` is a language of our own, parsed by hand (`expression.ts`, **no
+  `eval`/`Function`**, pure, 500 chars, depth 60; a syntax error is refused when the request/routine is validated): numbers, `+ - * / ^` (`^` right-associative, tighter
+  than unary minus), parentheses, `< <= > >= == != && || !` (1/0), `round(x[,d])` (half AWAY from zero, on the decimal text: `round(1.005,2)=1.01`), `floor`, `ceil`, `abs`,
+  `min`, `max`, `if(c,a,b)` (lazy: only the branch taken runs, so `if(qty==0,0,t/qty)` is safe). Arithmetic is cleaned to 15 significant digits (0.1+0.2 = 0.3); division by zero
+  and non-finite results are errors. **Variables** are the run's parameters (always PLAIN numbers: `-12.5`, because they were generated) and the extracted values (parsed with
+  the step `locale`: `localeNumber.ts` never guesses, `1.234` is 1234 in `pt` and 1.234 in `en`, a currency symbol/code, a % sign, accounting parentheses and thousands spaces are
+  accepted, anything else is an error, never a silent 0); a name that is both is an error. Names must be identifiers (a parameter called `my-qty` cannot be used). Default tolerance is
+  floating-point noise (1e-9); `tolerance` replaces it. A failure says by how much and with which inputs (`total is 11549 but round(price * qty * 1.1, 2) gives 11550 (difference 1,
+  tolerance 1e-9); with price=10.5, qty=1000`); a problem with the INPUTS (nothing extracted, not a number, unknown variable) is a step error that names it. In an included routine the
+  formula follows the rename of its parameters (`qty` -> `<include>_qty`). Not done: the CSV case tables kept in the library (`expected: { table }`), a `sqrt`/`pow` family, and
+  text (non-numeric) comparison. `test/oracle.test.ts` (grammar, safety, locales) and `test/oracle.smoke.ts` (a fixture with a boundary bug at quantity >= 1000).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

@@ -151,6 +151,11 @@ values just outside the range are deliberate: the page SHOULD reject them, so as
 coincide with a real person's, so use them only in dev/QA, and say so in what you report. A routine you `include` declares its own parameters; they
 appear in `result.parameters` as `<includeId>_<name>`.
 
+To check a CALCULATION, extract what the page shows (`extractText`) and add `assertEquals { actual: { extracted: "total" }, expected: { expr: "round(price * qty * (1 + tax), 2)" }, locale: "pt" }`.
+The formula may use the run's parameters and extracted values by name, `+ - * / ^`, `round(x, d)` (half away from zero), `floor`, `ceil`, `abs`, `min`, `max`, `if(c, a, b)`;
+no code runs. Say the page's number format with `locale` (`en` 1,234.56; `pt`/`es` 1.234,56): it is never guessed. A failure reports the difference and the inputs. Use `tolerance`
+only for a gap you have decided to accept.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

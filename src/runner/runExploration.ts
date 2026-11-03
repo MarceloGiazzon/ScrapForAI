@@ -8,6 +8,7 @@ import { env } from '../config/env.js';
 import { buildManifest, writeManifest } from '../evidence/manifest.js';
 import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
+import { checkAssertEquals } from '../oracle/assertEquals.js';
 import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
@@ -452,6 +453,26 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             const count = await frame.locator(step.selector).count();
             if (!compareCount(count, step.operator, step.count)) {
               throw new StepExecutionError('Expected selector count condition was not met');
+            }
+            break;
+          }
+          case 'assertEquals': {
+            // T5.5: a formula over the run's parameters and extracted values (src/oracle). Pure; no page access.
+            let outcome: ReturnType<typeof checkAssertEquals>;
+            try {
+              outcome = checkAssertEquals({
+                actual: step.actual,
+                expected: step.expected,
+                ...(step.tolerance ? { tolerance: step.tolerance } : {}),
+                locale: step.locale,
+                parameters: request.parameterRecord?.values ?? {},
+                extracted,
+              });
+            } catch (error) {
+              throw new StepExecutionError(`assertEquals: ${error instanceof Error ? error.message : 'could not be evaluated'}`);
+            }
+            if (!outcome.passed) {
+              throw new StepExecutionError(`assertEquals: ${outcome.message}`);
             }
             break;
           }

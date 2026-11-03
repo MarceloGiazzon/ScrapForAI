@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
+import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -204,6 +205,34 @@ const assertCountStep = z
   })
   .strict();
 
+// T5.5: the formula oracle. Compares a number the page showed (`actual.extracted`, read earlier by extractText/...) with what it SHOULD show,
+// either a formula over the run's parameters and extracted values (`expr`, see src/oracle/expression.ts: no eval) or a literal `value`.
+// The text is parsed with `locale` (en 1,234.56 | pt/es 1.234,56). `tolerance` is absolute and/or relative; default: floating-point noise only.
+const expectedExpression = z
+  .string()
+  .min(1)
+  .max(MAX_EXPRESSION_CHARS)
+  .superRefine((expr, ctx) => {
+    try {
+      parseExpression(expr);
+    } catch (error) {
+      ctx.addIssue({ code: 'custom', message: error instanceof Error ? error.message : 'invalid expression' });
+    }
+  });
+const assertEqualsStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('assertEquals'),
+    actual: z.object({ extracted: safeName }).strict(),
+    expected: z.union([z.object({ expr: expectedExpression }).strict(), z.object({ value: z.string().min(1).max(100) }).strict()]),
+    tolerance: z
+      .object({ absolute: z.number().finite().nonnegative().optional(), relative: z.number().finite().nonnegative().optional() })
+      .strict()
+      .optional(),
+    locale: z.enum(['en', 'pt', 'es']).default('en'),
+  })
+  .strict();
+
 const screenshotStep = z.object({ ...baseStep, action: z.literal('screenshot'), name: safeName }).strict();
 const collectStep = z
   .object({
@@ -313,6 +342,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   assertTextContainsStep,
   assertUrlContainsStep,
   assertCountStep,
+  assertEqualsStep,
   screenshotStep,
   collectStep,
   probePageStep,

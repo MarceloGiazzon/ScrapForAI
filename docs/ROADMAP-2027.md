@@ -1025,6 +1025,10 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.5 — Oráculo de fórmulas · M
 
+> **Implementada em 2026-11-03, sem as tabelas CSV** (`src/oracle/`, ver AGENTS.md, "Formula oracle"). Feito: `assertEquals` com `expr` ou `value`, parser próprio sem `eval`
+> (`+ - * / ^`, comparações, `round`, `floor`, `ceil`, `min`, `max`, `abs`, `if` preguiçoso), localidade `en`/`pt`/`es`, tolerância absoluta/relativa, variáveis de parâmetros e
+> extraídos, fórmulas de rotinas incluídas acompanhando o renome. **Pendente:** `expected: { table: 'casos.csv' }` (tabelas guardadas na biblioteca).
+
 **Por quê:** testar "o cálculo está certo" exige saber o resultado esperado para cada entrada
 gerada.
 

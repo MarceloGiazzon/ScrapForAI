@@ -888,6 +888,7 @@ Variable value:
 | `assertTextContains` | Fail unless selector text contains expected text. | `selector`, `text`, `timeoutMs` |
 | `assertUrlContains` | Fail unless current URL contains text. | `value` |
 | `assertCount` | Fail unless selector count matches condition. | `selector`, `operator`, `count` |
+| `assertEquals` | Fail unless an extracted number equals a formula (`{ expr }`) or a literal (`{ value }`); numbers are read in the page's `locale` (`en` 1,234.56, `pt`/`es` 1.234,56). | `actual: { extracted }`, `expected`, `tolerance`, `locale` |
 | `screenshot` | Save a named screenshot. | `name` |
 | `collect` | Collect selected evidence. | `what` |
 | `probePage` | Record the page state into `extracted` without ever failing: URL, navigation HTTP status, which `textMarkers` are present, and for `selector` its count/visible/enabled (waits up to `timeoutMs` for it to appear). Used by permission matrices. | `name`, `selector`, `textMarkers`, `timeoutMs` |

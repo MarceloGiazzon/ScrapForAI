@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { renameVariables } from '../oracle/expression.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { type ExplorationStep, explorationRequestSchema, type RunnableStep } from '../schemas/explorationRequest.schema.js';
 import { type Parameter, sanitizeParameterName } from '../schemas/parameters.schema.js';
@@ -49,6 +50,11 @@ interface Context {
 
 /** A step of an included routine that draws from one of ITS parameters now draws from the renamed one. */
 function withScopedParameter(step: RunnableStep, scope: Map<string, string>): RunnableStep {
+  // T5.5: a formula of an included routine reads ITS parameters by their declared name; follow the rename.
+  if (step.action === 'assertEquals' && 'expr' in step.expected && scope.size > 0) {
+    const expr = renameVariables(step.expected.expr, scope);
+    return expr === step.expected.expr ? step : ({ ...step, expected: { expr } } as RunnableStep);
+  }
   const name = (step as { valueFromParameter?: string }).valueFromParameter;
   const renamed = name === undefined ? undefined : scope.get(name);
   return renamed === undefined ? step : ({ ...step, valueFromParameter: renamed } as RunnableStep);
