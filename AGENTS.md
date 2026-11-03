@@ -135,6 +135,17 @@ step limits, artifact retention, etc.).
   `result.buildIdSource` (`provided` | `probe` | `unknown`) and the history summary carry it, and pinning records it in the manifest. A
   `buildId` in the request always wins. `jsonPath` takes `a.b[0].c`, `$.a`, and keys with dots in their name (`npdev.builtAt`).
   `wmsoffice-dev` uses `jsonEndpoint /actuator/info` + `npdev.builtAt`.
+- **Structural diff** (`src/diff/`, T4.1): `structuralDiff(before, after, { config })` compares two JSON documents by IDENTITY, not
+  index, and returns a `ChangeSet` (`added`, `removed`, `changed[{ path, before, after }]`, each with a short `summary`, sorted
+  by path, `truncated` at `maxChanges`). An array of objects is matched on a key (`identityKeys[<generic path>]` in the config,
+  else `key`/`id`/`name` present on every item), scalar arrays are multisets, and only `ordered` arrays (or ones with no usable
+  identity) are compared by position, so reordering is never a change. Normalizers, per target profile (`diff`, schema in
+  `src/schemas/diffConfig.schema.ts`): GeneXus grid row suffix (`vNAME_0001` -> `vNAME`; rows that collapse to one key are told
+  apart as `key`, `key#2`...), web-component prefix (`W0012vNAME` -> `vNAME`), `maskPatterns` (regex -> constant), `numericTolerance`
+  (absolute/relative) and `ignorePaths` (`*` one segment, `**` anything; tested against `fields[].id` and `fields[key=cep].id`).
+  Row suffix and prefix apply to identities and to `keyProperties` (default key/id/name/selector/targetKey); masks apply to every
+  string. A string over 2000 chars skips the user masks (bounded cost against a catastrophic regex) but is never truncated. Pure,
+  no configuration import. Consumers still to come: T4.4 snapshots, T6.3, T7.5.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

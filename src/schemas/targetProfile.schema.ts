@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { diffConfigSchema } from './diffConfig.schema.js';
 import { safeName } from './explorationRequest.schema.js';
 
 /**
@@ -64,6 +65,8 @@ export const targetProfileSchema = z
     surfaces: z.record(z.string().min(1).max(120), z.array(z.string().min(1).max(500)).max(200)).default({}),
     // Screen catalogue (T4.2).
     screens: z.array(screenSchema).max(500).default([]),
+    // What counts as noise when two renders of this app are compared (T4.1).
+    diff: diffConfigSchema.optional(),
     flags: z
       .object({
         allowDestructive: z.boolean().default(false),
