@@ -215,14 +215,16 @@ step limits, artifact retention, etc.).
   written prints `[evidence] manifest of <job> could not be written` (the run still does not fail for it). **Why:** the full smoke suite failed in about
   4 of 7 runs with an unrelated test each time ("evidence not found" right after a run: a screenshot unreadable, `evidenceAvailable` false, a missing
   manifest), never in isolation; a real `EPERM` on a rename was captured in one run. After the change 3 consecutive full runs passed 52/52, with no
-  `[fs]` line in the last two, so the cause is the best explanation, not a proven one. If a "not found right after a run" failure returns, look for
-  `[fs]`/`[evidence]` lines first.
-- **Parameters and generators** (`src/generators/`, `src/schemas/parameters.schema.ts`, T5.3 part 1): a run or routine declares
+  `[fs]` line in the last two, so the cause is the best explanation, not a proven one. **UPDATE: it came back** (`routine-library.smoke`, "No manifest for this run", 404) in
+  one full run after the fix, with NO `[fs]`/`[evidence]` line in the output, and passed 3 of 3 in isolation: so it is NOT (only) a transient EPERM. Still open.
+  Next step if it matters: make the manifest route say whether the job folder exists and which files it holds, and log in `findJobDir` when a just-finished
+  job's folder is missing.
+- **Parameters and generators** (`src/generators/`, `src/schemas/parameters.schema.ts`, T5.3): a run or routine declares
   `parameters: [{ name, generator, includeBoundaries? } | { name, cases }]` and a fill/selectOption step takes `valueFromParameter: name`;
   `valueFromGenerator: { type: ... }` on a step is sugar for a parameter of its own (named `gen_<stepId>`, so give such steps an id). Generators:
   `int`, `decimal` (scale 0-8, exact steps), `date` (ISO `from`/`to`, output `format` of yyyy/yy/MM/dd, default `dd/MM/yyyy`), `string` (length in
   characters, charset `alpha|alnum|unicode|hostile`; hostile = quotes, `<script>`, SQL injection, format directives, emoji, a right-to-left override),
-  `oneOf`. **Edge values first**, in this order and without repeats: int `min, min-1, max, max+1, 0, -1`; decimal the same in exact steps of 10^-scale;
+  `oneOf`, `document`. **Edge values first**, in this order and without repeats: int `min, min-1, max, max+1, 0, -1`; decimal the same in exact steps of 10^-scale;
   date `from`, the day before, `to`, the day after, empty; string empty, `min`, `min-1`, `max`, `max+1`; oneOf its values. Values just outside the range are
   INTENDED (they test validation); a test that wants only valid input uses `includeBoundaries: false` or `oneOf`/`cases`. After the edges, random values.
   `sample` (default 0) is which value of each parameter the run takes (all parameters move together; combinations are T5.4); a random value depends only
@@ -231,7 +233,19 @@ step limits, artifact retention, etc.).
   (`POST /v1/routines/:id/run`, `run_routine`, `scrapforai run --seed s --sample N`). A routine saves its `parameters` (optional, no default, so older digests
   hold) and, saved `fromJobId`, keeps the steps AS WRITTEN (generators intact), never the seed or the generated values. A `valueFromParameter` must name a declared
   parameter (checked at validation when the routine has no `include`, after expansion otherwise); `cases` and `oneOf` literals are linted like step values (a
-  secret in them is refused, 422). An included routine can use its includer's parameters but not declare its own (part 2). `document` generators: part 2.
+  secret in them is refused, 422).
+  **`document`** (`{ type: 'document', kind: 'cpf'|'cnpj'|'ci-uy'|'rut-uy', valid?: true, formatted?: false }`): synthetic identity documents with correct check digits
+  (cpf: mod 11 over 10..2 and 11..2, never 11 equal digits; cnpj: base 8 digits + `0001` + 2 check digits, only fourteen equal digits are refused, so
+  `00.000.000/0001-91` is valid; ci-uy: 7 digits + 1, weights 2,9,8,7,6,3,4, first digit 1-6; rut-uy: 12 digits, department 01-22, `001`, weights 4,3,2,9,8,7,6,5,4,3,2 mod 11)
+  or, with `valid: false`, the same with only the LAST digit wrong (always invalid, since that digit is determined by the rest). A valid document has no edge values; an invalid one
+  starts with empty, one digit short, one too long, letters, wrong check digit. `isValidDocument(kind, text)` checks any text (separators ignored). **Synthetic**: such a number is made
+  up but can coincide with a real person's or company's, so `result.parameters.synthetic` lists the parameters that hold documents and the report (en/pt/es) tags them and
+  warns: dev/QA only. **Reports** show a "Test data" section (seed, sample, each value and where it came from); values are escaped, clipped to 200 characters, and control and
+  bidirectional characters are printed as `\uXXXX` (a right-to-left override in a hostile string must not reorder the report).
+  **Included routines declare their own parameters**: each is renamed `<include path>_<name>` (dots become underscores: include id `a`, parameter `qty` -> `a_qty`), the included steps
+  are rewritten to the new name, two includes of one routine draw independently, and an included routine does NOT see its includer's parameters (it could not be saved alone if it did).
+  An implicit parameter from an inline generator in an included step is named `gen_<include>_<stepId>` (any character a name cannot hold becomes `_`; two ids that collapse to one
+  name are a `DuplicateParameter`). A name already taken by the includer is a 400, never a silent overwrite.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

@@ -158,7 +158,7 @@ test('schema: defaults, and what a generator may not be', () => {
     { type: 'string', minLength: 0, maxLength: 5001 },
     { type: 'string', minLength: 0, maxLength: 5, charset: 'emoji' },
     { type: 'oneOf', values: [] },
-    { type: 'document', kind: 'cpf' },
+    { type: 'document', kind: 'passport' },
     { type: 'int', min: 1, max: 2, extra: true },
   ]) {
     assert.equal(checkedGeneratorSchema.safeParse(bad).success, false, JSON.stringify(bad));
@@ -225,7 +225,8 @@ test('resolve: errors are named and say what to do', () => {
   assert.throws(() => resolveParameters<Step>({ steps: [fill('s', { valueFromParameter: 'missing' })], parameters: p }), (e: Error) => e instanceof ParameterError && e.type === 'UnknownParameter' && /missing/.test(e.message) && /declared: a/.test(e.message));
   assert.throws(() => resolveParameters<Step>({ steps: [fill('s', { valueFromGenerator: { type: 'int', min: 9, max: 1 } })] }), (e: Error) => e instanceof ParameterError && e.type === 'InvalidGenerator' && /min is greater than max/.test(e.message));
   assert.throws(() => resolveParameters<Step>({ steps: [fill('gen_x', { valueFromGenerator: { type: 'oneOf', values: ['v'] } }), fill('x', { valueFromGenerator: { type: 'oneOf', values: ['v'] } })], parameters: [param({ name: 'gen_x', cases: ['1'] })] }), (e: Error) => e instanceof ParameterError && e.type === 'DuplicateParameter');
-  assert.throws(() => resolveParameters<Step>({ steps: [fill('bad id', { valueFromGenerator: { type: 'oneOf', values: ['v'] } })] }), (e: Error) => e instanceof ParameterError && e.type === 'InvalidGenerator');
+  // ids that only differ by characters a name cannot hold collapse to one name: that is a duplicate, said plainly
+  assert.throws(() => resolveParameters<Step>({ steps: [fill('a.b', { valueFromGenerator: { type: 'oneOf', values: ['v'] } }), fill('a_b', { valueFromGenerator: { type: 'oneOf', values: ['v'] } })] }), (e: Error) => e instanceof ParameterError && e.type === 'DuplicateParameter' && /different id/.test(e.message));
 });
 
 const baseRequest = (steps: unknown[], extra: Record<string, unknown> = {}) => ({ targetUrl: 'https://dev.example.com/', steps, ...extra });

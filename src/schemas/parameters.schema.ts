@@ -6,6 +6,9 @@ import { z } from 'zod';
  */
 export const parameterName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 
+/** Turns any text (a step id like `login.user`, an include path) into a legal parameter name. */
+export const sanitizeParameterName = (text: string): string => text.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'dates are ISO yyyy-MM-dd')
@@ -39,6 +42,16 @@ export const generatorSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('oneOf'), values: z.array(z.string().max(5000)).min(1).max(200) }).strict(),
+  // Synthetic identity documents with correct (or deliberately wrong) check digits. `formatted` adds the usual separators
+  // (cpf 000.000.000-00, cnpj 00.000.000/0000-00, ci-uy 0.000.000-0; rut-uy has none).
+  z
+    .object({
+      type: z.literal('document'),
+      kind: z.enum(['ci-uy', 'rut-uy', 'cpf', 'cnpj']),
+      valid: z.boolean().default(true),
+      formatted: z.boolean().default(false),
+    })
+    .strict(),
 ]);
 
 /** A generator as written (defaults not yet applied) and as parsed. */
@@ -103,6 +116,11 @@ export const parameterRecordSchema = z
     values: z.record(z.string(), z.string()),
     /** Where each value came from: an edge value, a random one or a listed case; `index` is its position in that stream. */
     sources: z.record(z.string(), z.object({ source: z.enum(['boundary', 'random', 'case']), index: z.number().int() }).strict()),
+    /**
+     * Parameters whose values are SYNTHETIC identity documents. A generated CPF/CI/RUT/CNPJ is made up, but with correct check digits it
+     * can coincide with a real person's or company's: dev/QA environments only, and reports say so.
+     */
+    synthetic: z.array(z.string()).optional(),
   })
   .strict();
 export type ParameterRecord = z.infer<typeof parameterRecordSchema>;

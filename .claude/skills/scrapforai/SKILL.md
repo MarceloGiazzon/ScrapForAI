@@ -147,7 +147,9 @@ For a field with limits (a quantity, a date, a name of at most N characters) do 
 min-1, max, max+1, zero, empty, the maximum length, quotes/markup/emoji for `hostile` strings) and then random ones; `sample` picks which. The
 values just outside the range are deliberate: the page SHOULD reject them, so assert on the rejection for those samples. Read
 `result.parameters` for what was typed, and replay a failure with the same `seed` and `sample`. Never put a password in `cases`; use the vault.
-Not available yet: `document` (CI/RUT/CPF/CNPJ) generators.
+`document` generates CPF/CNPJ/CI-UY/RUT-UY numbers with correct check digits (or, with `valid: false`, a wrong last digit): they are SYNTHETIC and can
+coincide with a real person's, so use them only in dev/QA, and say so in what you report. A routine you `include` declares its own parameters; they
+appear in `result.parameters` as `<includeId>_<name>`.
 
 ## Describing a system's screens (catalogue and evolution)
 

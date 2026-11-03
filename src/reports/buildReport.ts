@@ -107,6 +107,20 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
       steps: toSteps(result.steps),
       ...(result.teardown ? { teardown: toSteps(result.teardown) } : {}),
       teardownStatus: result.teardownStatus,
+      ...(result.parameters
+        ? {
+            parameters: {
+              seed: result.parameters.seed,
+              sample: result.parameters.sample,
+              rows: Object.entries(result.parameters.values).map(([name, value]) => ({
+                name,
+                value,
+                source: result.parameters!.sources[name]?.source ?? 'case',
+                synthetic: result.parameters!.synthetic?.includes(name) ?? false,
+              })),
+            },
+          }
+        : {}),
       screenshots,
       consoleCount: result.evidence.console.length,
       consoleErrors: result.evidence.consoleErrors.map((entry) => entry.text),

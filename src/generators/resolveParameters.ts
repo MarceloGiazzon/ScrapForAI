@@ -6,6 +6,7 @@ import {
   type Parameter,
   type ParameterRecord,
   parameterName,
+  sanitizeParameterName,
 } from '../schemas/parameters.schema.js';
 import { valueAt } from './generators.js';
 
@@ -78,8 +79,9 @@ export function resolveParameters<T extends StepLike>(input: ResolveInput<T>): R
   const rewrite = (steps: T[], phase: string): T[] =>
     steps.map((step, index) => {
       if (step.valueFromGenerator === undefined) return step;
-      const name = `gen_${step.id ?? `${phase}${index}`}`.slice(0, 80);
-      if (!parameterName.safeParse(name).success) throw new ParameterError('InvalidGenerator', `cannot name a parameter after step "${step.id}": use an id of letters, digits, _ and -`);
+      // A step id may carry dots (`login.user`, from an include): the parameter name gets underscores instead.
+      const name = sanitizeParameterName(`gen_${step.id ?? `${phase}${index}`}`);
+      if (!parameterName.safeParse(name).success) throw new ParameterError('InvalidGenerator', `cannot name a parameter after step "${step.id}"`);
       if (names.has(name)) throw new ParameterError('DuplicateParameter', `"${name}" is already a parameter: give the step a different id`);
       const parsed = checkedGeneratorSchema.safeParse(step.valueFromGenerator);
       if (!parsed.success) {
@@ -109,5 +111,6 @@ export function resolveParameters<T extends StepLike>(input: ResolveInput<T>): R
     sources[parameter.name] = { source: generated.source, index: generated.index };
   }
 
-  return { steps, ...(teardown ? { teardown } : {}), record: { seed, sample, values, sources } };
+  const synthetic = parameters.filter((parameter) => 'generator' in parameter && parameter.generator.type === 'document').map((parameter) => parameter.name);
+  return { steps, ...(teardown ? { teardown } : {}), record: { seed, sample, values, sources, ...(synthetic.length > 0 ? { synthetic } : {}) } };
 }

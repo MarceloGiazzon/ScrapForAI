@@ -169,3 +169,92 @@ test('a secret typed into a parameter\'s cases is refused when the routine is sa
     },
   );
 });
+
+// ---- part 2 ----------------------------------------------------------------------------------------------------------------
+
+test('a generated CPF is typed into the page, is valid, is flagged synthetic in the result and in the report', async () => {
+  const { isValidDocument } = await import('../src/generators/generators.js');
+  const { buildRunReport } = await import('../src/reports/buildReport.js');
+  const cpf = { name: 'cpf', generator: { type: 'document', kind: 'cpf', formatted: true } };
+  const result = await run({
+    targetProfile: 'fixture',
+    parameters: [cpf],
+    seed: 'doc-seed',
+    sample: 0,
+    steps: typeAndRead({ valueFromParameter: 'cpf' }),
+  });
+  assert.equal(result.status, 'passed', JSON.stringify(result.error));
+  assert.match(String(result.extracted.typed), /^\d{3}\.\d{3}\.\d{3}-\d{2}$/);
+  assert.ok(isValidDocument('cpf', String(result.extracted.typed)));
+  assert.deepEqual(result.parameters?.synthetic, ['cpf']);
+
+  const html = await buildRunReport(result.jobId, 'pt');
+  assert.ok(html.includes('Dados de teste') && html.includes('doc-seed'));
+  assert.ok(html.includes(String(result.extracted.typed)));
+  assert.ok(html.includes('sintético') && html.includes('Dados sintéticos'));
+
+  const invalidParam = { ...cpf, generator: { ...cpf.generator, valid: false } };
+  const empty = await run({ parameters: [invalidParam], seed: 'doc-seed', sample: 0, steps: typeAndRead({ valueFromParameter: 'cpf' }) });
+  assert.equal(empty.extracted.typed, '', 'the first edge value of an invalid document is the empty one');
+  const wrongCheck = await run({ parameters: [invalidParam], seed: 'doc-seed', sample: 4, steps: typeAndRead({ valueFromParameter: 'cpf' }) });
+  assert.ok(!isValidDocument('cpf', String(wrongCheck.extracted.typed)));
+  assert.equal(String(wrongCheck.extracted.typed).replace(/\D/g, '').length, 11);
+});
+
+test('an included routine declares its own parameters: renamed after the include, one set per include, steps rewritten', async () => {
+  const wide = { name: 'qty', generator: { type: 'int', min: 1, max: 1000000 }, includeBoundaries: false };
+  await saveRoutine('with-params', {
+    title: 'a routine with its own parameter and an inline generator',
+    targetProfile: 'fixture',
+    parameters: [wide],
+    steps: [
+      { id: 'type', action: 'fill', selector: '#qty', valueFromParameter: 'qty' },
+      { id: 'note', action: 'fill', selector: '#qty', valueFromGenerator: { type: 'oneOf', values: ['inline'] } },
+    ] as never,
+  });
+  await saveRoutine('with-qty-only', {
+    title: 'qty only',
+    targetProfile: 'fixture',
+    parameters: [wide],
+    steps: [{ id: 'type', action: 'fill', selector: '#qty', valueFromParameter: 'qty' }] as never,
+  });
+
+  const steps = [
+    ...open,
+    { id: 'a', action: 'include', routineId: 'with-qty-only' },
+    { id: 'b', action: 'include', routineId: 'with-qty-only' },
+    { id: 'read', action: 'extractText', selector: '#out', name: 'typed' },
+  ];
+  const result = await run({ targetProfile: 'fixture', seed: 'inc', sample: 0, steps });
+  assert.equal(result.status, 'passed', JSON.stringify(result.error));
+  assert.deepEqual(Object.keys(result.parameters!.values).sort(), ['a_qty', 'b_qty']);
+  assert.notEqual(result.parameters!.values.a_qty, result.parameters!.values.b_qty, 'each include draws its own value');
+  assert.equal(result.extracted.typed, result.parameters!.values.b_qty, 'the last include typed last');
+
+  const replay = await run({ targetProfile: 'fixture', seed: 'inc', sample: 0, steps });
+  assert.deepEqual(replay.parameters!.values, result.parameters!.values);
+
+  // inline generators inside an included routine: the dotted step id becomes a legal name
+  const withInline = await run({
+    targetProfile: 'fixture',
+    seed: 'inc',
+    sample: 0,
+    steps: [...open, { id: 'x', action: 'include', routineId: 'with-params' }, { id: 'read', action: 'extractText', selector: '#out', name: 'typed' }],
+  });
+  assert.equal(withInline.status, 'passed', JSON.stringify(withInline.error));
+  assert.deepEqual(Object.keys(withInline.parameters!.values).sort(), ['gen_x_note', 'x_qty']);
+  assert.equal(withInline.extracted.typed, 'inline');
+
+  // an includer that already uses a renamed name is told, not silently overwritten
+  await assert.rejects(
+    run({ targetProfile: 'fixture', parameters: [{ name: 'a_qty', cases: ['1'] }], steps }),
+    (error: Error & { status?: number }) => error.status === 400 && /a_qty/.test(error.message),
+  );
+
+  // an including routine can be saved: the check at save sees the renamed parameters of what it includes
+  const saved = await saveRoutine('includer', { title: 'includer', targetProfile: 'fixture', steps: steps as never });
+  assert.equal(saved.routine.version, 1);
+  const viaLibrary = await runLibraryRoutine('includer', undefined, { seed: 'lib', sample: 0 });
+  assert.equal(viaLibrary.status, 'passed', JSON.stringify(viaLibrary.error));
+  assert.deepEqual(Object.keys(viaLibrary.parameters!.values).sort(), ['a_qty', 'b_qty']);
+});

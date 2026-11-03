@@ -58,6 +58,8 @@ export interface RunReportData {
   steps: ReportStep[];
   teardown?: ReportStep[];
   teardownStatus?: 'passed' | 'failed';
+  /** T5.3: what the run's parameters took (only when it used any). */
+  parameters?: { seed: string; sample: number; rows: Array<{ name: string; value: string; source: string; synthetic: boolean }> };
   screenshots: Array<{ name: string; dataUri: string }>;
   consoleCount: number;
   consoleErrors: string[];
@@ -168,6 +170,29 @@ function integrityBlock(s: Strings, info: IntegrityInfo): string {
 <p class="muted">${esc(s.proves)} ${esc(s.doesNotProve)}<br>${esc(s.verifyHint)}</p>`;
 }
 
+/**
+ * A generated value as text a person can read safely: control characters and the Unicode bidirectional controls (a right-to-left
+ * override would reorder the text around it) are shown as \uXXXX instead of being obeyed. HTML escaping is done by esc() on top.
+ */
+export function printable(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
+function parametersBlock(s: Strings, parameters: NonNullable<RunReportData['parameters']>): string {
+  const rows = parameters.rows
+    .map(
+      (row) =>
+        `<tr><td class="mono">${esc(row.name)}</td><td class="mono">${esc(clip(printable(row.value), 200)) || `<span class="muted">(${esc(s.none)})</span>`}${row.synthetic ? ` <span class="badge failed" style="background:#7a5a00">${esc(s.syntheticTag)}</span>` : ''}</td><td>${esc(row.source)}</td></tr>`,
+    )
+    .join('');
+  const synthetic = parameters.rows.some((row) => row.synthetic);
+  return `<h2>${esc(s.testData)}</h2>
+<table class="meta"><tr><th>${esc(s.seed)}</th><td class="mono">${esc(parameters.seed)}</td></tr><tr><th>${esc(s.sample)}</th><td>${esc(parameters.sample)}</td></tr></table>
+<table><tr><th>${esc(s.parameter)}</th><th>${esc(s.value)}</th><th>${esc(s.origin)}</th></tr>${rows}</table>
+<p class="muted">${esc(s.replayHint)}</p>
+${synthetic ? `<div class="warn">${esc(s.syntheticNote)}</div>` : ''}`;
+}
+
 export function renderRunReport(data: RunReportData, lang: ReportLang): string {
   const s = STRINGS[lang];
   const failedStep = data.failedStepIndex === undefined ? undefined : data.steps[data.failedStepIndex];
@@ -194,6 +219,8 @@ ${
     : ''
 }
 ${data.teardownStatus === 'failed' ? `<div class="warn">${esc(s.teardownFailed)}</div>` : ''}
+
+${data.parameters ? parametersBlock(s, data.parameters) : ''}
 
 <h2>${esc(s.steps)}</h2>
 <table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.steps)}</table>

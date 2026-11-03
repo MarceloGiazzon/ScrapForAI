@@ -988,11 +988,14 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.3 — Parâmetros e geradores de valores · G
 
-> **Parte 1 implementada em 2026-11-03** (`src/generators/`, `src/schemas/parameters.schema.ts`, ver AGENTS.md, "Parameters and generators"):
+> **Implementada em 2026-11-03, em duas partes** (`src/generators/`, `src/schemas/parameters.schema.ts`, ver AGENTS.md, "Parameters and generators").
+> Parte 1:
 > `parameters` (geradores `int`, `decimal`, `date`, `string` com os charsets `alpha|alnum|unicode|hostile`, `oneOf`, ou `cases`),
 > `valueFromParameter` e `valueFromGenerator` (açúcar), bordas primeiro, `seed` reproduzível, `sample`, e `result.parameters`.
-> **Falta (parte 2):** o gerador `document` (`ci-uy`, `rut-uy`, `cpf`, `cnpj`, válidos ou inválidos) com a marca `synthetic` nos relatórios,
-> e parâmetros próprios em rotinas incluídas (hoje uma rotina incluída só usa os parâmetros da que a inclui).
+> Parte 2: o gerador `document` (`ci-uy`, `rut-uy`, `cpf`, `cnpj`, válidos ou com o último dígito errado), a marca `synthetic` em `result.parameters` e nos relatórios
+> (en/pt/es), uma seção "Dados de teste" no relatório e parâmetros próprios em rotinas incluídas (renomeados `<include>_<nome>`).
+> **Atenção:** os algoritmos de dígito verificador são os públicos e padrão; os vetores de teste são números conhecidos (CPF 529.982.247-25, CNPJ 11.222.333/0001-81,
+> CI 1.234.567-2, RUT 215521750017). Não foram conferidos contra um validador oficial do órgão emissor.
 
 **Especificação** ([Apêndice A](#a6-parâmetros-e-geradores)):
 - A rotina declara `parameters: [{ name, generator | cases }]`, e os steps usam

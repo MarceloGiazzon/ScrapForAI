@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { type ExplorationStep, explorationRequestSchema, type RunnableStep } from '../schemas/explorationRequest.schema.js';
+import { type Parameter, sanitizeParameterName } from '../schemas/parameters.schema.js';
 import { getRoutine } from './routineLibrary.js';
 
 /**
@@ -23,6 +24,11 @@ export interface ExpandedSteps {
   steps: RunnableStep[];
   teardown: RunnableStep[];
   includes: IncludedRoutineRef[];
+  /**
+   * Parameters declared by the INCLUDED routines (T5.3), renamed `<include path>_<name>` (dots become underscores) so two includes of the
+   * same routine, or an include and its includer, never collide. The steps already use the new names.
+   */
+  parameters: Parameter[];
 }
 
 interface Context {
@@ -32,6 +38,20 @@ interface Context {
   rootOffset: number;
   targetProfile: string | undefined;
   includes: IncludedRoutineRef[];
+  /** Parameters declared by included routines, renamed (shared by every level). */
+  parameters: Parameter[];
+  /**
+   * Parameter names visible in the routine being expanded -> their global name. Only that routine's OWN declarations: an included
+   * routine does not see its includer's parameters (it could not be saved on its own if it did). Empty at the root, where names are global.
+   */
+  scope: Map<string, string>;
+}
+
+/** A step of an included routine that draws from one of ITS parameters now draws from the renamed one. */
+function withScopedParameter(step: RunnableStep, scope: Map<string, string>): RunnableStep {
+  const name = (step as { valueFromParameter?: string }).valueFromParameter;
+  const renamed = name === undefined ? undefined : scope.get(name);
+  return renamed === undefined ? step : ({ ...step, valueFromParameter: renamed } as RunnableStep);
 }
 
 function prefixed(step: RunnableStep, prefix: string): RunnableStep {
@@ -66,7 +86,7 @@ async function expandList(
 
   for (const step of steps) {
     if (step.action !== 'include') {
-      out.push(prefixed(step, prefix));
+      out.push(prefixed(withScopedParameter(step as RunnableStep, context.scope), prefix));
       continue;
     }
 
@@ -104,7 +124,14 @@ async function expandList(
     context.includes.push({ routineId: routine.id, version: routine.version, sha256: routine.sha256 });
 
     const childPrefix = [prefix, step.id ?? step.routineId].filter(Boolean).join('.');
-    const childContext: Context = { ...context, stack: [...context.stack, step.routineId] };
+    // T5.3: the included routine's own parameters, renamed after the include so they cannot collide.
+    const scope = new Map<string, string>();
+    for (const own of routine.parameters ?? []) {
+      const global = sanitizeParameterName(`${childPrefix}_${own.name}`);
+      scope.set(own.name, global);
+      context.parameters.push({ ...own, name: global });
+    }
+    const childContext: Context = { ...context, stack: [...context.stack, step.routineId], scope };
 
     const body = await expandList(routine.steps, childContext, childPrefix, collectTeardown);
     out.push(...body.steps);
@@ -132,7 +159,7 @@ async function expandList(
  */
 export async function expandIncludes(
   // `parameters` (T5.3): what the including run/routine declares, so the expanded steps may use `valueFromParameter`.
-  // An included routine's steps can use the includer's parameters; they cannot bring their own.
+  // An included routine declares its OWN parameters (renamed after the include in the result); it cannot use its includer's.
   input: { steps: ExplorationStep[]; teardown?: ExplorationStep[]; parameters?: unknown[] },
   options: { targetProfile?: string; selfId?: string } = {},
 ): Promise<ExpandedSteps> {
@@ -141,6 +168,8 @@ export async function expandIncludes(
     rootOffset: options.selfId === undefined ? 0 : 1,
     targetProfile: options.targetProfile,
     includes: [],
+    parameters: [],
+    scope: new Map(),
   };
 
   const main = await expandList(input.steps, context, '', true);
@@ -161,7 +190,7 @@ export async function expandIncludes(
     targetProfile: options.targetProfile ?? 'expanded',
     steps: main.steps.length > 0 ? main.steps : input.steps,
     ...(teardown.length > 0 ? { teardown } : {}),
-    ...(input.parameters ? { parameters: input.parameters } : {}),
+    ...(input.parameters || context.parameters.length > 0 ? { parameters: [...(input.parameters ?? []), ...context.parameters] } : {}),
   });
   if (!check.success) {
     throw new IncludeError(
@@ -171,5 +200,5 @@ export async function expandIncludes(
     );
   }
 
-  return { steps: main.steps, teardown, includes: context.includes };
+  return { steps: main.steps, teardown, includes: context.includes, parameters: context.parameters };
 }

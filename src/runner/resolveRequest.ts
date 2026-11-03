@@ -78,7 +78,7 @@ export async function resolveExplorationRequest(
     parameterized = resolveParameters<RunnableStep>({
       steps: expanded.steps,
       ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
-      ...(request.parameters ? { parameters: request.parameters } : {}),
+      ...(request.parameters || expanded.parameters.length > 0 ? { parameters: [...(request.parameters ?? []), ...expanded.parameters] } : {}),
       ...(request.seed ? { seed: request.seed } : {}),
       ...(request.sample === undefined ? {} : { sample: request.sample }),
     });

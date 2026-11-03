@@ -53,6 +53,15 @@ export interface Strings {
   verifyHint: string;
   generated: string;
   totalRuns: string;
+  testData: string;
+  seed: string;
+  sample: string;
+  parameter: string;
+  value: string;
+  origin: string;
+  syntheticTag: string;
+  syntheticNote: string;
+  replayHint: string;
 }
 
 const en: Strings = {
@@ -107,6 +116,15 @@ const en: Strings = {
   verifyHint: 'To verify: export the evidence and run "scrapforai evidence verify <folder> --expected-key-id <key id>".',
   generated: 'Report generated',
   totalRuns: 'Total runs',
+  testData: 'Test data',
+  seed: 'Seed',
+  sample: 'Sample',
+  parameter: 'Parameter',
+  value: 'Value',
+  origin: 'Origin',
+  syntheticTag: 'synthetic',
+  syntheticNote: "Synthetic data: the generated identity documents are made up but carry correct check digits, so one may coincide with a real person's or company's. Use only in dev/QA environments.",
+  replayHint: 'Run again with the same seed and sample to reproduce these values.',
 };
 
 const pt: Strings = {
@@ -161,6 +179,15 @@ const pt: Strings = {
   verifyHint: 'Para verificar: exporte a evidência e execute "scrapforai evidence verify <pasta> --expected-key-id <id da chave>".',
   generated: 'Relatório gerado em',
   totalRuns: 'Total de execuções',
+  testData: 'Dados de teste',
+  seed: 'Semente',
+  sample: 'Amostra',
+  parameter: 'Parâmetro',
+  value: 'Valor',
+  origin: 'Origem',
+  syntheticTag: 'sintético',
+  syntheticNote: 'Dados sintéticos: os documentos gerados são inventados, mas têm dígitos verificadores corretos, então um deles pode coincidir com o de uma pessoa ou empresa real. Use apenas em ambientes de dev/QA.',
+  replayHint: 'Execute de novo com a mesma semente e amostra para reproduzir estes valores.',
 };
 
 const es: Strings = {
@@ -215,6 +242,15 @@ const es: Strings = {
   verifyHint: 'Para verificar: exporte la evidencia y ejecute "scrapforai evidence verify <carpeta> --expected-key-id <id de la clave>".',
   generated: 'Informe generado el',
   totalRuns: 'Total de ejecuciones',
+  testData: 'Datos de prueba',
+  seed: 'Semilla',
+  sample: 'Muestra',
+  parameter: 'Parámetro',
+  value: 'Valor',
+  origin: 'Origen',
+  syntheticTag: 'sintético',
+  syntheticNote: 'Datos sintéticos: los documentos generados son inventados pero tienen dígitos verificadores correctos, por lo que uno puede coincidir con el de una persona o empresa real. Úselos solo en entornos de dev/QA.',
+  replayHint: 'Ejecute de nuevo con la misma semilla y muestra para reproducir estos valores.',
 };
 
 export const STRINGS: Record<ReportLang, Strings> = { en, pt, es };
