@@ -71,6 +71,18 @@ Commands
   permissions run <matrixId> [--build-id b] [--retention ephemeral|standard] [--timeout-seconds N] [--no-wait]
                                     (role x probe permission matrix; exit 1 on an unmet expectation or an unexpected gain of access)
   permissions show <runId>
+  evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--settle-ms N] [--timeout-seconds N] [--no-wait]
+                                    (per catalogue screen: value-free inventory + screenshot into SYSTEM_EVOLUTION_DIR/<target>/<date>_<build>/,
+                                     committed to git when that directory is a repository; exit 0 complete, 2 anything else)
+  evolution list <target>           (the snapshots stored for a target, oldest first)
+  evolution diff <target> [--from ref] [--to ref] [--write] [--narrative-file <file|->]
+                                    (what changed between two builds, default the last two; ref = build id, 'latest' or 'previous'.
+                                     --write puts CHANGES.md next to the newer snapshot; a narrative is labelled AI-generated.
+                                     Exit 1 when the newer build declared its expected changes and others happened)
+  evolution timeline <target> [--screen id] [--key control] [--since YYYY-MM-DD] [--limit N]
+                                    (when each control appeared, changed or went away)
+  evolution expected <target> <buildId> [--file <expected.json|->]
+                                    (show, or with --file declare, the changes a build is supposed to contain)
 
 Global options
   --json         one machine-readable JSON object on stdout (cliSchema ${CLI_SCHEMA_VERSION})
@@ -104,16 +116,16 @@ function errorOf(response: ApiResponse): CliError {
 function createApi(config: CliConfig, io: CliIo) {
   const doFetch = io.fetch ?? fetch;
 
-  return async function api(method: 'GET' | 'POST', path: string, body?: unknown, timeoutMs = config.requestTimeoutMs): Promise<ApiResponse> {
+  return async function api(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, timeoutMs = config.requestTimeoutMs): Promise<ApiResponse> {
     let response: Response;
     try {
       response = await doFetch(new URL(path, config.baseUrl), {
         method,
         headers: {
           authorization: `Bearer ${config.apiKey}`,
-          ...(method === 'POST' ? { 'content-type': 'application/json' } : {}),
+          ...(method !== 'GET' ? { 'content-type': 'application/json' } : {}),
         },
-        ...(method === 'POST' ? { body: JSON.stringify(body ?? {}) } : {}),
+        ...(method !== 'GET' ? { body: JSON.stringify(body ?? {}) } : {}),
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
@@ -180,6 +192,23 @@ function formatSuite(state: Record<string, any>): string {
   return `${lines.join('\n')}\n`;
 }
 
+function formatSnapshot(state: Record<string, any>): string {
+  const lines = [`Snapshot ${state.snapshotId} of "${state.targetProfile}": ${state.status}${state.buildId ? `  build ${state.buildId} (${state.buildIdSource})` : ''}`];
+  for (const screen of state.screens as Array<Record<string, any>>) {
+    const counts = screen.counts
+      ? `  ${screen.counts.fields} field(s), ${screen.counts.actions} action(s), ${screen.counts.grids} grid(s)${screen.counts.unkeyed ? `, ${screen.counts.unkeyed} unkeyed` : ''}`
+      : '';
+    const detail = screen.status === 'error' ? `  ${screen.errorType ?? ''}: ${screen.errorMessage ?? ''}` : counts;
+    lines.push(`  ${screen.status === 'captured' ? 'OK   ' : screen.status === 'error' ? 'ERROR' : '...  '}  ${screen.screenId}${detail}`);
+  }
+  if (state.folder) lines.push(`  written to ${state.folder}`);
+  if (state.git?.committed) lines.push(`  committed ${state.git.commit}`);
+  else if (state.git?.repository) lines.push(`  not committed${state.git.note ? `: ${state.git.note}` : ''}`);
+  for (const warning of (state.warnings ?? []) as string[]) lines.push(`  warning: ${warning}`);
+  if (state.reason) lines.push(`  ${state.reason}`);
+  return `${lines.join('\n')}\n`;
+}
+
 function formatMatrix(state: Record<string, any>): string {
   const lines = [`Permission matrix "${state.matrixId}" (${state.runId}): ${state.status}${state.buildId ? `  build ${state.buildId}` : ''}`];
   const cells = state.cells as Array<Record<string, any>>;
@@ -231,7 +260,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -341,6 +370,193 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
         if (state.status !== 'running') {
           emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'permissions run', exitCode: state.exitCode as ExitCode, result: state as never }, formatMatrix(state));
           return state.exitCode as ExitCode;
+        }
+      }
+    }
+
+    if (command === 'evolution diff' || command === 'evolution timeline' || command === 'evolution expected') {
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          ...common,
+          from: { type: 'string' },
+          to: { type: 'string' },
+          write: { type: 'boolean' },
+          'narrative-file': { type: 'string' },
+          screen: { type: 'string' },
+          key: { type: 'string' },
+          since: { type: 'string' },
+          limit: { type: 'string' },
+          file: { type: 'string' },
+        },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [target, buildId] = positionals;
+      const readSource = async (source: string, what: string): Promise<string> => {
+        try {
+          return source === '-'
+            ? await (io.readStdin ?? (async () => { throw new Error('stdin is not available'); }))()
+            : await (io.readFile ?? (async () => { throw new Error('files are not available'); }))(source);
+        } catch (error) {
+          throw new CliError('UsageError', `cannot read ${what} "${source}": ${error instanceof Error ? error.message : String(error)}`);
+        }
+      };
+      const query = (pairs: Record<string, string | undefined>): string => {
+        const text = new URLSearchParams(Object.entries(pairs).filter((pair): pair is [string, string] => pair[1] !== undefined)).toString();
+        return text ? `?${text}` : '';
+      };
+
+      if (command === 'evolution timeline') {
+        if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai evolution timeline <target> [--screen id] [--key control] [--since YYYY-MM-DD] [--limit N]');
+        const response = await api('GET', `/v1/evolution/${encodeURIComponent(target)}/timeline${query({ screen: values.screen, key: values.key, since: values.since, limit: values.limit })}`);
+        if (response.status !== 200) throw errorOf(response);
+        const answer = response.body as Record<string, any>;
+        const lines = (answer.events as Array<Record<string, any>>).map((event) => `${String(event.createdAt).slice(0, 10)}  ${String(event.buildId).padEnd(14)}  [${event.screen}]  ${event.text}`);
+        if (answer.control) {
+          const control = answer.control as Record<string, any>;
+          lines.push(
+            control.firstSeenIn
+              ? `"${control.key}": first seen in ${control.firstSeenIn.buildId} (${String(control.firstSeenIn.createdAt).slice(0, 10)})${control.firstSeenIn.isFirstSnapshot ? ', the first snapshot: earlier history is unknown' : ''}; ${control.presentInLatest ? `present now on ${control.screen}` : 'not present in the latest snapshot'}`
+              : `"${control.key}": never seen in any snapshot`,
+          );
+        }
+        if (answer.truncated) lines.push('... more events than shown (--limit)');
+        if ((answer.events as unknown[]).length === 0 && !answer.control) lines.push(`No changes recorded across ${answer.snapshots} snapshot(s).`);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution timeline', exitCode: 0, result: answer as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (command === 'evolution expected') {
+        if (!target || !buildId || positionals.length !== 2) throw new CliError('UsageError', 'usage: scrapforai evolution expected <target> <buildId> [--file <expected.json|->]');
+        const path = `/v1/evolution/${encodeURIComponent(target)}/expected/${encodeURIComponent(buildId)}`;
+        let response: ApiResponse;
+        if (values.file !== undefined) {
+          let declared: unknown;
+          try {
+            declared = JSON.parse(await readSource(values.file, 'the expected-changes file'));
+          } catch (error) {
+            if (error instanceof CliError) throw error;
+            throw new CliError('UsageError', `"${values.file}" is not valid JSON`);
+          }
+          response = await api('PUT', path, declared);
+        } else {
+          response = await api('GET', path);
+        }
+        if (response.status !== 200) throw errorOf(response);
+        const declared = response.body as { buildId: string; expected: Array<Record<string, any>> };
+        const text = `Build ${declared.buildId} declares ${declared.expected.length} expected change(s):\n${declared.expected.map((entry) => `  ${entry.screen}  ${entry.kind}${entry.path ? `  ${entry.path}` : ''}${entry.ref || entry.note ? `  (${[entry.ref, entry.note].filter(Boolean).join(': ')})` : ''}`).join('\n')}\n`;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution expected', exitCode: 0, result: response.body as never }, text);
+        return 0;
+      }
+
+      // evolution diff
+      if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai evolution diff <target> [--from ref] [--to ref] [--write] [--narrative-file <file|->]');
+      const narrative = values['narrative-file'] === undefined ? undefined : await readSource(values['narrative-file'], 'the narrative file');
+      const diffResponse = await api('GET', `/v1/evolution/${encodeURIComponent(target)}/diff${query({ from: values.from, to: values.to })}`);
+      if (diffResponse.status !== 200) throw errorOf(diffResponse);
+      const diff = diffResponse.body as Record<string, any>;
+
+      let note = '';
+      if (values.write || narrative !== undefined) {
+        const written = await api('POST', `/v1/evolution/${encodeURIComponent(target)}/changes`, {
+          ...(values.from ? { from: values.from } : {}),
+          ...(values.to ? { to: values.to } : {}),
+          ...(narrative !== undefined ? { narrative } : {}),
+        });
+        if (written.status !== 200) throw errorOf(written);
+        const info = written.body as { file: string; git: { repository: boolean; committed: boolean; commit?: string } };
+        note = `\nWritten to ${info.file}${info.git.committed ? ` (committed ${info.git.commit})` : info.git.repository ? ' (unchanged, nothing to commit)' : ''}\n`;
+      }
+
+      // Exit 1 only when the newer build DECLARED its changes and something else changed: an unplanned change is a finding.
+      const exitCode: ExitCode = diff.classified === true && diff.counts.unexpected > 0 ? 1 : 0;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution diff', exitCode, result: diff as never }, `${String(diff.markdown)}${note}`);
+      return exitCode;
+    }
+
+    if (command === 'evolution snapshot' || command === 'evolution list') {
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          ...common,
+          'build-id': { type: 'string' },
+          screens: { type: 'string' },
+          'no-screenshots': { type: 'boolean' },
+          force: { type: 'boolean' },
+          'allow-partial': { type: 'boolean' },
+          'settle-ms': { type: 'string' },
+          'timeout-seconds': { type: 'string' },
+          'no-wait': { type: 'boolean' },
+        },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [target] = positionals;
+
+      if (command === 'evolution list') {
+        if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai evolution list <target>');
+        const response = await api('GET', `/v1/evolution/${encodeURIComponent(target)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const listing = response.body as { targetProfile: string; snapshots: Array<Record<string, any>> };
+        const text = listing.snapshots.length
+          ? `${listing.snapshots.map((s) => `${s.name}  build ${s.buildId}  ${s.screens} screen(s)${s.complete ? '' : `  PARTIAL (${s.notCaptured} not captured)`}`).join('\n')}\n`
+          : `No snapshots for "${listing.targetProfile}".\n`;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution list', exitCode: 0, result: listing as never }, text);
+        return 0;
+      }
+
+      if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai evolution snapshot <target> [options]');
+      const timeoutSeconds = values['timeout-seconds'] === undefined ? 3600 : Number(values['timeout-seconds']);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1) throw new CliError('UsageError', '--timeout-seconds must be a positive number');
+      const settleMs = values['settle-ms'] === undefined ? undefined : Number(values['settle-ms']);
+      if (settleMs !== undefined && (!Number.isInteger(settleMs) || settleMs < 0)) throw new CliError('UsageError', '--settle-ms must be a non-negative integer');
+      const screens = values.screens ? values.screens.split(',').map((id) => id.trim()).filter(Boolean) : undefined;
+      if (values.screens !== undefined && (!screens || screens.length === 0)) throw new CliError('UsageError', '--screens expects a comma-separated list of screen ids');
+
+      const started = await api('POST', '/v1/evolution/snapshots', {
+        targetProfile: target,
+        ...(values['build-id'] ? { buildId: values['build-id'] } : {}),
+        ...(screens ? { screens } : {}),
+        ...(values['no-screenshots'] ? { screenshots: false } : {}),
+        ...(values.force ? { force: true } : {}),
+        ...(values['allow-partial'] ? { allowPartial: true } : {}),
+        ...(settleMs !== undefined ? { settleMs } : {}),
+      });
+      if (started.status !== 202) throw errorOf(started);
+      const accepted = started.body as { snapshotId: string; targetProfile: string; status: string; screens: number; sessions: number };
+
+      if (values['no-wait']) {
+        emit(
+          { cliSchema: CLI_SCHEMA_VERSION, command: 'evolution snapshot', exitCode: 0, result: accepted },
+          `Snapshot started: ${accepted.snapshotId} (${accepted.screens} screens, ${accepted.sessions} sessions). Poll with: GET /v1/evolution/snapshots/${accepted.snapshotId}\n`,
+        );
+        return 0;
+      }
+
+      io.err(`[${accepted.snapshotId}] started: ${accepted.screens} screen(s) in ${accepted.sessions} session(s)\n`);
+      const deadline = Date.now() + timeoutSeconds * 1000;
+      for (;;) {
+        if (io.signal?.aborted) {
+          await api('POST', `/v1/evolution/snapshots/${accepted.snapshotId}/cancel`).catch(() => undefined);
+          throw new CliError('Cancelled', `interrupted; the snapshot ${accepted.snapshotId} was cancelled and nothing was written`);
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new CliError(
+            'SnapshotWaitTimeout',
+            `the snapshot ${accepted.snapshotId} did not finish within ${timeoutSeconds}s; it keeps running (GET /v1/evolution/snapshots/${accepted.snapshotId})`,
+          );
+        }
+        const poll = await api('GET', `/v1/evolution/snapshots/${accepted.snapshotId}?wait=${Math.min(50, Math.max(1, Math.floor(remaining / 1000)))}`, undefined, 70_000);
+        if (poll.status !== 200) throw errorOf(poll);
+        const state = poll.body as Record<string, any>;
+        if (state.status !== 'running') {
+          const exitCode = (state.exitCode ?? 2) as ExitCode;
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution snapshot', exitCode, result: state as never }, formatSnapshot(state));
+          return exitCode;
         }
       }
     }

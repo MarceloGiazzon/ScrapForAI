@@ -140,6 +140,18 @@ login URL it bounces to, its "not authorized" text, a 403) and the probes: `url`
 - Never put a role in a matrix to "see what happens" against an environment where its actions change real data; action probes
   really run.
 
+## Describing a system's screens (catalogue and evolution)
+
+- `propose_screen_catalog` (an MCP prompt, argument `targetProfile`) walks you through exploring a profile read-only and PROPOSING
+  its `screens` catalogue. Propose, do not save: a person applies it with `PUT /v1/targets/:id` (bearer only). List only screens
+  you saw, never guess URLs, claim `offeredTo` only for menus you looked at, skip anything that changes state or logs out.
+- To read what a screen IS without reading what it HOLDS: `inspect_dom` with `includeStructure: true`, or, behind a login, the
+  `captureInventory { name }` step in `run_exploration` (`extracted[name]` = fields, actions, grids; no value, no typed text, no
+  cell text; a select with over 100 options is left out as data). Safe to look at and to put in a report.
+- A snapshot of the whole catalogue per build is a person/CI job (`scrapforai evolution snapshot <target>`, API key required):
+  one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
+  for a way to write a partial one unless the person asked for `allowPartial`.
+
 ## Errors you will meet
 
 | Error | Meaning | What to do |

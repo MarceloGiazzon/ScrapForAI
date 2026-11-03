@@ -849,6 +849,9 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T4.1 — Motor de diff estrutural e normalizadores · G · `[compartilhado]`
 
+> **Implementada em 2026-11-03** (`src/diff/`, ver AGENTS.md, "Structural diff"). Entrega o motor, os normalizadores GeneXus (sufixo de linha de grid, prefixo de web
+> component), máscaras, tolerância numérica e `ignorePaths`, configuráveis em `targetProfile.diff`. Os consumidores T6.3 e T7.5 ainda não existem.
+
 **Usado por:** F4, T6.1, T6.3, T7.5.
 
 **Especificação:**
@@ -864,12 +867,20 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T4.2 — Catálogo de telas · M
 
+> **Implementada em 2026-11-03** (ver AGENTS.md, "Direct-URL probing" e "System evolution snapshots"). O catálogo (`screens`) veio com a T6.2; esta entrega o prompt MCP
+> `propose_screen_catalog` (descoberta assistida: o agente propõe, um humano aprova via `PUT /v1/targets/:id`). **Não feito:** gerar o
+> catálogo a partir do modelo NPDev (depende da T8.5).
+
 - `screens` no perfil de alvo: `{ id, name, reach: { routineId } | { url }, credentialSet? }`.
 - Descoberta assistida: um prompt MCP orienta o agente a navegar via `inspect_dom` e **propor** um
   catálogo; um humano aprova.
 - Para NPDev: gerar o catálogo a partir do modelo (T8.5).
 
 ### T4.3 — Inventário semântico · M
+
+> **Implementada em 2026-11-03** (`src/inventory/`, ver AGENTS.md, "Screen inventory"). `inspect_dom` ganhou `includeStructure`; o step `captureInventory` lê o
+> mesmo dentro de uma sessão autenticada. Nenhum valor é lido (provado por smoke com valores semeados). A chave é genérica; a T8.3 a torna
+> GeneXus.
 
 **Especificação:**
 - `ScreenInventory` derivado do `inspect-dom`
@@ -880,6 +891,10 @@ a deriva detecta, a pasta guarda e mostra.
 - A derivação da `key` é genérica aqui e passa a entender GeneXus na T8.3.
 
 ### T4.4 — Snapshot de evolução versionado em git · M
+
+> **Implementada em 2026-11-03** (`src/evolution/`, ver AGENTS.md, "System evolution snapshots"). Inventário + screenshot por tela, `snapshot.json` com sha256, commit
+> em git via `child_process`, idempotente por build, tudo-ou-nada. **Não feito:** `perf.json` (T3.4), resumo de acessibilidade (T7.5) e a
+> matriz de permissões dentro do snapshot: esses produtores não existem ou não estão ligados.
 
 **Especificação:**
 - `scrapforai evolution snapshot <target>`: para cada tela do catálogo, grava inventário +
@@ -893,6 +908,10 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T4.5 — `CHANGES.md` determinístico + narrativa do agente · M
 
+> **Implementada em 2026-11-03** (`src/evolution/compare.ts`, `evolutionService.ts`). `GET /v1/evolution/:target/diff`, `POST .../changes` grava o `CHANGES.md` ao lado do
+> snapshot novo; a ferramenta MCP `evolution_diff` devolve o diff e, com `narrative`, grava a seção rotulada "AI-generated summary, not
+> verified". O texto determinístico está em inglês; a localização (pt/es) como nos relatórios ficou para depois.
+
 - **Seção determinística** gerada do `ChangeSet`: "Tela Cliente: + campo Telefone (texto,
   opcional); − botão Exportar; campo CEP agora obrigatório".
 - **Seção narrativa opcional**, escrita pelo agente cliente via a ferramenta MCP `evolution_diff`
@@ -900,12 +919,18 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T4.6 — Linha do tempo e consultas · M
 
+> **Implementada em 2026-11-03** **parcialmente**: `GET /v1/evolution/:target/timeline`, `scrapforai evolution timeline` e a ferramenta MCP `evolution_query` ("quando
+> apareceu o campo X?", por tela, por data). **Não feito:** a linha do tempo na UI web. "Entre os builds A e B" é o `evolution_diff`.
+
 - UI: linha do tempo por tela (quando cada campo e ação apareceu, mudou ou sumiu).
 - MCP `evolution_query`: "quando apareceu o campo X?", "o que mudou na tela Y entre os builds A e
   B?", "quais telas mudaram no último mês?".
 - Serve também como memória consultável para agentes que trabalham no sistema.
 
 ### T4.7 — Mudanças esperadas × inesperadas · M
+
+> **Implementada em 2026-11-03** (`expected-changes` em `<target>/expected/<build>.json`, `PUT /v1/evolution/:target/expected/:buildId`). `scrapforai evolution diff`
+> sai com 1 quando o build declarou suas mudanças e houve outras. **Não feito:** derivar as esperadas dos itens fechados do ledger.
 
 - Um release pode declarar as mudanças pretendidas: `expected-changes.json` por build, ou
   derivado dos itens do ledger fechados no período.

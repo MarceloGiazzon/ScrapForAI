@@ -15,6 +15,7 @@ import { collectKnownSecretValues, redactSecrets, redactString } from '../securi
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
+import { extractStructure } from './extractStructure.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
 
@@ -491,6 +492,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             };
             break;
           }
+          case 'captureInventory':
+            extracted[step.name] = (await extractStructure(frame, { includeHiddenControls: step.includeHidden })) as unknown as JsonValue;
+            break;
           case 'extractText':
             extracted[step.name] = await frame.locator(step.selector).innerText({ timeout });
             break;

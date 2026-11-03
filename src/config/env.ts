@@ -99,6 +99,9 @@ export const envSchema = z.object({
   // --- Regression vault (T2.1) --- read lazily by config/paths.ts; declared here for documentation.
   REGRESSION_VAULT_DIR: z.string().min(1).optional(),
 
+  // --- System evolution (T4.4) --- read lazily by config/paths.ts; declared here for documentation.
+  SYSTEM_EVOLUTION_DIR: z.string().min(1).optional(),
+
   // --- Routine library (T1.3) --- read lazily by config/paths.ts; declared here for documentation.
   ROUTINE_LIBRARY_DIR: z.string().min(1).optional(),
 

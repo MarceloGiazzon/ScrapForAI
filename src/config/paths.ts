@@ -68,6 +68,20 @@ export function regressionVaultDir(): string {
   return override ? path.resolve(override) : path.join(dataDir(), 'regression-vault');
 }
 
+/**
+ * System evolution (T4.4): `<target>/<AAAA-MM-DD>_<buildId>/` snapshots. SYSTEM_EVOLUTION_DIR may point into a git
+ * repository, in which case every snapshot is committed with its build id in the message.
+ */
+export function systemEvolutionDir(): string {
+  const override = process.env.SYSTEM_EVOLUTION_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'system-evolution');
+}
+
+/** Snapshot run states (T4.4): <dataDir>/evolution-runs/<snapshotId>.json. Kept out of the evolution dir (a git repo). */
+export function evolutionRunsDir(): string {
+  return path.join(dataDir(), 'evolution-runs');
+}
+
 /** Suite run states (T1.6): <dataDir>/suites/<suiteRunId>.json. */
 export function suitesDir(): string {
   return path.join(dataDir(), 'suites');

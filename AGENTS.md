@@ -155,6 +155,41 @@ step limits, artifact retention, etc.).
   a label slug, through the diff normalizers; same key twice -> `key`, `key#2` (document order), radios with one name are ONE field;
   controls with nothing to build a key from are counted in `unkeyed`. Lists are sorted by key (stable files in git).
   `diffInventories()` is `structuralDiff` with the inventory identities. `test/screen-inventory.smoke.ts` proves no seeded value leaks.
+- **System evolution snapshots** (`src/evolution/`, T4.4): `POST /v1/evolution/snapshots` (202, then
+  `GET /v1/evolution/snapshots/:id[?wait=N]`, `POST .../cancel`; `GET /v1/evolution/:target` lists what is stored;
+  `scrapforai evolution snapshot|list`) reads every screen of the target profile's catalogue (`screens`) with the new read-only
+  step `captureInventory` (`extracted[name]` = value-free structure, see Screen inventory) and writes
+  `SYSTEM_EVOLUTION_DIR/<target>/<AAAA-MM-DD>_<buildId>/` = `snapshot.json` (build, `buildIdSource`, environment, per-file sha256, `complete`,
+  `notCaptured`) + `screens/<id>.json` (inventory) + `screens/<id>.png`. Sessions go through the job queue (suite priority, credential
+  lock) with ONE login per credential set (`screen.credentialSet`, else the profile's first set; the profile's `loginRoutine` is
+  required when it has credential sets; a screen with `reach.routineId` is its own session, run after the login). The build is the
+  caller's `buildId`, else the profile's `buildInfo` probe (T3.1), else `unknown` (never idempotent, folder `unknown-<HHMMSS>`).
+  **Idempotent per build**: a build that already has a snapshot is refused (409 `SnapshotExists` up front when `buildId` is given,
+  a `failed` run when it was probed) unless `force`, which replaces it. **All or nothing**: if any wanted screen could not be
+  captured NOTHING is written (a missing screen would later read as "removed") unless `allowPartial`, which writes the rest, marks
+  `complete: false`, lists `notCaptured` and exits 2. `screenshots: false` / `--no-screenshots` for environments with real data.
+  The folder is assembled aside and renamed in; when `SYSTEM_EVOLUTION_DIR` is inside a git work tree the target's folder (and only
+  it) is committed as `evolution(<target>): <buildId>` via `child_process` (no dependency); a git failure is a warning, never a
+  failed capture. Run state: `<dataDir>/evolution-runs/<id>.json` (outside the evolution dir), left `running` by a dead process ->
+  `interrupted` at startup. Exit 0 only for a complete snapshot; 2 otherwise (this is not a test verdict, there is no 1).
+  **Comparing builds** (`src/evolution/compare.ts` pure, `evolutionService.ts` I/O; T4.5-T4.7): `GET /v1/evolution/:target/diff[?from=&to=&format=md]`
+  (refs: build id, `latest`, `previous`; default = latest vs the one before it) reads both snapshots back **verifying each inventory against the
+  sha256 in `snapshot.json`** (edited -> 409 `SnapshotTampered`, missing -> `SnapshotIncomplete`) and returns, per screen, `added`/`removed`/
+  `changed`/`unchanged`/`unknown` with each change in plain deterministic words (`+ field Phone (phone) (text, optional)`, `~ field Zip (zip) is
+  now required`, `+ column "Total" in grid orders`), in `markdown` too. A screen that failed to capture in either snapshot is `unknown`, never
+  `removed`/`added`. The target profile's `diff` config applies. **Expected vs unexpected**: `PUT /v1/evolution/:target/expected/:buildId`
+  (`{ buildId, expected: [{ screen|"*", kind: added|removed|changed|*, path?, ref?, note? }] }`, stored and committed as
+  `<target>/expected/<build>.json`) declares what a build is supposed to change; the diff against it marks every change `expected` (with its
+  `ref`) or `unexpected`, and `scrapforai evolution diff` exits **1** only when the newer build DECLARED its changes and others happened
+  (a build with no declaration is not classified, so nothing is an alert). `POST /v1/evolution/:target/changes { from?, to?, narrative? }` writes
+  `CHANGES.md` into the newer snapshot folder and commits it: the deterministic section always, and the agent's `narrative` (max 20 000 chars)
+  after it under "Narrative (AI-generated summary, not verified)" (P7: the server calls no model). `GET .../timeline[?screen=&key=&since=&limit=]`
+  lists the changes between consecutive snapshots oldest first, and with `key` says where that control is now and when it was first seen
+  (`isFirstSnapshot: true` = earlier history unknown). Not done: the timeline in the web UI, deriving expected changes from the ledger,
+  localizing CHANGES.md (English only). `test/evolution-history.test.ts` covers it end to end without a browser.
+  Not in the snapshot yet: `perf.json` (T3.4), accessibility summary (T7.5) and the permission matrix (T6.1 results) - those
+  producers do not exist or are not wired. `test/evolution-snapshot.smoke.ts` proves no seeded value or password reaches disk, the
+  run state or the git history.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -174,6 +209,8 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
   `GET|PUT /v1/permissions[/:id]`, `POST /v1/permissions/:id/run`, `GET /v1/permissions/runs[/:runId]`,
   `POST /v1/permissions/runs/:runId/cancel` — permission matrices.
+  `POST /v1/evolution/snapshots`, `GET /v1/evolution/snapshots/:id`, `POST /v1/evolution/snapshots/:id/cancel`, `GET /v1/evolution/:target`,
+  `GET /v1/evolution/:target/{diff,timeline}`, `POST /v1/evolution/:target/changes`, `GET|PUT /v1/evolution/:target/expected/:buildId` — system evolution.
 
 JSON Schemas for both request bodies (and the `run_exploration` result) are served unauthenticated —
 fetch these instead of hand-writing a request body against the schema files directly:
@@ -186,7 +223,7 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, and `get_run` (a past run by jobId), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
 matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
@@ -226,7 +263,10 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
 `routines list`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
-`permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict). Exit codes: **0** passed, **1** a test failed,
+`permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
+`evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
+`evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),
+`evolution timeline <target> [--screen s] [--key k] [--since d]` and `evolution expected <target> <buildId> [--file f|-]`. Exit codes: **0** passed, **1** a test failed,
 **2** anything else (API down, bad usage, a run that could not execute, wait timeout). `--json` prints exactly one JSON
 object on stdout (`cliSchema: 1`, schema in `schema/cli.output.json`); progress and human errors go to stderr. The API
 key comes from `.env`, never from the command line. Fields are only ever added to the JSON; a breaking change bumps

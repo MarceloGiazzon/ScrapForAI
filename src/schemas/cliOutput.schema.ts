@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { runSummarySchema } from '../history/runSummary.js';
+import { snapshotRunStateSchema } from './evolution.schema.js';
 import { matrixRunStateSchema } from './permissionMatrix.schema.js';
 import { suiteStateSchema } from './suiteRequest.schema.js';
 
@@ -99,6 +100,37 @@ export const cliSuiteStartedSchema = z.object({ suiteRunId: z.string(), status: 
 /** `permissions run --no-wait`: accepted and running (T6.1). */
 export const cliMatrixStartedSchema = z.object({ runId: z.string(), matrixId: z.string(), status: z.string(), cells: z.number(), sessions: z.number() }).strict();
 
+export const cliSnapshotStartedSchema = z
+  .object({ snapshotId: z.string(), targetProfile: z.string(), status: z.string(), screens: z.number(), sessions: z.number() })
+  .strict();
+
+/** `evolution list`: the snapshots stored for a target, oldest first. */
+export const cliEvolutionListSchema = z
+  .object({
+    targetProfile: z.string(),
+    snapshots: z.array(
+      z.object({ folder: z.string(), name: z.string(), buildId: z.string(), createdAt: z.string(), complete: z.boolean(), screens: z.number(), notCaptured: z.number() }).strict(),
+    ),
+  })
+  .strict();
+
+/** `evolution diff` / `timeline` / `expected`: passed through as the API returns them (schemas: evolution/compare.ts, evolutionService.ts, expectedChanges.schema.ts). */
+export const cliEvolutionDiffSchema = z
+  .object({
+    targetProfile: z.string(),
+    from: z.object({ buildId: z.string(), createdAt: z.string(), complete: z.boolean() }).passthrough(),
+    to: z.object({ buildId: z.string(), createdAt: z.string(), complete: z.boolean() }).passthrough(),
+    screens: z.array(z.object({ id: z.string(), name: z.string(), status: z.string() }).passthrough()),
+    counts: z.object({ changes: z.number(), expected: z.number(), unexpected: z.number() }).passthrough(),
+    classified: z.boolean(),
+    markdown: z.string(),
+  })
+  .passthrough();
+export const cliEvolutionTimelineSchema = z
+  .object({ targetProfile: z.string(), snapshots: z.number(), builds: z.array(z.unknown()), events: z.array(z.unknown()), truncated: z.boolean() })
+  .passthrough();
+export const cliEvolutionExpectedSchema = z.object({ buildId: z.string(), expected: z.array(z.unknown()) }).passthrough();
+
 const success = <C extends string, R extends z.ZodTypeAny>(command: C, result: R) =>
   z.object({ ...header, command: z.literal(command), exitCode, result }).strict();
 
@@ -129,6 +161,11 @@ export const cliOutputSchema = z.union([
   success('vault confirm-green', cliVaultRunSchema),
   success('permissions run', z.union([matrixRunStateSchema, cliMatrixStartedSchema])),
   success('permissions show', matrixRunStateSchema),
+  success('evolution snapshot', z.union([snapshotRunStateSchema, cliSnapshotStartedSchema])),
+  success('evolution list', cliEvolutionListSchema),
+  success('evolution diff', cliEvolutionDiffSchema),
+  success('evolution timeline', cliEvolutionTimelineSchema),
+  success('evolution expected', cliEvolutionExpectedSchema),
   cliErrorOutputSchema,
 ]);
 

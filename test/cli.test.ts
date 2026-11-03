@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 17);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 22);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -438,5 +438,187 @@ test('permissions show: green is 0, a run still going is 2; usage errors never r
   for (const args of [['permissions', 'run'], ['permissions', 'show'], ['permissions', 'run', 'a', 'b'], ['permissions', 'run', 'a', '--retention', 'forever']]) {
     assert.equal((await cli(args)).code, 2, args.join(' '));
   }
+  assert.equal(seen.length, 0);
+});
+
+// T4.4: `scrapforai evolution snapshot|list`
+
+const snapshotState = (status: string, exitCode: 0 | 2, extra: Record<string, unknown> = {}) => ({
+  snapshotId: 'evo_abc',
+  targetProfile: 'app',
+  buildId: 'rev-1',
+  buildIdSource: 'probe',
+  status,
+  createdAt: '2026-11-03T10:00:00.000Z',
+  sessions: 1,
+  screens: [{ screenId: 'home', name: 'Home', status: 'captured', jobId: 'job_1', counts: { fields: 2, actions: 1, grids: 0, unkeyed: 0 } }],
+  warnings: [],
+  exitCode,
+  ...extra,
+});
+
+test('evolution snapshot: sends the options, waits, exit 0 when complete and 2 when not; --json matches the contract', async () => {
+  handler = (req, respond) =>
+    req.method === 'POST'
+      ? respond(202, { snapshotId: 'evo_abc', targetProfile: 'app', status: 'running', screens: 1, sessions: 1 })
+      : respond(200, snapshotState('completed', 0, { folder: 'app/2026-11-03_rev-1', git: { repository: true, committed: true, commit: 'abc1234' } }));
+  const ok = await cli(['evolution', 'snapshot', 'app', '--build-id', 'rev-1', '--screens', 'home, orders', '--no-screenshots', '--force', '--allow-partial', '--settle-ms', '250', '--json']);
+  assert.equal(ok.code, 0);
+  assert.deepEqual(seen[0]!.body, { targetProfile: 'app', buildId: 'rev-1', screens: ['home', 'orders'], screenshots: false, force: true, allowPartial: true, settleMs: 250 });
+  assert.equal(seen[0]!.auth, `Bearer ${KEY}`);
+  assert.equal(validJson(ok.stdout).command, 'evolution snapshot');
+
+  const text = await cli(['evolution', 'snapshot', 'app']);
+  assert.match(text.stdout, /OK\s+home\s+2 field\(s\), 1 action\(s\), 0 grid\(s\)/);
+  assert.match(text.stdout, /written to app\/2026-11-03_rev-1/);
+  assert.match(text.stdout, /committed abc1234/);
+  assert.deepEqual(seen[0]!.body, { targetProfile: 'app' }, 'no option, no field: the server defaults apply');
+
+  handler = (req, respond) =>
+    req.method === 'POST'
+      ? respond(202, { snapshotId: 'evo_abc', targetProfile: 'app', status: 'running', screens: 1, sessions: 1 })
+      : respond(200, snapshotState('failed', 2, { reason: '1 of 1 screen(s) could not be captured; nothing was written' }));
+  const failed = await cli(['evolution', 'snapshot', 'app', '--json']);
+  assert.equal(failed.code, 2);
+  assert.equal(validJson(failed.stdout).result.status, 'failed');
+
+  const started = await cli(['evolution', 'snapshot', 'app', '--no-wait', '--json']);
+  assert.equal(started.code, 0);
+  assert.equal(validJson(started.stdout).result.snapshotId, 'evo_abc');
+});
+
+test('evolution snapshot: an API refusal is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(409, { error: { type: 'SnapshotExists', message: 'already has a snapshot' } });
+  const refused = await cli(['evolution', 'snapshot', 'app', '--build-id', 'rev-1']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /SnapshotExists/);
+
+  for (const args of [
+    ['evolution', 'snapshot'],
+    ['evolution', 'snapshot', 'a', 'b'],
+    ['evolution', 'snapshot', 'a', '--settle-ms', 'abc'],
+    ['evolution', 'snapshot', 'a', '--timeout-seconds', '0'],
+    ['evolution', 'snapshot', 'a', '--screens', ' , '],
+    ['evolution', 'list'],
+    ['evolution'],
+  ]) {
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+  }
+  assert.equal(seen.length, 0);
+});
+
+test('evolution list: oldest first, partial snapshots flagged, empty is said', async () => {
+  const listing = {
+    targetProfile: 'app',
+    snapshots: [
+      { folder: 'app/2026-11-02_rev1', name: '2026-11-02_rev1', buildId: 'rev1', createdAt: '2026-11-02T08:00:00.000Z', complete: true, screens: 3, notCaptured: 0 },
+      { folder: 'app/2026-11-03_rev2', name: '2026-11-03_rev2', buildId: 'rev2', createdAt: '2026-11-03T08:00:00.000Z', complete: false, screens: 2, notCaptured: 1 },
+    ],
+  };
+  handler = (_req, respond) => respond(200, listing);
+  const text = await cli(['evolution', 'list', 'app']);
+  assert.equal(text.code, 0);
+  assert.match(text.stdout, /2026-11-02_rev1\s+build rev1\s+3 screen\(s\)\n/);
+  assert.match(text.stdout, /PARTIAL \(1 not captured\)/);
+  assert.equal(seen[0]!.url, '/v1/evolution/app');
+  assert.equal(validJson((await cli(['evolution', 'list', 'app', '--json'])).stdout).result.snapshots.length, 2);
+
+  handler = (_req, respond) => respond(200, { targetProfile: 'app', snapshots: [] });
+  assert.match((await cli(['evolution', 'list', 'app'])).stdout, /No snapshots for "app"/);
+});
+
+// T4.5 / T4.6 / T4.7: `scrapforai evolution diff|timeline|expected`
+
+const evoDiff = (classified: boolean, unexpected: number) => ({
+  targetProfile: 'app',
+  from: { buildId: 'rev1', createdAt: '2026-11-01T08:00:00.000Z', complete: true },
+  to: { buildId: 'rev2', createdAt: '2026-11-02T08:00:00.000Z', complete: true },
+  screens: [{ id: 'customers', name: 'Customers', status: 'changed', changes: [], truncated: false }],
+  counts: { screensChanged: 1, screensAdded: 0, screensRemoved: 0, screensUnknown: 0, changes: 2, expected: 2 - unexpected, unexpected },
+  classified,
+  markdown: '# Changes in app: rev1 -> rev2\n\n## Screen Customers\n- + field Phone (phone) (text, optional)\n',
+});
+
+test('evolution diff: prints the deterministic text; exit 1 only when a DECLARED build changed something else', async () => {
+  handler = (_req, respond) => respond(200, evoDiff(false, 2));
+  const unclassified = await cli(['evolution', 'diff', 'app', '--from', 'rev1', '--to', 'rev2']);
+  assert.equal(unclassified.code, 0, 'nothing declared: not an alert');
+  assert.match(unclassified.stdout, /^# Changes in app: rev1 -> rev2/);
+  assert.equal(seen[0]!.url, '/v1/evolution/app/diff?from=rev1&to=rev2');
+
+  handler = (_req, respond) => respond(200, evoDiff(true, 0));
+  assert.equal((await cli(['evolution', 'diff', 'app'])).code, 0);
+  assert.equal(seen[0]!.url, '/v1/evolution/app/diff');
+
+  handler = (_req, respond) => respond(200, evoDiff(true, 1));
+  const red = await cli(['evolution', 'diff', 'app', '--json']);
+  assert.equal(red.code, 1);
+  assert.equal(validJson(red.stdout).command, 'evolution diff');
+
+  handler = (_req, respond) => respond(409, { error: { type: 'NoPreviousSnapshot', message: 'first build' } });
+  const refused = await cli(['evolution', 'diff', 'app']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /NoPreviousSnapshot/);
+});
+
+test('evolution diff --write / --narrative-file: reads the diff, then asks the server to write CHANGES.md with the agent text', async () => {
+  handler = (req, respond) =>
+    req.method === 'GET'
+      ? respond(200, evoDiff(false, 0))
+      : respond(200, { targetProfile: 'app', file: 'app/2026-11-02_rev2/CHANGES.md', git: { repository: true, committed: true, commit: 'abc1234' }, counts: {}, classified: false });
+  const written = await cli(['evolution', 'diff', 'app', '--to', 'rev2', '--narrative-file', 'n.txt'], { readFile: async () => 'Customers gained a phone field.' });
+  assert.equal(written.code, 0);
+  assert.match(written.stdout, /Written to app\/2026-11-02_rev2\/CHANGES\.md \(committed abc1234\)/);
+  assert.deepEqual(seen.map((s) => s.method), ['GET', 'POST']);
+  assert.equal(seen[1]!.url, '/v1/evolution/app/changes');
+  assert.deepEqual(seen[1]!.body, { to: 'rev2', narrative: 'Customers gained a phone field.' });
+
+  const plain = await cli(['evolution', 'diff', 'app', '--write']);
+  assert.deepEqual(seen[1]!.body, {}, 'no narrative unless an agent gave one');
+  assert.equal(plain.code, 0);
+
+  const unreadable = await cli(['evolution', 'diff', 'app', '--narrative-file', 'missing.txt'], { readFile: async () => { throw new Error('ENOENT'); } });
+  assert.equal(unreadable.code, 2);
+  assert.equal(seen.length, 0, 'an unreadable narrative never reaches the API');
+});
+
+test('evolution timeline: one line per event, and the answer about a control; empty is said', async () => {
+  handler = (_req, respond) =>
+    respond(200, {
+      targetProfile: 'app', snapshots: 3, builds: [], truncated: false,
+      events: [{ buildId: 'rev2', createdAt: '2026-11-02T08:00:00.000Z', screen: 'customers', screenName: 'Customers', kind: 'added', path: 'fields[key=phone]', text: '+ field Phone (phone) (text, optional)' }],
+      control: { key: 'phone', screen: 'customers', presentInLatest: true, firstSeenIn: { buildId: 'rev2', createdAt: '2026-11-02T08:00:00.000Z', isFirstSnapshot: false } },
+    });
+  const text = await cli(['evolution', 'timeline', 'app', '--key', 'phone', '--screen', 'customers', '--since', '2026-11-01', '--limit', '10']);
+  assert.equal(text.code, 0);
+  assert.equal(seen[0]!.url, '/v1/evolution/app/timeline?screen=customers&key=phone&since=2026-11-01&limit=10');
+  assert.match(text.stdout, /2026-11-02\s+rev2\s+\[customers\]\s+\+ field Phone/);
+  assert.match(text.stdout, /"phone": first seen in rev2 \(2026-11-02\); present now on customers/);
+  assert.equal(validJson((await cli(['evolution', 'timeline', 'app', '--json'])).stdout).command, 'evolution timeline');
+
+  handler = (_req, respond) => respond(200, { targetProfile: 'app', snapshots: 2, builds: [], events: [], truncated: false });
+  assert.match((await cli(['evolution', 'timeline', 'app'])).stdout, /No changes recorded across 2 snapshot\(s\)\./);
+});
+
+test('evolution expected: show, or declare from a file; usage errors never reach the API', async () => {
+  const declared = { buildId: 'rev2', expected: [{ screen: 'customers', kind: 'added', path: 'fields[key=phone]', ref: 'REG-301' }] };
+  handler = (_req, respond) => respond(200, declared);
+  const shown = await cli(['evolution', 'expected', 'app', 'rev2']);
+  assert.equal(shown.code, 0);
+  assert.equal(seen[0]!.method, 'GET');
+  assert.equal(seen[0]!.url, '/v1/evolution/app/expected/rev2');
+  assert.match(shown.stdout, /Build rev2 declares 1 expected change\(s\)/);
+  assert.match(shown.stdout, /customers\s+added\s+fields\[key=phone\]\s+\(REG-301\)/);
+
+  const put = await cli(['evolution', 'expected', 'app', 'rev2', '--file', 'e.json', '--json'], { readFile: async () => JSON.stringify(declared) });
+  assert.equal(put.code, 0);
+  assert.equal(seen[0]!.method, 'PUT');
+  assert.deepEqual(seen[0]!.body, declared);
+  assert.equal(validJson(put.stdout).command, 'evolution expected');
+
+  for (const args of [['evolution', 'expected', 'app'], ['evolution', 'expected', 'app', 'rev2', 'extra'], ['evolution', 'diff'], ['evolution', 'timeline']]) {
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+  }
+  assert.equal((await cli(['evolution', 'expected', 'app', 'rev2', '--file', 'bad.json'], { readFile: async () => '{not json' })).code, 2);
   assert.equal(seen.length, 0);
 });

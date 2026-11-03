@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
+import { buildCatalogPrompt, type CatalogPromptProfile } from './catalogPrompt.js';
 import { domInspectionRequestSchema } from '../schemas/domInspectionRequest.schema.js';
 import { mcpExplorationRequestSchema, safeName } from '../schemas/explorationRequest.schema.js';
 import { mcpSaveRoutineSchema, routineRunBodySchema } from '../schemas/libraryRoutine.schema.js';
@@ -28,7 +29,9 @@ const server = new McpServer(
       'Once a routine works, keep it: save_routine with fromJobId (or steps) stores it as an immutable ' +
       'version in the routine library; list_routines / get_routine / run_routine reuse it without re-authoring. ' +
       'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails. ' +
-      'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result.',
+      'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result. ' +
+      'To describe a target\'s screens, use the prompt propose_screen_catalog: you propose a catalogue, a person approves and saves it. ' +
+      'To see how a system evolved between builds, use evolution_diff (two builds) and evolution_query (when did X appear); snapshots themselves are taken by a person or CI.',
   },
 );
 
@@ -478,6 +481,101 @@ server.registerTool(
     } catch (error) {
       return toErrorResult(error);
     }
+  },
+);
+
+const evolutionRef = z.string().min(1).max(120).describe("A build id, 'latest' or 'previous'");
+
+server.registerTool(
+  'evolution_diff',
+  {
+    title: 'What changed between two builds',
+    description:
+      'Compare two system-evolution snapshots of a target profile (default: the latest build against the one before it) and return, per ' +
+      'screen, what appeared, disappeared or changed, in plain deterministic words (also as markdown). When the newer build declared its ' +
+      'expected changes, each change is marked expected or unexpected: an unexpected one is a finding ("touched one screen, broke another"). ' +
+      'A screen that could not be captured in one snapshot is "unknown", never "removed". ' +
+      'To explain it, read the result and write a short summary; pass it as "narrative" to store it in CHANGES.md next to the newer snapshot, ' +
+      'where it is labelled an AI-generated summary and never mixed into the deterministic part. Without "narrative" nothing is written.',
+    inputSchema: z
+      .object({
+        targetProfile: safeName,
+        from: evolutionRef.optional(),
+        to: evolutionRef.optional(),
+        narrative: z.string().max(20000).optional().describe('Your own summary of the diff, stored as an unverified AI section of CHANGES.md'),
+      })
+      .strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  async ({ targetProfile, from, to, narrative }) => {
+    try {
+      const query = new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) }).toString();
+      const base = `/v1/evolution/${encodeURIComponent(targetProfile)}`;
+      const diff = (await getJson(`${base}/diff${query ? `?${query}` : ''}`)) as Record<string, unknown>;
+      if (narrative === undefined) return toToolResult(diff);
+      const written = await postJson(`${base}/changes`, { ...(from ? { from } : {}), ...(to ? { to } : {}), narrative });
+      return toToolResult({ ...diff, changesFile: written });
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'evolution_query',
+  {
+    title: 'Query the history of a system',
+    description:
+      'Answer questions about how a system evolved across its snapshots: "when did the field X appear?" (key), "what changed in screen Y?" ' +
+      '(screen), "what changed since last month?" (since). Returns the builds that have a snapshot, the changes between consecutive ' +
+      'snapshots oldest first, and, with "key", where that control is now and in which build it was first seen (if that is the very first ' +
+      'snapshot, earlier history is unknown). For "between builds A and B" use evolution_diff.',
+    inputSchema: z
+      .object({
+        targetProfile: safeName,
+        screen: z.string().regex(/^[a-zA-Z0-9_-]{1,52}$/).optional().describe('Catalogue screen id'),
+        key: z.string().min(1).max(200).optional().describe('Control key: a field, action or grid key as it appears in the inventory'),
+        since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('YYYY-MM-DD'),
+        limit: z.number().int().min(1).max(500).optional(),
+      })
+      .strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ targetProfile, screen, key, since, limit }) => {
+    try {
+      const query = new URLSearchParams({
+        ...(screen ? { screen } : {}),
+        ...(key ? { key } : {}),
+        ...(since ? { since } : {}),
+        ...(limit ? { limit: String(limit) } : {}),
+      }).toString();
+      return toToolResult(await getJson(`/v1/evolution/${encodeURIComponent(targetProfile)}/timeline${query ? `?${query}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerPrompt(
+  'propose_screen_catalog',
+  {
+    title: 'Propose a screen catalogue',
+    description:
+      'Guides you to explore a target profile read-only (inspect_dom / captureInventory) and PROPOSE its screen catalogue as JSON. ' +
+      'A person reviews and saves it; you cannot.',
+    argsSchema: {
+      targetProfile: safeName.describe('Target profile id (see list_targets)'),
+      focus: z.string().max(500).optional().describe('Optional: an area of the app to concentrate on'),
+    },
+  },
+  async ({ targetProfile, focus }) => {
+    let profile: CatalogPromptProfile | undefined;
+    try {
+      profile = (await getJson(`/v1/targets/${encodeURIComponent(targetProfile)}`)) as CatalogPromptProfile;
+    } catch {
+      profile = undefined;
+    }
+    return { messages: [{ role: 'user' as const, content: { type: 'text' as const, text: buildCatalogPrompt(targetProfile, profile, focus) } }] };
   },
 );
 

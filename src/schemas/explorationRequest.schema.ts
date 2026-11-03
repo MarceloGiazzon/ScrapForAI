@@ -216,6 +216,11 @@ const probePageStep = z
     timeoutMs: stepTimeout,
   })
   .strict();
+// T4.4: records what the page IS (fields, actions, grids) WITHOUT what it holds: extracted[name] = DomStructure.
+// Read-only; no value, typed text or cell text is read (see src/runner/extractStructure.ts).
+const captureInventoryStep = z
+  .object({ ...baseStep, action: z.literal('captureInventory'), name: safeName, includeHidden: z.boolean().default(true) })
+  .strict();
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -301,6 +306,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   screenshotStep,
   collectStep,
   probePageStep,
+  captureInventoryStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,

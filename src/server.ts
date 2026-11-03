@@ -8,12 +8,14 @@ import { pinoHttp } from 'pino-http';
 import { env, getLiveAllowedOrigins } from './config/env.js';
 import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
+import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
 import { recoverSuites } from './orchestrator/suiteRunner.js';
 import { recoverMatrixRuns } from './permissions/matrixRunner.js';
 import { authRouter } from './routes/auth.routes.js';
 import { configRouter } from './routes/config.routes.js';
 import { credentialsRouter } from './routes/credentials.routes.js';
 import { evidenceRouter } from './routes/evidence.routes.js';
+import { evolutionRouter } from './routes/evolution.routes.js';
 import { permissionsRouter } from './routes/permissions.routes.js';
 import { domInspectionRouter } from './routes/domInspection.routes.js';
 import { explorationRouter } from './routes/exploration.routes.js';
@@ -134,6 +136,7 @@ app.use('/v1/suites', suitesRouter);
 app.use('/v1/evidence', evidenceRouter);
 app.use('/v1/vault', vaultRouter);
 app.use('/v1/permissions', permissionsRouter);
+app.use('/v1/evolution', evolutionRouter);
 app.use('/v1/routines', routinesRouter);
 app.use('/v1/targets', targetsRouter);
 app.use('/v1/credentials', credentialsRouter);
@@ -184,6 +187,11 @@ async function start(): Promise<void> {
   const recovered = await recoverSuites();
   if (recovered.interrupted > 0 || recovered.pruned > 0) {
     logger.info(recovered, 'Recovered suite run states');
+  }
+
+  const recoveredSnapshots = await recoverSnapshotRuns();
+  if (recoveredSnapshots.interrupted > 0 || recoveredSnapshots.pruned > 0) {
+    logger.info(recoveredSnapshots, 'Recovered system-evolution snapshot run states');
   }
 
   const recoveredMatrices = await recoverMatrixRuns();
