@@ -152,6 +152,17 @@ function fakeResult(overrides: Partial<Result>): Result {
   } as Result;
 }
 
+test('the name a probe is read under never looks sensitive, whatever the probe id is (regression: "change-password" came back [REDACTED])', async () => {
+  const { redactSecrets } = await import('../src/security/redactSecrets.js');
+  for (const id of ['change-password', 'api-token', 'client-secret', 'authorization', 'cookie-banner']) {
+    const name = logic.readName(id);
+    assert.match(name, /^[a-zA-Z0-9_-]{1,80}$/, 'still a valid extract name');
+    assert.notEqual(logic.readName(id), logic.readName(`${id}x`), 'distinct ids stay distinct');
+    const out = redactSecrets({ [name]: { url: 'http://x/y', documentStatus: 200 } }) as Record<string, unknown>;
+    assert.notEqual(out[name], '[REDACTED]', `"${id}" must survive the redactor`);
+  }
+});
+
 test('classification: denial by url, text or status; control states; login failure; a broken probe; a probe never reached', () => {
   const matrix = base();
   const [pages, action] = logic.planSessions(matrix, { baseUrl: ORIGIN, loginRoutine: 'login', loginStepCount: 3, limits: LIMITS });
@@ -159,8 +170,8 @@ test('classification: denial by url, text or status; control states; login failu
 
   const deniedByUrl = logic.classifySession(pages!, fakeResult({
     extracted: {
-      probe_settings: reading(`${ORIGIN}/login?next=/settings`),
-      'probe_delete-btn': reading(`${ORIGIN}/orders`, { selector: { count: 1, visible: true, enabled: false } }),
+      [logic.readName('settings')]: reading(`${ORIGIN}/login?next=/settings`),
+      [logic.readName('delete-btn')]: reading(`${ORIGIN}/orders`, { selector: { count: 1, visible: true, enabled: false } }),
     },
   }), matrix, 3);
   assert.equal(deniedByUrl[0]!.outcome, 'denied');
@@ -169,15 +180,15 @@ test('classification: denial by url, text or status; control states; login failu
 
   const byTextAndStatus = logic.classifySession(pages!, fakeResult({
     extracted: {
-      probe_settings: reading(`${ORIGIN}/settings`, { markersFound: ['Not authorized'] }),
-      'probe_delete-btn': reading(`${ORIGIN}/orders`, { documentStatus: 403, selector: { count: 1, visible: true, enabled: true } }),
+      [logic.readName('settings')]: reading(`${ORIGIN}/settings`, { markersFound: ['Not authorized'] }),
+      [logic.readName('delete-btn')]: reading(`${ORIGIN}/orders`, { documentStatus: 403, selector: { count: 1, visible: true, enabled: true } }),
     },
   }), matrix, 3);
   assert.equal(byTextAndStatus[0]!.deniedBy, 'textVisible "Not authorized"');
   assert.deepEqual([byTextAndStatus[1]!.outcome, byTextAndStatus[1]!.deniedBy], ['denied', 'status 403'], 'a denied page wins over a visible control');
 
   const states = (selector: unknown) =>
-    logic.classifySession(pages!, fakeResult({ extracted: { probe_settings: reading(`${ORIGIN}/settings`), 'probe_delete-btn': reading(`${ORIGIN}/orders`, { selector }) } }), matrix, 3);
+    logic.classifySession(pages!, fakeResult({ extracted: { [logic.readName('settings')]: reading(`${ORIGIN}/settings`), [logic.readName('delete-btn')]: reading(`${ORIGIN}/orders`, { selector }) } }), matrix, 3);
   assert.equal(states({ count: 0, visible: false, enabled: false })[1]!.state, 'hidden');
   assert.equal(states({ count: 2, visible: false, enabled: true })[1]!.state, 'hidden', 'present but invisible is hidden');
   assert.equal(states({ count: 1, visible: true, enabled: true })[1]!.state, 'enabled');

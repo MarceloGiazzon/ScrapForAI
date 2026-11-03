@@ -108,6 +108,25 @@ script under a captured pipe.
 - **No seed data.** WMS-12 ("login lands on seeded panels") cannot become a test, because the ledger does not describe the
   seed and the app ships none. A `_ops\Seed-Demo.ps1` (or seed files per model) would make it testable.
 
+## 9. Testing "who can do what" (found building the first permission matrix, 2026-11-03)
+
+- **A second user with a non-admin role cannot be made without the admin's password.** `POST /api/auth/create-user` (the only
+  endpoint that takes a `roleName`) needs an ADMIN JWT, and the "Novo Estabelecimento" page that wraps it hard-codes
+  `roleName: 'ADMIN'`. The super-user key can reset an existing user's password, add a role to one, but cannot create a user.
+  Here the admin password had to be reset through the super-user key first. A test harness should not have to rotate the
+  admin to add a viewer. Fix: let `PUT /api/admin/tenants/{tenant}/users/{name}` (super-user key) create the user with a role, or add a `-Seed` role set.
+- **The login page and the admin API disagree on the tenant.** `login.html` pre-fills `trial`; the bootstrapped users live in
+  tenant `dev`, and `GET /api/admin/tenants/trial/users` answers `200` with no users instead of saying the tenant has no
+  identity data. An unknown or empty tenant should be a `404`, or at least say which tenants exist.
+- **The static pages do not check the role at all.** `properties.html`, `model-authoring.html`, `model-surface.html`,
+  `control-panel.html` and `novo-estabelecimento.html` open for the restricted `USER` role exactly as for ADMIN (HTTP 200, no
+  redirect, no "not authorized" text). The gate is only on the API (`/api/identity_users` answers 403 to `USER`, as it should).
+  Whether `USER` should see those pages is a product decision, but today a UI test can only tell the roles apart through the API.
+- **No role marker in the page.** The shell knows `/api/me` roles but renders nothing a test can select, such as
+  `<body data-role="USER">`. With one, a `control` probe ("is the New Workspace button hidden for USER?") would not need in-page JavaScript.
+- **`roleName` is upper-cased silently.** `create-user` stores `USER` while `dev.permissions.json` grants are for `user`; it works
+  (the `identity_users` denial and the business reads both behave), but nothing says the match is case-insensitive.
+
 ---
 
 ## What one command should look like

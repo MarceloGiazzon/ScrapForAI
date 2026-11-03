@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import type {
@@ -31,7 +32,12 @@ export type PlannedSession =
   | { role: string; kind: 'action'; probes: [ActionProbe]; steps: ExplorationStep[] };
 
 export const LOGIN_INCLUDE_ID = 'login';
-export const readName = (probeId: string): string => `probe_${probeId}`;
+/**
+ * Name under which a probe's reading is stored in `result.extracted`. Deliberately NOT derived from the probe id: the
+ * redactor masks the whole value of any extracted key that looks sensitive, so a probe called `change-password` came
+ * back as "[REDACTED]" and the cell could not be answered. A hash keeps the name neutral for any id.
+ */
+export const readName = (probeId: string): string => `probe_${createHash('sha256').update(probeId).digest('hex').slice(0, 12)}`;
 const stepId = (probeId: string, what: 'open' | 'settle' | 'read'): string => `probe-${probeId}-${what}`;
 
 export function resolveProbeUrl(url: string, baseUrl: string): string {
