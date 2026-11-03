@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { CATALOG_PROBE_PREFIX } from '../schemas/permissionMatrix.schema.js';
+import type { Screen, TargetProfile } from '../schemas/targetProfile.schema.js';
 import type {
   DeniedWhen,
   Expectation,
@@ -39,6 +41,47 @@ export const LOGIN_INCLUDE_ID = 'login';
  */
 export const readName = (probeId: string): string => `probe_${createHash('sha256').update(probeId).digest('hex').slice(0, 12)}`;
 const stepId = (probeId: string, what: 'open' | 'settle' | 'read'): string => `probe-${probeId}-${what}`;
+
+export class CatalogError extends Error {}
+
+/**
+ * T6.2: the matrix as it will actually run. With `screensFromCatalog`, every screen of the profile's catalogue that has a
+ * `reach.url` becomes a `url` probe `screen-<id>` (the same direct-URL question, asked for every role), carrying the
+ * screen's `offeredTo` restricted to this matrix's roles. Screens reachable only by a routine are not probed (a routine
+ * is an `action` probe). Pure: the stored definition never changes, the effective matrix is what is planned and recorded.
+ */
+export function materializeMatrix(matrix: PermissionMatrix, profile: Pick<TargetProfile, 'id' | 'screens'>): PermissionMatrix {
+  if (!matrix.screensFromCatalog) return matrix;
+
+  const urlScreens = profile.screens.filter((screen): screen is Screen & { reach: { url: string } } => 'url' in screen.reach);
+  if (urlScreens.length === 0 && matrix.probes.length === 0) {
+    throw new CatalogError(`screensFromCatalog is set but target profile "${profile.id}" has no screen with reach.url (add them to its "screens")`);
+  }
+
+  const used = new Set(matrix.probes.map((probe) => probe.id));
+  const roles = new Set(matrix.roles);
+  const generated: PermissionProbe[] = [];
+  for (const screen of urlScreens) {
+    const id = `${CATALOG_PROBE_PREFIX}${screen.id}`;
+    if (used.has(id)) {
+      throw new CatalogError(`probe id "${id}" is already used (a probe of the matrix collides with catalogue screen "${screen.id}", or the screen is listed twice)`);
+    }
+    used.add(id);
+    const offeredTo = screen.offeredTo?.filter((role) => roles.has(role));
+    generated.push({ kind: 'url', id, url: screen.reach.url, label: screen.name, ...(offeredTo ? { offeredTo } : {}) });
+  }
+
+  const effective = { ...matrix, probes: [...matrix.probes, ...generated] };
+  if (effective.roles.length * effective.probes.length > 500) {
+    throw new CatalogError(`roles x probes (${effective.roles.length} x ${effective.probes.length}) exceed 500 cells once the catalogue is added; split the matrix`);
+  }
+  for (const [role, cells] of Object.entries(effective.expected ?? {})) {
+    for (const probeId of Object.keys(cells)) {
+      if (!used.has(probeId)) throw new CatalogError(`expected.${role}.${probeId}: "${probeId}" is neither a probe of the matrix nor a screen of the catalogue`);
+    }
+  }
+  return effective;
+}
 
 export function resolveProbeUrl(url: string, baseUrl: string): string {
   return url.startsWith('/') ? new URL(url, baseUrl).toString() : url;
@@ -252,11 +295,26 @@ export function meets(expectation: Expectation, cell: MatrixCell): boolean {
   }
 }
 
+/**
+ * The expectation of a cell: what the matrix says for that role and probe or, failing that (T6.2), "denied" when the
+ * probe's `offeredTo` does not list the role (its menu does not offer the page, so it must not open it by URL either).
+ */
+export function expectationFor(cell: Pick<MatrixCell, 'role' | 'probeId'>, matrix: PermissionMatrix): { expected: Expectation; expectedBy?: 'menu' } | undefined {
+  const written = matrix.expected?.[cell.role]?.[cell.probeId];
+  if (written !== undefined) return { expected: written };
+  const probe = matrix.probes.find((candidate) => candidate.id === cell.probeId);
+  if (probe?.kind === 'url' && probe.offeredTo !== undefined && !probe.offeredTo.includes(cell.role)) {
+    return { expected: 'denied', expectedBy: 'menu' };
+  }
+  return undefined;
+}
+
 export function applyExpectation(cell: MatrixCell, matrix: PermissionMatrix): MatrixCell {
-  const expected = matrix.expected?.[cell.role]?.[cell.probeId];
-  if (expected === undefined) return cell;
-  if (cell.outcome === 'error' || cell.outcome === 'pending') return { ...cell, expected };
-  return { ...cell, expected, matches: meets(expected, cell) };
+  const found = expectationFor(cell, matrix);
+  if (!found) return cell;
+  const withExpectation = { ...cell, expected: found.expected, ...(found.expectedBy ? { expectedBy: found.expectedBy } : {}) };
+  if (cell.outcome === 'error' || cell.outcome === 'pending') return withExpectation;
+  return { ...withExpectation, matches: meets(found.expected, cell) };
 }
 
 /** What a cell answered, as one comparable word: allowed/denied, or for controls hidden/disabled/enabled/denied. */
@@ -301,10 +359,13 @@ export function diffAgainst(previous: MatrixRunState, cells: MatrixCell[], matri
 }
 
 export function recount(state: MatrixRunState): void {
-  const counts = { pending: 0, allowed: 0, denied: 0, error: 0, mismatches: 0, alerts: 0 };
+  const counts = { pending: 0, allowed: 0, denied: 0, error: 0, mismatches: 0, alerts: 0, unofferedAccess: 0 };
   for (const cell of state.cells) {
     counts[cell.outcome] += 1;
-    if (cell.matches === false) counts.mismatches += 1;
+    if (cell.matches === false) {
+      counts.mismatches += 1;
+      if (cell.expectedBy === 'menu') counts.unofferedAccess += 1;
+    }
   }
   counts.alerts = state.changes.filter((change) => change.alert).length;
   state.counts = counts;
@@ -318,7 +379,9 @@ export function concludeMatrix(state: MatrixRunState, cancelled: boolean): void 
   const answered = counts.allowed + counts.denied;
 
   const reasons: string[] = [];
-  if (counts.mismatches > 0) reasons.push(`${counts.mismatches} cell(s) differ from the expectation`);
+  const unoffered = counts.unofferedAccess ?? 0;
+  if (unoffered > 0) reasons.push(`${unoffered} role/screen pair(s) opened a page the role's menu does not offer`);
+  if (counts.mismatches - unoffered > 0) reasons.push(`${counts.mismatches - unoffered} cell(s) differ from the expectation`);
   if (counts.alerts > 0) reasons.push(`${counts.alerts} role/probe pair(s) gained access that no expectation covers`);
 
   if (reasons.length > 0) {
@@ -335,7 +398,7 @@ export function concludeMatrix(state: MatrixRunState, cancelled: boolean): void 
     state.verdictReason = 'no cell was answered';
   } else {
     state.verdict = 'green';
-    state.verdictReason = `${answered} cell(s) answered${state.matrix.expected ? ', every expectation met' : ''}${state.comparedTo ? ', no unexpected gain of access' : ''}`;
+    state.verdictReason = `${answered} cell(s) answered${state.matrix.expected || state.matrix.probes.some((probe) => probe.kind === 'url' && probe.offeredTo) ? ', every expectation met' : ''}${state.comparedTo ? ', no unexpected gain of access' : ''}`;
   }
   state.exitCode = state.verdict === 'green' ? 0 : state.verdict === 'red' ? 1 : 2;
 }

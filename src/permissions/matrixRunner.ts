@@ -79,8 +79,8 @@ export async function startMatrixRun(matrixId: string, body: MatrixRunBody): Pro
     throw new PermissionMatrixError(404, 'PermissionMatrixNotFound', `Permission matrix "${matrixId}" does not exist`);
   }
 
-  const { matrix } = stored;
-  const context = await resolveMatrixContext(matrix);
+  const context = await resolveMatrixContext(stored.matrix);
+  const { matrix } = context; // with the probes generated from the screen catalogue (T6.2)
   const sessions = planSessions(matrix, {
     baseUrl: context.profile.baseUrl,
     loginRoutine: context.loginRoutine,
@@ -115,7 +115,7 @@ export async function startMatrixRun(matrixId: string, body: MatrixRunBody): Pro
     cells: matrix.roles.flatMap((role) => matrix.probes.map((probe) => ({ role, probeId: probe.id, kind: probe.kind, outcome: 'pending' as const }))),
     ...(comparedWith ? { comparedTo: { runId: comparedWith.runId, createdAt: comparedWith.createdAt, ...(comparedWith.buildId ? { buildId: comparedWith.buildId } : {}) } } : {}),
     changes: [],
-    counts: { pending: 0, allowed: 0, denied: 0, error: 0, mismatches: 0, alerts: 0 },
+    counts: { pending: 0, allowed: 0, denied: 0, error: 0, mismatches: 0, alerts: 0, unofferedAccess: 0 },
   };
 
   const run: ActiveRun = { state, controller: new AbortController(), finished: Promise.resolve() };

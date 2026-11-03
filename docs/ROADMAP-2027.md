@@ -1044,6 +1044,10 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 
 ### T6.2 — Sondagem de acesso direto por URL · M
 
+> **Implementada em 2026-11-03, antecipada antes do G1** (ver AGENTS.md, "Direct-URL probing"). Diferenças: o catálogo T4.2 ainda não
+> existe, então `screens` do perfil ganhou uma forma mínima (`id`, `name`, `reach: { url } | { routineId }`, `offeredTo`) escrita à mão;
+> "o que o menu oferece" é a lista `offeredTo` (papéis), não uma leitura do menu real; telas só alcançáveis por rotina não são sondadas.
+
 - Para cada tela do catálogo (T4.2) e cada papel: tentar a URL diretamente, sem passar pelo menu.
 - Alerta quando um papel **chega a uma tela que o menu não oferece a ele**. É o tipo clássico de
   falha de autorização que o teste manual não pega.

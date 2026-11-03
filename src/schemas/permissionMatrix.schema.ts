@@ -11,6 +11,9 @@ import { buildIdSchema, safeName } from './explorationRequest.schema.js';
  */
 
 /** Probe ids become step ids and extracted names, so they are shorter than a safeName. */
+/** Probe ids generated from the screen catalogue (T6.2) are `screen-<screenId>`. */
+export const CATALOG_PROBE_PREFIX = 'screen-';
+
 export const probeIdSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,60}$/, 'probe id: [a-zA-Z0-9_-]{1,60}');
 
 /** Absolute http(s) URL, or a path starting with "/" resolved against the target profile's baseUrl. */
@@ -24,7 +27,19 @@ const label = z.string().min(1).max(160).optional();
 
 export const permissionProbeSchema = z.discriminatedUnion('kind', [
   /** Open the URL directly (not through the menu): does the role get the page, or a denial? */
-  z.object({ kind: z.literal('url'), id: probeIdSchema, url: probeUrl, label }).strict(),
+  z
+    .object({
+      kind: z.literal('url'),
+      id: probeIdSchema,
+      url: probeUrl,
+      label,
+      /**
+       * T6.2: the roles whose MENU offers this page. A role not listed here is expected to be denied when it opens the
+       * URL directly (unless `expected` says otherwise); getting the page anyway is an access-control alert.
+       */
+      offeredTo: z.array(safeName).max(20).optional(),
+    })
+    .strict(),
   /** On the page at `url`, the state of `selector` for the role: hidden, enabled or disabled (or the page is denied). */
   z
     .object({ kind: z.literal('control'), id: probeIdSchema, url: probeUrl, selector: z.string().min(1).max(500), screen: z.string().min(1).max(120).optional(), label })
@@ -60,7 +75,12 @@ export const permissionMatrixObjectSchema = z
     /** Credential sets, one per role. Each must be listed in the target profile. */
     roles: z.array(safeName).min(1).max(20),
     deniedWhen: z.array(deniedWhenSchema).min(1).max(20),
-    probes: z.array(permissionProbeSchema).min(1).max(200),
+    probes: z.array(permissionProbeSchema).max(200).default([]),
+    /**
+     * T6.2: also probe, for every role, the direct URL of each screen of the target profile's catalogue that has a
+     * `reach.url` (probe id `screen-<screenId>`). A screen's `offeredTo` says which roles' menu shows it.
+     */
+    screensFromCatalog: z.boolean().optional(),
     /** role -> probe id -> what it should be. Cells without an expectation are only compared with the previous run. */
     expected: z.record(safeName, z.record(probeIdSchema, expectationSchema)).optional(),
     /** Pause after opening a probe's page, for pages that render or redirect after load. Capped by STEP_TIMEOUT_MS. */
@@ -83,8 +103,17 @@ export const permissionMatrixSchema = permissionMatrixObjectSchema.superRefine((
       roles.add(role);
     });
 
+    if (matrix.probes.length === 0 && !matrix.screensFromCatalog) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['probes'], message: 'a matrix needs at least one probe, or screensFromCatalog: true' });
+    }
+
     const probes = new Map<string, PermissionProbe>();
     matrix.probes.forEach((probe, index) => {
+      if (probe.kind === 'url') {
+        (probe.offeredTo ?? []).forEach((role) => {
+          if (!roles.has(role)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['probes', index, 'offeredTo'], message: `"${role}" is not one of the roles` });
+        });
+      }
       if (probes.has(probe.id)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['probes', index, 'id'], message: `probe id "${probe.id}" is used twice` });
       probes.set(probe.id, probe);
     });
@@ -100,6 +129,8 @@ export const permissionMatrixSchema = permissionMatrixObjectSchema.superRefine((
       }
       for (const [probeId, expectation] of Object.entries(cells)) {
         const probe = probes.get(probeId);
+        // A catalogue screen's probe (`screen-<id>`) exists only when the run starts: checked again there.
+        if (!probe && matrix.screensFromCatalog && probeId.startsWith(CATALOG_PROBE_PREFIX)) continue;
         if (!probe) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['expected', role, probeId], message: `"${probeId}" is not one of the probes` });
         } else if (probe.kind !== 'control' && !URL_OR_ACTION_EXPECTATIONS.has(expectation)) {
@@ -139,6 +170,8 @@ export const matrixCellSchema = z
     outcome: cellOutcomeSchema,
     /** Control probes on a page that was not denied. */
     state: controlStateSchema.optional(),
+    /** `menu`: the expectation was derived from the probe's `offeredTo` (T6.2), nobody wrote it for this cell. */
+    expectedBy: z.literal('menu').optional(),
     /** Which deniedWhen rule matched, e.g. `urlContains "login"`. */
     deniedBy: z.string().optional(),
     /** Where the page ended (url/control probes). */
@@ -185,7 +218,16 @@ export const matrixRunStateSchema = z
     comparedTo: z.object({ runId: z.string(), createdAt: z.string(), buildId: z.string().optional() }).strict().optional(),
     changes: z.array(matrixChangeSchema),
     counts: z
-      .object({ pending: z.number(), allowed: z.number(), denied: z.number(), error: z.number(), mismatches: z.number(), alerts: z.number() })
+      .object({
+        pending: z.number(),
+        allowed: z.number(),
+        denied: z.number(),
+        error: z.number(),
+        mismatches: z.number(),
+        alerts: z.number(),
+        /** T6.2: role/screen pairs that opened a page the role's menu does not offer (included in `mismatches`). */
+        unofferedAccess: z.number().optional(),
+      })
       .strict(),
     /**
      * green (0): every cell answered, every expectation met, no unexpected gain of access.

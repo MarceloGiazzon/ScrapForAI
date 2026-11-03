@@ -120,6 +120,13 @@ step limits, artifact retention, etc.).
   an alert, and red wins over infra-error (2: a cell could not be answered, e.g. `LoginFailed`, or an action that failed with no
   denial signal); green (0) otherwise. Departures from Appendix A.7, because T4.1/T4.2/T8.1 do not exist yet: `control` takes
   a `url` (`screen` is only a label), the diff is against the previous run (not the previous release), the login routine is explicit.
+  **Direct-URL probing (T6.2)**: the target profile's `screens` (minimal T4.2 shape: `{ id, name, reach: { url } | { routineId }, offeredTo? }`)
+  feed the matrix. `screensFromCatalog: true` adds, at run time, a `url` probe `screen-<id>` per screen with `reach.url` for every
+  role (screens reachable only by a routine are not probed; the stored matrix is not changed, the run records the effective one). `offeredTo`
+  (also accepted on a hand-written `url` probe) lists the roles whose MENU shows the page: a role not listed is expected **denied**, and
+  getting the page by URL anyway is red with `counts.unofferedAccess` and `expectedBy: 'menu'` on the cell. A written `expected` wins over
+  the menu; a screen without `offeredTo` makes no claim. Catalogue URLs go through the same allowlist check. The catalogue is written by hand
+  (`PUT /v1/targets/:id`) until T4.2's assisted discovery and T8.5's generation from the NPDev model exist.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

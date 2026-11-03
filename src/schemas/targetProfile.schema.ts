@@ -3,6 +3,35 @@ import { z } from 'zod';
 import { safeName } from './explorationRequest.schema.js';
 
 /**
+ * One entry of the screen catalogue (T4.2, minimal shape, enough for T6.2 direct-URL probing).
+ *  - `reach.url`: absolute http(s) URL or a path starting with "/" (resolved against baseUrl). T6.2 opens it directly.
+ *  - `reach.routineId`: a screen only reachable by a routine; it is kept in the catalogue but T6.2 cannot probe it.
+ *  - `offeredTo`: the roles (credential sets) whose MENU shows this screen. When present, a role not listed that
+ *    nevertheless gets the page by URL is an access-control alert. Absent = the catalogue makes no claim about the menu.
+ */
+export const screenSchema = z
+  .object({
+    id: z.string().regex(/^[a-zA-Z0-9_-]{1,52}$/, 'screen id: [a-zA-Z0-9_-]{1,52}'),
+    name: z.string().min(1).max(160),
+    reach: z.union([
+      z
+        .object({
+          url: z
+            .string()
+            .min(1)
+            .max(2048)
+            .refine((value) => value.startsWith('/') || /^https?:\/\//i.test(value), { message: 'url must be absolute (http/https) or start with "/"' }),
+        })
+        .strict(),
+      z.object({ routineId: safeName, version: z.number().int().positive().optional() }).strict(),
+    ]),
+    credentialSet: safeName.optional(),
+    offeredTo: z.array(safeName).max(50).optional(),
+  })
+  .strict();
+export type Screen = z.infer<typeof screenSchema>;
+
+/**
  * T1.1 target profile: "which app, in which environment, under which rules".
  *
  * A profile NEVER widens the allowlist: baseUrl must already be in ALLOWED_TARGET_ORIGINS or the
@@ -33,8 +62,8 @@ export const targetProfileSchema = z
       .default([]),
     // surface name -> file globs (T2.3)
     surfaces: z.record(z.string().min(1).max(120), z.array(z.string().min(1).max(500)).max(200)).default({}),
-    // Screen catalogue (T4.2). The element shape is defined by that task.
-    screens: z.array(z.record(z.string(), z.unknown())).max(500).default([]),
+    // Screen catalogue (T4.2).
+    screens: z.array(screenSchema).max(500).default([]),
     flags: z
       .object({
         allowDestructive: z.boolean().default(false),

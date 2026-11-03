@@ -11,7 +11,7 @@ import { type TargetProfile } from '../schemas/targetProfile.schema.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { getTarget } from '../targets/targetStore.js';
-import { LOGIN_INCLUDE_ID, resolveProbeUrl } from './matrixLogic.js';
+import { CatalogError, LOGIN_INCLUDE_ID, materializeMatrix, resolveProbeUrl } from './matrixLogic.js';
 
 /** T6.1: stored permission-matrix definitions, one <dataDir>/permissions/matrices/<id>.json each. */
 
@@ -36,6 +36,8 @@ export function matrixSha256(matrix: PermissionMatrix): string {
 
 export interface ResolvedMatrixContext {
   profile: TargetProfile;
+  /** The matrix as it runs: the stored one plus the probes generated from the screen catalogue (T6.2). */
+  matrix: PermissionMatrix;
   loginRoutine: string;
   loginStepCount: number;
 }
@@ -45,10 +47,18 @@ export interface ResolvedMatrixContext {
  * every role is a credential set that profile allows, the login routine and every action routine resolve on that
  * profile (not retired), and every probe URL is inside the allowlist. A matrix can never widen what a run may touch.
  */
-export async function resolveMatrixContext(matrix: PermissionMatrix): Promise<ResolvedMatrixContext> {
-  const profile = await getTarget(matrix.targetProfile);
+export async function resolveMatrixContext(stored: PermissionMatrix): Promise<ResolvedMatrixContext> {
+  const profile = await getTarget(stored.targetProfile);
   if (!profile) {
-    throw new PermissionMatrixError(404, 'TargetProfileNotFound', `Target profile "${matrix.targetProfile}" does not exist`);
+    throw new PermissionMatrixError(404, 'TargetProfileNotFound', `Target profile "${stored.targetProfile}" does not exist`);
+  }
+
+  let matrix: PermissionMatrix;
+  try {
+    matrix = materializeMatrix(stored, profile);
+  } catch (error) {
+    if (error instanceof CatalogError) throw new PermissionMatrixError(400, 'ScreenCatalogError', error.message);
+    throw error;
   }
 
   const notAllowed = matrix.roles.filter((role) => !profile.credentialSets.includes(role));
@@ -93,7 +103,7 @@ export async function resolveMatrixContext(matrix: PermissionMatrix): Promise<Re
     }
   }
 
-  return { profile, loginRoutine, loginStepCount: login.steps.length };
+  return { profile, matrix, loginRoutine, loginStepCount: login.steps.length };
 }
 
 export async function getMatrix(id: string): Promise<StoredMatrix | undefined> {

@@ -131,6 +131,10 @@ login URL it bounces to, its "not authorized" text, a 403) and the probes: `url`
 
 - `expected` turns the matrix into a test. Without it, each run is compared with the previous one and a NEW access is an
   `alert`: report it as a possible authorization bug (with the cell's `jobId`), not as a flaky test.
+- Direct-URL probing: if the target profile has a `screens` catalogue (`{ id, name, reach: { url }, offeredTo: [roles whose menu
+  shows it] }`), set `screensFromCatalog: true` and every role opens every catalogue URL directly. A role NOT in `offeredTo` that
+  gets the page is red ("opened a page the role's menu does not offer", `expectedBy: 'menu'`): that is the classic missing
+  server-side authorization check. Only claim `offeredTo` for what you saw in the menu; leave it out when unsure.
 - `LoginFailed` or `ActionFailedWithoutDenial` cells are infra-errors of the matrix, not answers. Fix the login routine or the
   action routine before you read the table.
 - Never put a role in a matrix to "see what happens" against an environment where its actions change real data; action probes

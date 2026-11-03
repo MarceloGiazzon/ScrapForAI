@@ -262,3 +262,49 @@ test('a broken expectation is red even without history (seller expected allowed 
   assert.equal(state.cells[0].matches, false);
   assert.equal(state.verdict, 'red');
 });
+
+test('T6.2: the screen catalogue is probed by URL for every role; reaching a screen the menu does not offer is red', async () => {
+  await saveTarget({
+    id: 'fixture', name: 'Fixture', platform: 'generic', environment: 'dev', baseUrl: site.origin, credentialSets: ['admin', 'seller', 'viewer'],
+    noiseFilters: [], surfaces: {}, flags: { allowDestructive: false, allowFaults: false, maxSessionsPerCredential: 1 },
+    screens: [
+      { id: 'home', name: 'Home', reach: { url: '/home' }, offeredTo: ['admin', 'seller', 'viewer'] },
+      { id: 'settings', name: 'Settings', reach: { url: '/settings' }, offeredTo: ['admin'] },
+      { id: 'audit', name: 'Audit', reach: { url: '/audit' }, offeredTo: ['admin'] },
+      { id: 'delete-wizard', name: 'Only through a routine', reach: { routineId: 'delete-order' } },
+    ],
+  });
+  const saved = await call('PUT', '/v1/permissions/fixture-catalog', {
+    targetProfile: 'fixture',
+    loginRoutine: 'login',
+    roles: ['admin', 'seller', 'viewer'],
+    deniedWhen: [{ urlContains: '/login' }, { textVisible: 'Not authorized' }, { status: 403 }],
+    settleMs: 300,
+    screensFromCatalog: true,
+  });
+  assert.equal(saved.status, 201, saved.text);
+
+  const green = await call('POST', '/v1/permissions/fixture-catalog/run', { buildId: 'c1' });
+  assert.equal(green.status, 202, green.text);
+  assert.equal(green.json.cells, 9, '3 roles x 3 screens with a url (the routine-only screen is not probed)');
+  const first = await finished(green.json.runId);
+  assert.deepEqual(table(first), {
+    'admin/screen-home': 'allowed', 'admin/screen-settings': 'allowed', 'admin/screen-audit': 'allowed',
+    'seller/screen-home': 'allowed', 'seller/screen-settings': 'denied', 'seller/screen-audit': 'denied',
+    'viewer/screen-home': 'allowed', 'viewer/screen-settings': 'denied', 'viewer/screen-audit': 'denied',
+  });
+  assert.equal(first.verdict, 'green', first.verdictReason);
+  assert.equal(first.counts.unofferedAccess, 0);
+
+  viewerGetsSettings = true;
+  try {
+    const state = await finished((await call('POST', '/v1/permissions/fixture-catalog/run', { buildId: 'c2' })).json.runId);
+    const cell = (state.cells as Array<Record<string, any>>).find((candidate) => candidate.role === 'viewer' && candidate.probeId === 'screen-settings')!;
+    assert.deepEqual([cell.outcome, cell.expected, cell.expectedBy, cell.matches], ['allowed', 'denied', 'menu', false]);
+    assert.equal(state.verdict, 'red');
+    assert.equal(state.counts.unofferedAccess, 1);
+    assert.match(state.verdictReason, /opened a page the role's menu does not offer/);
+  } finally {
+    viewerGetsSettings = false;
+  }
+});
