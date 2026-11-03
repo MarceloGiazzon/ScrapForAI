@@ -131,8 +131,9 @@ npm run cli -- vault export                    # deterministic snapshot of the w
   "failFast": true
 }</code></pre>
 <p>The order is: <strong>surface touched</strong> (an explicit <code>impact.surfaces</code> entry, or a changed file matching the <code>surfaces</code> globs of the target profile) &gt; <strong>failed in its last 5 runs</strong> &gt; <strong>severity</strong> &gt; id. Every run records the reasons for its position. <code>POST /v1/vault/plan</code> shows the order and reasons without running anything.</p>
-<pre><code class="language-powershell">npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1
-git diff --name-only main | npm run cli -- vault run --impact --changed-files -</code></pre>
+<pre><code class="language-powershell">git diff --name-only main &gt; changed.txt
+npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1</code></pre>
+<p><strong>PowerShell:</strong> do not pipe into <code>npm run cli -- ...</code>; npm drops the flags when it receives piped input. Write the list to a file (as above) or use <code>scriptsopsInvoke-VaultPreMerge.ps1</code>, which does it for you and uses <code>&lt;branch&gt;.&lt;sha&gt;</code> as the build id. <code>Invoke-VaultNightly.ps1</code> and <code>Register-VaultNightlyTask.ps1</code> in the same folder run the vault every night.</p>
 <p>It uses the same verdict and exit codes as any suite: <strong>0</strong> green, <strong>1</strong> red, <strong>2</strong> infrastructure error.</p>
 
 <h2 id="vault-ui">The Vault screen</h2>

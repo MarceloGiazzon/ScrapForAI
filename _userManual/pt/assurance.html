@@ -131,8 +131,9 @@ npm run cli -- vault export                    # retrato determinístico do cofr
   "failFast": true
 }</code></pre>
 <p>A ordem é: <strong>superfície tocada</strong> (uma entrada explícita em <code>impact.surfaces</code>, ou um arquivo alterado que case com os globs de <code>surfaces</code> do perfil de alvo) &gt; <strong>falhou nas últimas 5 execuções</strong> &gt; <strong>severidade</strong> &gt; id. Cada execução registra os motivos da sua posição. <code>POST /v1/vault/plan</code> mostra a ordem e os motivos sem executar nada.</p>
-<pre><code class="language-powershell">npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1
-git diff --name-only main | npm run cli -- vault run --impact --changed-files -</code></pre>
+<pre><code class="language-powershell">git diff --name-only main &gt; changed.txt
+npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1</code></pre>
+<p><strong>PowerShell:</strong> não envie dados por pipe para <code>npm run cli -- ...</code>; o npm perde as flags quando recebe entrada por pipe. Grave a lista num arquivo (como acima) ou use <code>scriptsopsInvoke-VaultPreMerge.ps1</code>, que faz isso por você e usa <code>&lt;branch&gt;.&lt;sha&gt;</code> como build id. <code>Invoke-VaultNightly.ps1</code> e <code>Register-VaultNightlyTask.ps1</code>, na mesma pasta, rodam o cofre toda noite.</p>
 <p>Usa o mesmo veredito e os mesmos códigos de saída de qualquer suíte: <strong>0</strong> verde, <strong>1</strong> vermelho, <strong>2</strong> erro de infraestrutura.</p>
 
 <h2 id="vault-ui">A tela Vault</h2>

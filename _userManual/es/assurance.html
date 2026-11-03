@@ -131,8 +131,9 @@ npm run cli -- vault export                    # instantánea determinista de to
   "failFast": true
 }</code></pre>
 <p>El orden es: <strong>superficie tocada</strong> (una entrada explícita en <code>impact.surfaces</code>, o un archivo cambiado que coincida con los globs de <code>surfaces</code> del perfil de destino) &gt; <strong>falló en sus últimas 5 ejecuciones</strong> &gt; <strong>severidad</strong> &gt; id. Cada ejecución registra los motivos de su posición. <code>POST /v1/vault/plan</code> muestra el orden y los motivos sin ejecutar nada.</p>
-<pre><code class="language-powershell">npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1
-git diff --name-only main | npm run cli -- vault run --impact --changed-files -</code></pre>
+<pre><code class="language-powershell">git diff --name-only main &gt; changed.txt
+npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1</code></pre>
+<p><strong>PowerShell:</strong> no envíe datos por pipe a <code>npm run cli -- ...</code>; npm pierde las flags cuando recibe entrada por pipe. Guarde la lista en un archivo (como arriba) o use <code>scriptsopsInvoke-VaultPreMerge.ps1</code>, que lo hace por usted y usa <code>&lt;branch&gt;.&lt;sha&gt;</code> como build id. <code>Invoke-VaultNightly.ps1</code> y <code>Register-VaultNightlyTask.ps1</code>, en la misma carpeta, ejecutan la bóveda cada noche.</p>
 <p>Usa el mismo veredicto y los mismos códigos de salida que cualquier suite: <strong>0</strong> verde, <strong>1</strong> rojo, <strong>2</strong> error de infraestructura.</p>
 
 <h2 id="vault-ui">La pantalla Vault</h2>
