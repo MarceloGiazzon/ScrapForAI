@@ -748,5 +748,59 @@ window.SCRAPFORAI_SEARCH_INDEX = [
     "title": "Terms",
     "href": "glossary.html#terms",
     "keywords": "Terms"
+  },
+  {
+    "section": "Guides",
+    "title": "Credentials, routines & suites",
+    "href": "foundations.html",
+    "keywords": "Credentials, routines & suites credential vault credentialSet routine suite teardown include pin evidence cli exit code"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Credential vault",
+    "href": "foundations.html#credential-vault",
+    "keywords": "Credential vault"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Target profiles",
+    "href": "foundations.html#target-profiles",
+    "keywords": "Target profiles"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Saved routines",
+    "href": "foundations.html#saved-routines",
+    "keywords": "Saved routines"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Include and teardown",
+    "href": "foundations.html#include-teardown",
+    "keywords": "Include and teardown"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Suites",
+    "href": "foundations.html#suites",
+    "keywords": "Suites"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "Retention and pinned evidence",
+    "href": "foundations.html#pinned-evidence",
+    "keywords": "Retention and pinned evidence"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "The scrapforai command line",
+    "href": "foundations.html#cli",
+    "keywords": "The scrapforai command line"
+  },
+  {
+    "section": "Credentials, routines & suites",
+    "title": "MCP tools",
+    "href": "foundations.html#mcp-tools",
+    "keywords": "MCP tools"
   }
 ];

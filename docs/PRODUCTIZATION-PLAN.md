@@ -182,6 +182,40 @@ processes must write it concurrently, replace `runHistoryStore.ts` with a SQLite
 implementation. The public interface defined in T1.4 is designed so that swap touches no
 callers.
 
+#### Update 2026-11-02 (ROADMAP-2027 T1.9, decision D2): storage by kind of data
+
+The question was whether JSONL still holds once routines, suites, metrics and schedules exist. **Yes: keep
+it, with the rules and numbers below. Do not add SQLite now.**
+
+| Kind of data | Storage | Why |
+|---|---|---|
+| Entities a person edits or reviews: target profiles, credential-set metadata, routines (`library/<id>/v<N>.json`), regression-vault items, schedules | **One JSON file per entity** (immutable versions where history matters) | Reviewable in a pull request, diffable, and `ROUTINE_LIBRARY_DIR` / `REGRESSION_VAULT_DIR` can live inside a git repository |
+| Encrypted secrets | One AES-256-GCM file (`credentials.enc.json`) | Never reviewed or diffed; replaced atomically as a whole |
+| High-volume series: run index (`history/runs.jsonl`), per-routine metrics (`metrics/<routineId>.jsonl`, T3.4) | **Append-only JSONL** | Written once, read in bulk; no schema migrations |
+| Suite run states | One JSON file per suite run (`suites/<id>.json`), pruned by `HISTORY_RETENTION_DAYS` | Rewritten while the suite runs, read by id, never queried across |
+| Evidence | Directories with a `manifest.json` (hashes) | See T1.5 |
+
+**Measured:** a run record is ~520 bytes (39 765 bytes for 77 runs in a real history file). The whole index
+is read into memory once at boot, so 5 000 runs is ~2.6 MB and 100 000 runs is ~52 MB, which still boots in
+well under a second.
+
+**The limit that bites first is `HISTORY_MAX_RUNS`, not the storage format.** Suites multiply runs: 50 routines
+× 4 variants nightly is 200 runs a day, and a scheduler (T3.2) adds more, so the default of 5 000 would cover a
+few weeks (a busy CI could exhaust it in a day). Raise `HISTORY_MAX_RUNS` (to 50 000–100 000) before
+considering a database. Pinned runs are exempt from both history caps (T1.5).
+
+**Migrate to SQLite when any of these is true** (measured, not guessed):
+1. the index needs to hold more than ~100 000 runs, or boot spends more than ~1 s loading it;
+2. more than one process must write the history;
+3. a feature needs queries JSONL answers poorly (aggregations across steps or runs for flakiness and trends,
+   T3.4–T3.5, once per-routine series files are no longer enough).
+
+**How, when it happens:** use the built-in `node:sqlite` (no native dependency). On Node 24.22 it opens a
+database and runs SQL **without printing an `ExperimentalWarning`** (checked), but the package declares
+`engines.node >= 22.0.0` and the module is only available without a flag from Node 22.13. So first raise
+`engines` to a version where it is warning-free (re-check on the version you ship), then swap
+`runHistoryStore.ts`; callers do not change. Importing the existing `runs.jsonl` is a one-pass script.
+
 ---
 
 # PHASE 0 — SAFETY & HYGIENE

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credentials, routines & suites · ScrapForAI</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/artifacts.html">PT</a>
+      <a class="lang-link" href="../es/artifacts.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="web-console.html">Web console</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link active" href="foundations.html">Credentials, routines & suites</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guides</div>
+      <h1>Credentials, routines & suites</h1>
+      <p class="lede">The server-side building blocks that turn one-off runs into reusable, repeatable proof: a credential vault, target profiles, versioned routines, suites, pinned evidence and a command-line client.</p>
+
+<h2 id="credential-vault">Credential vault</h2>
+<p>Secrets are stored <strong>encrypted on the server</strong> (AES-256-GCM) and referenced by id. A caller, including an AI model, passes <code>credentialSet: "gam-admin"</code>; the server loads the values and steps keep using <code>valueFromCredential</code> by field name. Values are <strong>write-only</strong>: no API, log, result or history entry returns them.</p>
+<pre><code class="language-http">PUT /v1/credentials/gam-admin        (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{
+  "boundOrigins": ["https://dev.example.com"],
+  "values": { "loginUser": "...", "loginPassword": "..." },
+  "tags": ["role:admin"]
+}</code></pre>
+<pre><code class="language-http">POST /v1/explorations/run
+{
+  "targetProfile": "app-dev",
+  "credentialSet": "gam-admin",
+  "steps": [
+    { "action": "goto", "url": "$targetUrl" },
+    { "action": "fill", "selector": "#vUSER", "valueFromCredential": "loginUser" },
+    { "action": "fill", "selector": "#vPASS", "valueFromCredential": "loginPassword" }
+  ]
+}</code></pre>
+<ul>
+  <li><strong>Origin binding.</strong> Each set lists <code>boundOrigins</code>. A <code>fill</code> of a vault value on any other origin fails with <code>CredentialOriginMismatch</code>, even if that origin is allowlisted.</li>
+  <li><strong>Who can write.</strong> <code>POST/PUT/DELETE /v1/credentials/:id</code> need the bearer token; a web-console session is not enough. <code>GET</code> returns only ids, origins, field names, tags and last use.</li>
+  <li><strong>Key.</strong> <code>SCRAPFORAI_VAULT_KEY</code> (32 bytes, base64) or a generated <code>vault.key</code> in the data directory. Lose the key and the vault cannot be read.</li>
+  <li><strong>MCP.</strong> The <code>run_exploration</code> tool has no <code>credentials</code> field, so a model never writes or sees a secret. <code>list_credential_sets</code> shows what exists.</li>
+  <li><strong>Legacy.</strong> The REST API still accepts inline <code>credentials</code> (deprecated, logged). Set <code>ALLOW_INLINE_CREDENTIALS=false</code> to require the vault.</li>
+</ul>
+
+<h2 id="target-profiles">Target profiles</h2>
+<p>A profile names an application and environment, supplies the default <code>targetUrl</code> and lists the credential sets a run may use. It can never widen <code>ALLOWED_TARGET_ORIGINS</code>: a <code>baseUrl</code> outside it is refused.</p>
+<pre><code class="language-http">PUT /v1/targets/app-dev
+{
+  "name": "My app (dev)",
+  "environment": "dev",
+  "baseUrl": "https://dev.example.com/app",
+  "platform": "genexus",
+  "credentialSets": ["gam-admin", "gam-readonly"],
+  "flags": { "maxSessionsPerCredential": 1 }
+}</code></pre>
+<p>Use it with <code>"targetProfile": "app-dev"</code> in a run. <code>maxSessionsPerCredential</code> (default 1) is how many simultaneous sessions one credential may have.</p>
+
+<h2 id="saved-routines">Saved routines</h2>
+<p>A routine is data, so it can be stored, versioned and reviewed. Every change is a new immutable version (<code>v1.json</code>, <code>v2.json</code>); saving identical content creates nothing. The <code>sha256</code> of each version is checked whenever it is read.</p>
+<pre><code class="language-http">PUT /v1/routines/crud-sales
+{ "title": "Sales CRUD", "targetProfile": "app-dev", "credentialSet": "gam-admin",
+  "steps": [ { "id": "auth", "action": "include", "routineId": "login", "version": 1 },
+             { "id": "open", "action": "click", "selector": "#menu-sales" } ],
+  "teardown": [ { "id": "bye", "action": "goto", "url": "https://dev.example.com/app/logout" } ] }
+
+PUT /v1/routines/crud-sales      { "fromJobId": "job_abc123" }      // save a run that worked
+POST /v1/routines/crud-sales/run?version=2</code></pre>
+<ul>
+  <li><strong>Secrets are refused.</strong> A literal equal to a vault value, or shaped like an API key, JWT or token, is rejected at save time (422).</li>
+  <li><strong><code>fromJobId</code></strong> saves the steps of a run that passed, while its evidence still exists.</li>
+  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Changing it is a new version. Suites run only <code>active</code> by default.</li>
+  <li>Set <code>ROUTINE_LIBRARY_DIR</code> inside a git repository to review routines in pull requests.</li>
+</ul>
+
+<h2 id="include-teardown">Include and teardown</h2>
+<p><code>{ "action": "include", "routineId": "login" }</code> expands another saved routine in place. Expanded step ids are prefixed with the include id (<code>auth.submit</code>). Up to 3 levels; cycles are refused when saving; the included routine must belong to the same target profile and not be retired. Without <code>version</code> the <em>current</em> version is used, so pin it for reproducible proof. The versions actually used are recorded in <code>result.includes</code>.</p>
+<p><code>teardown</code> is a list of steps that <strong>always</strong> runs after the steps, pass or fail (like <code>finally</code>): your own teardown first, then those of included routines, last included first. Teardown failures are reported in <code>result.teardown</code> and <code>teardownStatus</code>; they never change the run's <code>status</code> and never replace a step failure.</p>
+
+<h2 id="suites">Suites</h2>
+<p>A suite runs several saved routines, multiplied by credential sets and target profiles. Starting one answers <strong>202</strong> immediately and it runs in the background.</p>
+<pre><code class="language-http">POST /v1/suites                                  -> 202 { "suiteRunId": "suite_..." }
+{
+  "name": "nightly",
+  "items": [ { "routineId": "crud-sales" }, { "routineId": "report-activity" } ],
+  "variants": { "credentialSets": ["gam-admin", "gam-readonly"], "targetProfiles": ["app-dev", "app-qa"] },
+  "failFast": false
+}
+GET /v1/suites/suite_...?wait=30                 // blocks up to 55 s until it ends</code></pre>
+<ul>
+  <li>Each run has a readable <code>variantKey</code>, e.g. <code>crud-sales@v2/cred:gam-admin/target:app-qa</code>. Routine versions are pinned when the suite starts.</li>
+  <li><strong>One verdict:</strong> <code>green</code> (exit 0), <code>red</code> (1, a run failed) or <code>infra-error</code> (2, a run could not execute, nothing ran, or it was cancelled).</li>
+  <li><strong>One session per credential.</strong> Runs that share a credential set never overlap; a direct run needing a busy credential gets <code>409 CredentialInUse</code>.</li>
+  <li><code>failFast</code> stops starting new runs at the first red one; the rest are listed as not run. <code>POST /v1/suites/:id/cancel</code> stops the suite.</li>
+  <li><code>MAX_PARALLEL_JOBS</code> is the shared pool; <code>INTERACTIVE_RESERVED_SLOTS</code> (default 1) are never given to suites.</li>
+</ul>
+
+<h2 id="pinned-evidence">Retention and pinned evidence</h2>
+<p>Evidence expires after <code>ARTIFACT_RETENTION_HOURS</code> (4 h) unless the run uses <code>options.retention: "standard"</code> (<code>STANDARD_RETENTION_DAYS</code>, 30 days). To keep proof for good, pin it:</p>
+<pre><code class="language-http">POST /v1/runs/job_abc123/pin
+{ "reason": "proof for REG-209", "ref": "npdev:REG-209" }
+
+GET /v1/runs/job_abc123/manifest   // sha256 of every file, re-verified now</code></pre>
+<p>Pinning moves the run to a store that is never pruned (capped by <code>PINNED_EVIDENCE_MAX_MB</code>; over the cap you get 409 and nothing is deleted), drops the heavy trace unless <code>keepTrace</code>, and refuses evidence whose manifest no longer matches its files. The manifest proves the files are unchanged; it does not prove the test was right.</p>
+
+<h2 id="cli">The scrapforai command line</h2>
+<pre><code class="language-powershell">npm run cli -- run crud-sales --version 2 --json
+npm run cli -- suite nightly.json
+npm run cli -- routines list
+npm run cli -- runs show job_abc123
+npm run cli -- pin job_abc123 --reason "proof" --ref npdev:REG-209</code></pre>
+<p>The CLI talks to the REST API with the key from <code>.env</code> (never from the command line). Exit codes: <strong>0</strong> passed, <strong>1</strong> a test failed, <strong>2</strong> anything else (API down, bad arguments, a run that could not execute). With <code>--json</code> it prints exactly one JSON object on stdout, versioned by <code>cliSchema</code>; progress goes to stderr.</p>
+<pre><code class="language-json">{ "cliSchema": 1, "command": "run", "exitCode": 1,
+  "result": { "jobId": "job_...", "status": "failed", "failedStepIndex": 2, "error": { "type": "StepExecutionError", "message": "..." } } }</code></pre>
+
+<h2 id="mcp-tools">MCP tools</h2>
+<p>The recommended flow for an AI agent: <code>list_targets</code> &rarr; <code>inspect_dom</code> &rarr; <code>run_exploration</code> &rarr; <code>save_routine</code> (with <code>fromJobId</code>) &rarr; later <code>run_routine</code> or <code>run_suite</code> + <code>get_suite_result</code>.</p>
+<table>
+  <tr><th>Tool</th><th>Purpose</th></tr>
+  <tr><td><code>list_credential_sets</code>, <code>list_targets</code></td><td>Discover what the server offers (never secret values).</td></tr>
+  <tr><td><code>inspect_dom</code>, <code>run_exploration</code></td><td>Explore a page and run steps.</td></tr>
+  <tr><td><code>list_routines</code>, <code>get_routine</code>, <code>save_routine</code>, <code>run_routine</code></td><td>The routine library.</td></tr>
+  <tr><td><code>run_suite</code>, <code>get_suite_result</code></td><td>Start a suite (returns at once) and wait for it with <code>waitSeconds</code>.</td></tr>
+  <tr><td><code>get_run</code></td><td>Summary (and optionally the full result) of a past run.</td></tr>
+</table>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="artifacts.html"><span class="dir">&larr; Previous</span><span class="title">Artifacts & evidence</span></a>
+      <a class="pager-link next" href="docker-tunnel.html"><span class="dir">Next &rarr;</span><span class="title">Docker & tunnel</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

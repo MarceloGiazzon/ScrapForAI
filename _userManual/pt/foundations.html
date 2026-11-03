@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Credenciais, rotinas e suítes · ScrapForAI</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/artifacts.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/artifacts.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="web-console.html">Console web</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link active" href="foundations.html">Credenciais, rotinas e suítes</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guias</div>
+      <h1>Credenciais, rotinas e suítes</h1>
+      <p class="lede">Os blocos do lado do servidor que transformam execuções avulsas em prova reutilizável e repetível: cofre de credenciais, perfis de alvo, rotinas versionadas, suítes, evidência fixada e um cliente de linha de comando.</p>
+
+<h2 id="credential-vault">Cofre de credenciais</h2>
+<p>Os segredos ficam <strong>cifrados no servidor</strong> (AES-256-GCM) e são referenciados por id. Quem chama, inclusive um modelo de IA, envia <code>credentialSet: "gam-admin"</code>; o servidor carrega os valores e os steps continuam usando <code>valueFromCredential</code> pelo nome do campo. Os valores são <strong>somente escrita</strong>: nenhuma API, log, resultado ou histórico os devolve.</p>
+<pre><code class="language-http">PUT /v1/credentials/gam-admin        (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{
+  "boundOrigins": ["https://dev.example.com"],
+  "values": { "loginUser": "...", "loginPassword": "..." },
+  "tags": ["role:admin"]
+}</code></pre>
+<pre><code class="language-http">POST /v1/explorations/run
+{
+  "targetProfile": "app-dev",
+  "credentialSet": "gam-admin",
+  "steps": [
+    { "action": "goto", "url": "$targetUrl" },
+    { "action": "fill", "selector": "#vUSER", "valueFromCredential": "loginUser" },
+    { "action": "fill", "selector": "#vPASS", "valueFromCredential": "loginPassword" }
+  ]
+}</code></pre>
+<ul>
+  <li><strong>Vínculo por origem.</strong> Cada conjunto lista <code>boundOrigins</code>. Um <code>fill</code> de valor do cofre em outra origem falha com <code>CredentialOriginMismatch</code>, mesmo que essa origem esteja na allowlist.</li>
+  <li><strong>Quem escreve.</strong> <code>POST/PUT/DELETE /v1/credentials/:id</code> exigem o bearer token; uma sessão do console web não basta. <code>GET</code> devolve só ids, origens, nomes de campos, tags e último uso.</li>
+  <li><strong>Chave.</strong> <code>SCRAPFORAI_VAULT_KEY</code> (32 bytes, base64) ou um <code>vault.key</code> gerado no diretório de dados. Sem a chave o cofre não pode ser lido.</li>
+  <li><strong>MCP.</strong> A ferramenta <code>run_exploration</code> não tem o campo <code>credentials</code>, então o modelo nunca escreve nem vê um segredo. <code>list_credential_sets</code> mostra o que existe.</li>
+  <li><strong>Legado.</strong> A API REST ainda aceita <code>credentials</code> inline (obsoleto, registrado em log). Use <code>ALLOW_INLINE_CREDENTIALS=false</code> para exigir o cofre.</li>
+</ul>
+
+<h2 id="target-profiles">Perfis de alvo</h2>
+<p>Um perfil dá nome a uma aplicação e ambiente, fornece o <code>targetUrl</code> padrão e lista os conjuntos de credenciais que uma execução pode usar. Ele nunca amplia <code>ALLOWED_TARGET_ORIGINS</code>: um <code>baseUrl</code> fora dela é recusado.</p>
+<pre><code class="language-http">PUT /v1/targets/app-dev
+{
+  "name": "My app (dev)",
+  "environment": "dev",
+  "baseUrl": "https://dev.example.com/app",
+  "platform": "genexus",
+  "credentialSets": ["gam-admin", "gam-readonly"],
+  "flags": { "maxSessionsPerCredential": 1 }
+}</code></pre>
+<p>Use com <code>"targetProfile": "app-dev"</code> numa execução. <code>maxSessionsPerCredential</code> (padrão 1) é quantas sessões simultâneas uma credencial pode ter.</p>
+
+<h2 id="saved-routines">Rotinas salvas</h2>
+<p>Uma rotina é dado, então pode ser guardada, versionada e revisada. Cada mudança é uma versão imutável (<code>v1.json</code>, <code>v2.json</code>); salvar conteúdo idêntico não cria nada. O <code>sha256</code> de cada versão é conferido a cada leitura.</p>
+<pre><code class="language-http">PUT /v1/routines/crud-sales
+{ "title": "Sales CRUD", "targetProfile": "app-dev", "credentialSet": "gam-admin",
+  "steps": [ { "id": "auth", "action": "include", "routineId": "login", "version": 1 },
+             { "id": "open", "action": "click", "selector": "#menu-sales" } ],
+  "teardown": [ { "id": "bye", "action": "goto", "url": "https://dev.example.com/app/logout" } ] }
+
+PUT /v1/routines/crud-sales      { "fromJobId": "job_abc123" }      // save a run that worked
+POST /v1/routines/crud-sales/run?version=2</code></pre>
+<ul>
+  <li><strong>Segredos são recusados.</strong> Um literal igual a um valor do cofre, ou com formato de chave de API, JWT ou token, é rejeitado ao salvar (422).</li>
+  <li><strong><code>fromJobId</code></strong> salva os steps de uma execução que passou, enquanto a evidência ainda existe.</li>
+  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Mudá-lo é uma nova versão. As suítes rodam só <code>active</code> por padrão.</li>
+  <li>Aponte <code>ROUTINE_LIBRARY_DIR</code> para dentro de um repositório git para revisar rotinas em pull requests.</li>
+</ul>
+
+<h2 id="include-teardown">Include e teardown</h2>
+<p><code>{ "action": "include", "routineId": "login" }</code> expande outra rotina salva no lugar. Os ids dos steps expandidos recebem o prefixo do id do include (<code>auth.submit</code>). Até 3 níveis; ciclos são recusados ao salvar; a rotina incluída deve ser do mesmo perfil de alvo e não estar aposentada. Sem <code>version</code> usa-se a versão <em>atual</em>, então fixe a versão para prova reproduzível. As versões realmente usadas ficam em <code>result.includes</code>.</p>
+<p><code>teardown</code> é uma lista de steps que <strong>sempre</strong> roda depois dos steps, passando ou falhando (como um <code>finally</code>): primeiro o teardown da própria rotina, depois os das rotinas incluídas, a última incluída primeiro. Falhas de teardown aparecem em <code>result.teardown</code> e <code>teardownStatus</code>; nunca mudam o <code>status</code> da execução nem substituem a falha de um step.</p>
+
+<h2 id="suites">Suítes</h2>
+<p>Uma suíte roda várias rotinas salvas, multiplicadas por conjuntos de credenciais e perfis de alvo. Iniciar uma responde <strong>202</strong> na hora e ela roda em segundo plano.</p>
+<pre><code class="language-http">POST /v1/suites                                  -> 202 { "suiteRunId": "suite_..." }
+{
+  "name": "nightly",
+  "items": [ { "routineId": "crud-sales" }, { "routineId": "report-activity" } ],
+  "variants": { "credentialSets": ["gam-admin", "gam-readonly"], "targetProfiles": ["app-dev", "app-qa"] },
+  "failFast": false
+}
+GET /v1/suites/suite_...?wait=30                 // blocks up to 55 s until it ends</code></pre>
+<ul>
+  <li>Cada execução tem uma <code>variantKey</code> legível, por exemplo <code>crud-sales@v2/cred:gam-admin/target:app-qa</code>. As versões das rotinas são fixadas quando a suíte começa.</li>
+  <li><strong>Um só veredito:</strong> <code>green</code> (saída 0), <code>red</code> (1, uma execução falhou) ou <code>infra-error</code> (2, uma execução não pôde rodar, nada rodou ou foi cancelada).</li>
+  <li><strong>Uma sessão por credencial.</strong> Execuções que dividem um conjunto de credenciais nunca se sobrepõem; uma execução direta que precisa de uma credencial ocupada recebe <code>409 CredentialInUse</code>.</li>
+  <li><code>failFast</code> para de iniciar execuções no primeiro vermelho; as demais ficam listadas como não executadas. <code>POST /v1/suites/:id/cancel</code> interrompe a suíte.</li>
+  <li><code>MAX_PARALLEL_JOBS</code> é o pool compartilhado; <code>INTERACTIVE_RESERVED_SLOTS</code> (padrão 1) nunca vão para suítes.</li>
+</ul>
+
+<h2 id="pinned-evidence">Retenção e evidência fixada</h2>
+<p>A evidência expira após <code>ARTIFACT_RETENTION_HOURS</code> (4 h), a menos que a execução use <code>options.retention: "standard"</code> (<code>STANDARD_RETENTION_DAYS</code>, 30 dias). Para guardar a prova de vez, fixe-a:</p>
+<pre><code class="language-http">POST /v1/runs/job_abc123/pin
+{ "reason": "proof for REG-209", "ref": "npdev:REG-209" }
+
+GET /v1/runs/job_abc123/manifest   // sha256 of every file, re-verified now</code></pre>
+<p>Fixar move a execução para um armazenamento que nunca é limpo (limitado por <code>PINNED_EVIDENCE_MAX_MB</code>; acima do limite vem 409 e nada é apagado), descarta o trace pesado salvo com <code>keepTrace</code> e recusa evidência cujo manifesto não confere mais com os arquivos. O manifesto prova que os arquivos não mudaram; não prova que o teste estava certo.</p>
+
+<h2 id="cli">A linha de comando scrapforai</h2>
+<pre><code class="language-powershell">npm run cli -- run crud-sales --version 2 --json
+npm run cli -- suite nightly.json
+npm run cli -- routines list
+npm run cli -- runs show job_abc123
+npm run cli -- pin job_abc123 --reason "proof" --ref npdev:REG-209</code></pre>
+<p>A CLI fala com a API REST usando a chave do <code>.env</code> (nunca pela linha de comando). Códigos de saída: <strong>0</strong> passou, <strong>1</strong> um teste falhou, <strong>2</strong> qualquer outra coisa (API fora, argumentos inválidos, execução que não pôde rodar). Com <code>--json</code> imprime exatamente um objeto JSON no stdout, versionado por <code>cliSchema</code>; o progresso vai para o stderr.</p>
+<pre><code class="language-json">{ "cliSchema": 1, "command": "run", "exitCode": 1,
+  "result": { "jobId": "job_...", "status": "failed", "failedStepIndex": 2, "error": { "type": "StepExecutionError", "message": "..." } } }</code></pre>
+
+<h2 id="mcp-tools">Ferramentas MCP</h2>
+<p>Fluxo recomendado para um agente de IA: <code>list_targets</code> &rarr; <code>inspect_dom</code> &rarr; <code>run_exploration</code> &rarr; <code>save_routine</code> (com <code>fromJobId</code>) &rarr; depois <code>run_routine</code> ou <code>run_suite</code> + <code>get_suite_result</code>.</p>
+<table>
+  <tr><th>Ferramenta</th><th>Finalidade</th></tr>
+  <tr><td><code>list_credential_sets</code>, <code>list_targets</code></td><td>Descobrir o que o servidor oferece (nunca valores secretos).</td></tr>
+  <tr><td><code>inspect_dom</code>, <code>run_exploration</code></td><td>Explorar uma página e executar steps.</td></tr>
+  <tr><td><code>list_routines</code>, <code>get_routine</code>, <code>save_routine</code>, <code>run_routine</code></td><td>A biblioteca de rotinas.</td></tr>
+  <tr><td><code>run_suite</code>, <code>get_suite_result</code></td><td>Iniciar uma suíte (retorna na hora) e esperá-la com <code>waitSeconds</code>.</td></tr>
+  <tr><td><code>get_run</code></td><td>Resumo (e opcionalmente o resultado completo) de uma execução passada.</td></tr>
+</table>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="artifacts.html"><span class="dir">&larr; Anterior</span><span class="title">Artefatos e evidências</span></a>
+      <a class="pager-link next" href="docker-tunnel.html"><span class="dir">Próximo &rarr;</span><span class="title">Docker e túnel</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

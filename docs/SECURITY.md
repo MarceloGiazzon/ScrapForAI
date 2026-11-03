@@ -13,6 +13,13 @@ What an attacker gains by reaching this API:
 - **Server-side request forgery.** The runner navigates wherever it is told, from inside your
   network. This is why the target allowlist exists and why it is not optional.
 - **Credential replay.** Routines carry the credentials of the site under test.
+  Secrets are kept in the server-side credential vault and referenced by `credentialSet`; the MCP
+  tool has no way to supply or read a value. Each set is bound to origins, so a routine cannot
+  carry a vaulted password to a different allowlisted app.
+  *Legacy path:* the REST API still accepts inline `credentials` (deprecated). Redaction covers
+  results, logs and history, but not the request, and inline values are not origin-bound. Set
+  `ALLOW_INLINE_CREDENTIALS=false` to disable the path. Never commit real credentials;
+  `test/samples-hygiene.test.ts` enforces placeholders in `samples/`.
 - **Arbitrary in-page JavaScript**, but only when `ALLOW_EVALUATE=true`.
 
 The controls below exist to bound each of those.
@@ -30,6 +37,13 @@ The controls below exist to bound each of those.
 | Locked config fields | `src/routes/config.routes.ts` | A hijacked UI session widening the allowlist |
 | Content Security Policy | `src/server.ts` | Injected scripts in the UI |
 | Rate limiting | `src/server.ts`, `src/routes/auth.routes.ts` | Brute force and runaway automation |
+| Credential vault | `src/vault/credentials/credentialVault.ts` | Secrets passing through the caller/LLM; plaintext at rest |
+| Credential↔origin binding | `src/security/credentialBinding.ts` | A routine carrying a vaulted secret to another allowlisted origin |
+| Bearer-only writes | `requireBearer` in `src/security/apiAuth.ts` | A hijacked UI session writing credentials or target profiles |
+| Evidence manifest | `src/evidence/manifest.ts` | Silent edits to screenshots/results after the fact |
+| Signed manifest chain | `src/evidence/signature.ts`, `chain.ts` | Forged, edited or removed pinned evidence (Ed25519 + linked hashes + sequence + high-water mark). Does not stop whoever holds the private key, nor prove the test was correct |
+| Bearer-only pin + quota | `src/evidence/pin.ts` | A UI session filling the disk with never-expiring evidence |
+| Target profiles stay inside the allowlist | `src/targets/targetStore.ts` | A profile widening `ALLOWED_TARGET_ORIGINS` |
 
 None of these may be removed without replacing them with something stronger.
 

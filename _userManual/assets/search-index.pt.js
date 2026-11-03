@@ -748,5 +748,59 @@ window.SCRAPFORAI_SEARCH_INDEX = [
     "title": "Termos",
     "href": "glossary.html#terms",
     "keywords": "Termos"
+  },
+  {
+    "section": "Guias",
+    "title": "Credenciais, rotinas e suítes",
+    "href": "foundations.html",
+    "keywords": "Credenciais, rotinas e suítes credential vault credentialSet routine suite teardown include pin evidence cli exit code"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Cofre de credenciais",
+    "href": "foundations.html#credential-vault",
+    "keywords": "Cofre de credenciais"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Perfis de alvo",
+    "href": "foundations.html#target-profiles",
+    "keywords": "Perfis de alvo"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Rotinas salvas",
+    "href": "foundations.html#saved-routines",
+    "keywords": "Rotinas salvas"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Include e teardown",
+    "href": "foundations.html#include-teardown",
+    "keywords": "Include e teardown"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Suítes",
+    "href": "foundations.html#suites",
+    "keywords": "Suítes"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Retenção e evidência fixada",
+    "href": "foundations.html#pinned-evidence",
+    "keywords": "Retenção e evidência fixada"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "A linha de comando scrapforai",
+    "href": "foundations.html#cli",
+    "keywords": "A linha de comando scrapforai"
+  },
+  {
+    "section": "Credenciais, rotinas e suítes",
+    "title": "Ferramentas MCP",
+    "href": "foundations.html#mcp-tools",
+    "keywords": "Ferramentas MCP"
   }
 ];
