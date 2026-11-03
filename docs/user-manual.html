@@ -588,6 +588,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:3000/v1/explorations/inspe
             <tr><td><code>assertCount</code></td><td>Fail unless selector count matches a condition.</td><td><code>selector</code>, <code>operator</code>, <code>count</code></td></tr>
             <tr><td><code>screenshot</code></td><td>Save a named screenshot.</td><td><code>name</code></td></tr>
             <tr><td><code>collect</code></td><td>Collect selected evidence.</td><td><code>what</code></td></tr>
+            <tr><td><code>probePage</code></td><td>Record the page state into <code>extracted</code> without ever failing: URL, navigation HTTP status, which text markers are present, and the selector's count/visible/enabled. Used by permission matrices.</td><td><code>name</code>, <code>selector</code>, <code>textMarkers</code>, <code>timeoutMs</code></td></tr>
             <tr><td><code>extractText</code></td><td>Save selector text to <code>extracted</code>.</td><td><code>selector</code>, <code>name</code></td></tr>
             <tr><td><code>extractAttribute</code></td><td>Save an attribute to <code>extracted</code>.</td><td><code>selector</code>, <code>attribute</code>, <code>name</code></td></tr>
             <tr><td><code>evaluate</code></td><td>Run page JavaScript and save result.</td><td><code>name</code>, <code>script</code></td></tr>

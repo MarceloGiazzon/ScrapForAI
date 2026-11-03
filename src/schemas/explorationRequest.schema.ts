@@ -202,6 +202,20 @@ const collectStep = z
     what: z.array(z.enum(['console', 'network', 'domText', 'url', 'pageErrors'])).min(1).max(5),
   })
   .strict();
+// T6.1: records the state of the page WITHOUT failing, so one run can answer "what does this role see here?".
+// extracted[name] = { url, documentStatus, markersFound, selector?: { count, visible, enabled } }. Read-only: no
+// click, no script of the caller's (the HTTP status comes from the browser's own navigation timing).
+// With `selector` and `timeoutMs`, it waits up to timeoutMs for the selector to appear; absent is an answer, not an error.
+const probePageStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('probePage'),
+    name: safeName,
+    selector: selector.optional(),
+    textMarkers: z.array(z.string().min(1).max(500)).max(20).optional(),
+    timeoutMs: stepTimeout,
+  })
+  .strict();
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -286,6 +300,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   assertCountStep,
   screenshotStep,
   collectStep,
+  probePageStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,

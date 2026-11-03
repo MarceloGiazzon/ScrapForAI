@@ -105,6 +105,21 @@ step limits, artifact retention, etc.).
   changed file matching the `surfaces` globs of the target profile) > failed in its last 5 runs > severity > id, and
   every run records the reasons (`POST /v1/vault/plan` shows the order without running). `buildId` (request/suite
   field) is recorded in results and in evidence references.
+- **Permission matrix** (`src/permissions/`, T6.1): roles (credential sets of ONE target profile) x probes: `url` (open it
+  directly, not through the menu), `control` (on the page at `url`, is `selector` hidden/enabled/disabled) and `action` (run a
+  library routine). `deniedWhen` says how the app shows a denial (`urlContains` of the login/NotAuthorized page, `textVisible`,
+  HTTP `status`). `PUT /v1/permissions/:id` stores it (roles must be in the profile's `credentialSets`, probe URLs inside the
+  allowlist, paths like `/admin` resolve against `baseUrl`; a `loginRoutine` that fills with `valueFromCredential` is required);
+  `POST /v1/permissions/:id/run` answers 202 with a `runId` (`GET /v1/permissions/runs/:runId[?wait=N]`). Sessions go through
+  the job queue with suite priority and the credential lock: `perRole` = one login per role for its pages (chunked to
+  `MAX_STEPS_PER_JOB`/`JOB_TIMEOUT_MS`), `perProbe` = one per page probe; each action is its own session. The read step is
+  the new `probePage` (never fails: url, navigation status, which denial texts are present, selector count/visible/enabled).
+  Each cell is allowed/denied/error (controls: hidden/enabled/disabled) with its `jobId`; `expected` (role -> probe) is checked
+  (a control on a denied page counts as hidden), and every run is diffed against the previous completed run of the same
+  matrix and profile: a gain of access that no expectation covers is an **alert**. Verdict: red (1) on an unmet expectation or
+  an alert, and red wins over infra-error (2: a cell could not be answered, e.g. `LoginFailed`, or an action that failed with no
+  denial signal); green (0) otherwise. Departures from Appendix A.7, because T4.1/T4.2/T8.1 do not exist yet: `control` takes
+  a `url` (`screen` is only a label), the diff is against the previous run (not the previous release), the login routine is explicit.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -122,6 +137,8 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   `GET /v1/targets[/:id]` and `PUT /v1/targets/:id` (bearer only) — target profiles.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
+  `GET|PUT /v1/permissions[/:id]`, `POST /v1/permissions/:id/run`, `GET /v1/permissions/runs[/:runId]`,
+  `POST /v1/permissions/runs/:runId/cancel` — permission matrices.
 
 JSON Schemas for both request bodies (and the `run_exploration` result) are served unauthenticated —
 fetch these instead of hand-writing a request body against the schema files directly:
@@ -134,7 +151,8 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, and `get_run` (a past run by jobId), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`. Their `inputSchema`s are the Zod
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, and `get_run` (a past run by jobId), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
 `credentials`). The
@@ -172,7 +190,8 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite). Exit codes: **0** passed, **1** a test failed,
+`routines list`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict). Exit codes: **0** passed, **1** a test failed,
 **2** anything else (API down, bad usage, a run that could not execute, wait timeout). `--json` prints exactly one JSON
 object on stdout (`cliSchema: 1`, schema in `schema/cli.output.json`); progress and human errors go to stderr. The API
 key comes from `.env`, never from the command line. Fields are only ever added to the JSON; a breaking change bumps
@@ -190,6 +209,8 @@ Put the command first and global options (`--json`, `--url`) after it.
 - `npm run test:smoke` — `test/routine-runner.smoke.ts` (frame/wait-condition helpers) and
   `test/credential-vault.smoke.ts` (vault secret end to end: origin binding, redaction, nothing on disk),
   `test/report-pdf.smoke.ts` (real PDFs in en/pt/es, nothing loaded from the network),
+  `test/permission-matrix.smoke.ts` (3 roles x url/control/action probes, the three denial styles, a regression that gives a
+  role new access turns the second run red),
   `test/regression-flow.smoke.ts` (RED pinned -> still red -> fix -> GREEN pinned, impact-ordered vault suite),
   `test/suite-run.smoke.ts` (credential locks measured server-side, failFast, verdicts, cancel, 409 vs interactive),
   `test/routine-library.smoke.ts` (pinned versions, history tagging, saving a run without its secret), all

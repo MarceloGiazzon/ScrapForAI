@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { runSummarySchema } from '../history/runSummary.js';
+import { matrixRunStateSchema } from './permissionMatrix.schema.js';
 import { suiteStateSchema } from './suiteRequest.schema.js';
 
 /**
@@ -95,6 +96,9 @@ export const cliReportSchema = z.object({ id: z.string(), format: z.enum(['html'
 /** `suite --no-wait`: the suite was accepted and is running; nothing to judge yet. */
 export const cliSuiteStartedSchema = z.object({ suiteRunId: z.string(), status: z.string(), total: z.number() }).strict();
 
+/** `permissions run --no-wait`: accepted and running (T6.1). */
+export const cliMatrixStartedSchema = z.object({ runId: z.string(), matrixId: z.string(), status: z.string(), cells: z.number(), sessions: z.number() }).strict();
+
 const success = <C extends string, R extends z.ZodTypeAny>(command: C, result: R) =>
   z.object({ ...header, command: z.literal(command), exitCode, result }).strict();
 
@@ -123,6 +127,8 @@ export const cliOutputSchema = z.union([
   success('vault export', cliVaultExportSchema),
   success('vault run', cliVaultRunSchema),
   success('vault confirm-green', cliVaultRunSchema),
+  success('permissions run', z.union([matrixRunStateSchema, cliMatrixStartedSchema])),
+  success('permissions show', matrixRunStateSchema),
   cliErrorOutputSchema,
 ]);
 

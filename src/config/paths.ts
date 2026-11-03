@@ -73,6 +73,11 @@ export function suitesDir(): string {
   return path.join(dataDir(), 'suites');
 }
 
+/** Permission matrices (T6.1): matrices/<id>.json (definitions) and runs/<runId>.json (results). */
+export function permissionsDir(): string {
+  return path.join(dataDir(), 'permissions');
+}
+
 /** Ed25519 key pair that signs pinned evidence manifests (T2.6): ed25519.key (private) + ed25519.pub. */
 export function signingDir(): string {
   return path.join(dataDir(), 'signing');

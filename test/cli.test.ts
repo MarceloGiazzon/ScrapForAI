@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 15);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 17);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -380,6 +380,62 @@ test('vault run --impact: sends the whole vault as an impact-ordered suite and e
 test('vault usage errors are exit 2 and never reach the API', async () => {
   seen = [];
   for (const args of [['vault'], ['vault', 'show'], ['vault', 'run'], ['vault', 'run', 'A-1', 'B-2'], ['vault', 'export', 'x'], ['vault', 'run', '--impact', 'A-1'], ['vault', 'run', 'A-1', '--build-id', 'bad id!'], ['vault', 'frobnicate']]) {
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+  }
+  assert.equal(seen.length, 0);
+});
+
+const matrixState = (verdict: 'green' | 'red' | 'infra-error', status = 'completed') => ({
+  runId: 'perm_abc', matrixId: 'roles', matrixSha256: 'f'.repeat(64),
+  matrix: {
+    targetProfile: 'app', loginRoutine: 'login', roles: ['seller'], deniedWhen: [{ status: 403 }],
+    probes: [{ kind: 'url', id: 'settings', url: '/settings' }], settleMs: 0, controlWaitMs: 0, isolation: 'perRole',
+  },
+  targetProfile: 'app', buildId: 'b2', status, createdAt: 'x', sessions: 1,
+  cells: [{ role: 'seller', probeId: 'settings', kind: 'url', outcome: 'allowed', jobId: 'job_1' }],
+  changes: verdict === 'red' ? [{ role: 'seller', probeId: 'settings', from: 'denied', to: 'allowed', change: 'gainedAccess', alert: true }] : [],
+  counts: { pending: 0, allowed: 1, denied: 0, error: 0, mismatches: 0, alerts: verdict === 'red' ? 1 : 0 },
+  ...(status === 'running' ? {} : { verdict, verdictReason: 'r', exitCode: verdict === 'green' ? 0 : verdict === 'red' ? 1 : 2 }),
+});
+
+test('permissions run: waits and exits with the matrix verdict (an unexpected gain of access is 1)', async () => {
+  let polls = 0;
+  handler = (req, respond) => {
+    if (req.method === 'POST') return respond(202, { runId: 'perm_abc', matrixId: 'roles', status: 'running', cells: 1, sessions: 1 });
+    polls += 1;
+    respond(200, polls < 2 ? matrixState('red', 'running') : matrixState('red'));
+  };
+  const text = await cli(['permissions', 'run', 'roles', '--build-id', 'b2']);
+  assert.equal(text.code, 1);
+  assert.deepEqual(seen[0], { method: 'POST', url: '/v1/permissions/roles/run', auth: `Bearer ${KEY}`, body: { buildId: 'b2' } });
+  assert.match(text.stdout, /ALERT\s+seller \/ settings: denied -> allowed/);
+  assert.match(text.stdout, /Verdict: RED \(exit 1\)/);
+
+  polls = 5;
+  const json = await cli(['permissions', 'run', 'roles', '--json']);
+  assert.equal(json.code, 1);
+  assert.equal(validJson(json.stdout).command, 'permissions run');
+
+  const started = await cli(['permissions', 'run', 'roles', '--no-wait', '--json']);
+  assert.equal(started.code, 0);
+  assert.equal(validJson(started.stdout).result.runId, 'perm_abc');
+});
+
+test('permissions show: green is 0, a run still going is 2; usage errors never reach the API', async () => {
+  handler = (_req, respond) => respond(200, matrixState('green'));
+  const green = await cli(['permissions', 'show', 'perm_abc', '--json']);
+  assert.equal(green.code, 0);
+  assert.equal(validJson(green.stdout).command, 'permissions show');
+
+  handler = (_req, respond) => respond(200, matrixState('green', 'running'));
+  assert.equal((await cli(['permissions', 'show', 'perm_abc'])).code, 2);
+
+  handler = (_req, respond) => respond(404, { error: { type: 'PermissionMatrixNotFound', message: 'nope' } });
+  const missing = await cli(['permissions', 'run', 'ghost']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, /PermissionMatrixNotFound/);
+
+  for (const args of [['permissions', 'run'], ['permissions', 'show'], ['permissions', 'run', 'a', 'b'], ['permissions', 'run', 'a', '--retention', 'forever']]) {
     assert.equal((await cli(args)).code, 2, args.join(' '));
   }
   assert.equal(seen.length, 0);

@@ -1023,6 +1023,11 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 
 ### T6.1 — Matriz de permissões · G · *pode ser antecipada (depende só da Fase 1)*
 
+> **Implementada em 2026-11-03, antecipada antes do G1** (`src/permissions/`, ver AGENTS.md). Diferenças em relação ao texto
+> abaixo, por dependerem de tarefas que ainda não existem: a sonda `control` recebe a `url` da tela (o catálogo T4.2 não
+> existe; `screen` é só um rótulo); o diff é contra a **execução anterior** da mesma matriz (não contra o release anterior via
+> T4.1); o login é uma `loginRoutine` explícita (T8.1 não existe). O snapshot de evolução (T4.4) fica para quando ele existir.
+
 **Especificação:**
 - Definição ([Apêndice A](#a7-matriz-de-permissões)):
   - **papéis** = conjuntos de credenciais (T1.2);
@@ -1350,6 +1355,7 @@ dependências (por exemplo, a MPL-2.0 do `axe-core`).
 | Roteamento e caos (T5.1, T7.2) | Mascarar falhas reais; tocar origens externas | Só origens allowlisted; tudo marcado em `handledBy`; proibido em staging sem flag | Falha injetada aparece na evidência |
 | Scripts confiáveis (T7.1) | Supply chain (`axe-core`) | Versão fixada; `sha256` verificado no boot | Hash divergente impede o boot |
 | Caçador de PII (T7.8) | O relatório vira o vazamento | Só tipo, local, máscara e hash | Nenhum valor bruto em saída |
+| Matriz de permissões (T6.1) | Muitas sessões com credenciais diferentes; sondas que levam a qualquer URL | Papéis só entre os `credentialSets` do perfil; URLs das sondas validadas contra a allowlist no save e no run; sessões pela fila com o lock por credencial; `probePage` só lê; ações só rotinas da biblioteca | URL fora da allowlist e papel fora do perfil recusados; nenhum valor de credencial no estado salvo |
 | Multi-ator (T6.4) | Sessões cruzadas | Um `BrowserContext` por ator | Cookies não vazam entre atores |
 | CRUD gerado (T8.6) | Destruição de dados | `draft` por padrão; `allowDestructive`; teardown | Rotina destrutiva recusada sem a flag |
 | System Evolution em git (T4.4) | Screenshots com dados reais indo para um repositório | Inventário sem valores; `--no-screenshots`; só dev/QA | Inventário não contém valores de campos |

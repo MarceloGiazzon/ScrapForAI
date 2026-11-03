@@ -457,6 +457,38 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               finalUrl = page.url();
             }
             break;
+          case 'probePage': {
+            // Never fails on what it finds: a missing control or a denial page is the answer (T6.1).
+            let selectorState: { count: number; visible: boolean; enabled: boolean } | undefined;
+            if (step.selector !== undefined) {
+              const locator = frame.locator(step.selector);
+              if (step.timeoutMs !== undefined) {
+                await locator.first().waitFor({ state: 'attached', timeout }).catch(() => undefined);
+              }
+              const count = await locator.count();
+              const visible = count > 0 && (await locator.first().isVisible().catch(() => false));
+              const enabled = count > 0 && (await locator.first().isEnabled({ timeout: 1000 }).catch(() => false));
+              selectorState = { count, visible, enabled };
+            }
+
+            const markers = step.textMarkers ?? [];
+            const bodyText = markers.length > 0 ? await frame.locator('body').innerText({ timeout: 2000 }).catch(() => '') : '';
+            // A fixed, built-in read of the browser's navigation timing, not a caller script: allowed without ALLOW_EVALUATE.
+            const documentStatus = await frame
+              .evaluate(() => {
+                const entry = performance.getEntriesByType('navigation')[0] as (PerformanceEntry & { responseStatus?: number }) | undefined;
+                return typeof entry?.responseStatus === 'number' && entry.responseStatus > 0 ? entry.responseStatus : null;
+              })
+              .catch(() => null);
+
+            extracted[step.name] = {
+              url: frame.url(),
+              documentStatus,
+              markersFound: markers.filter((marker) => bodyText.includes(marker)),
+              ...(selectorState ? { selector: selectorState } : {}),
+            };
+            break;
+          }
           case 'extractText':
             extracted[step.name] = await frame.locator(step.selector).innerText({ timeout });
             break;

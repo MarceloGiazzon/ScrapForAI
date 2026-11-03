@@ -120,6 +120,22 @@ From `docs/npdev-testing-guide.md`:
 
 Do not add an item "to have one": a green-from-the-start scenario has no RED to prove. Ask the user.
 
+## Checking who can do what (permission matrix)
+
+Use it when the question is about roles: "can a seller open Settings?", "did this build give a role a new access?".
+`save_permission_matrix` with the roles (credential sets of the profile), `deniedWhen` (how THIS app shows a denial: the
+login URL it bounces to, its "not authorized" text, a 403) and the probes: `url` (paths like `/admin` are fine), `control`
+(`url` + `selector`) and `action` (a library routine, for example a delete). Find the denial signals first with a couple of
+`run_exploration` runs as a low-privilege role; a matrix whose `deniedWhen` never matches calls every denial "allowed".
+`run_permission_matrix` then `get_permission_matrix_result`.
+
+- `expected` turns the matrix into a test. Without it, each run is compared with the previous one and a NEW access is an
+  `alert`: report it as a possible authorization bug (with the cell's `jobId`), not as a flaky test.
+- `LoginFailed` or `ActionFailedWithoutDenial` cells are infra-errors of the matrix, not answers. Fix the login routine or the
+  action routine before you read the table.
+- Never put a role in a matrix to "see what happens" against an environment where its actions change real data; action probes
+  really run.
+
 ## Errors you will meet
 
 | Error | Meaning | What to do |

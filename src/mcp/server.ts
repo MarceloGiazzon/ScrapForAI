@@ -6,6 +6,7 @@ import { domInspectionRequestSchema } from '../schemas/domInspectionRequest.sche
 import { mcpExplorationRequestSchema, safeName } from '../schemas/explorationRequest.schema.js';
 import { mcpSaveRoutineSchema, routineRunBodySchema } from '../schemas/libraryRoutine.schema.js';
 import { addFromRunSchema, confirmGreenSchema, ITEM_ID_PATTERN, itemStatusSchema, itemTypeSchema } from '../schemas/regressionItem.schema.js';
+import { matrixRunBodySchema, permissionMatrixObjectSchema } from '../schemas/permissionMatrix.schema.js';
 import { suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { getJson, inspectDom, postJson, putJson, runExploration, ScrapForAiRequestError } from './client.js';
 
@@ -26,7 +27,8 @@ const server = new McpServer(
       'Call list_targets to see named target profiles and pass one as "targetProfile". ' +
       'Once a routine works, keep it: save_routine with fromJobId (or steps) stores it as an immutable ' +
       'version in the routine library; list_routines / get_routine / run_routine reuse it without re-authoring. ' +
-      'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails.',
+      'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails. ' +
+      'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result.',
   },
 );
 
@@ -349,6 +351,88 @@ server.registerTool(
   async ({ id, version }) => {
     try {
       return toToolResult(await getJson(routinePath(id, version)));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'list_permission_matrices',
+  {
+    title: 'List permission matrices',
+    description:
+      'Saved permission matrices (roles = credential sets, x probes: open a URL, the state of a control, or run a routine), with their ' +
+      'expectations. Also lists the latest runs of each one.',
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () => {
+    try {
+      const [matrices, runs] = await Promise.all([getJson('/v1/permissions'), getJson('/v1/permissions/runs?limit=50')]);
+      return toToolResult({ ...(matrices as object), ...(runs as object) });
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'save_permission_matrix',
+  {
+    title: 'Save a permission matrix',
+    description:
+      'Store (or replace) a permission matrix: which roles (credential sets of the target profile) may open which URLs directly, see or use which ' +
+      'controls, and run which routines. deniedWhen says how this app shows a denial (redirect to the login, a "not authorized" text, an HTTP ' +
+      'status). Probe URLs may be paths ("/admin") resolved against the profile. "expected" (role -> probe -> allowed/denied/visible/hidden/' +
+      'enabled/disabled) turns the matrix into a test; without it, each run is compared with the previous one and any NEW access is an alert. ' +
+      'Needs a login routine (loginRoutine) that fills its fields with valueFromCredential, the same field names in every role.',
+    inputSchema: z.object({ id: safeName, matrix: permissionMatrixObjectSchema }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async ({ id, matrix }) => {
+    try {
+      return toToolResult(await putJson(`/v1/permissions/${id}`, matrix));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'run_permission_matrix',
+  {
+    title: 'Run a permission matrix',
+    description:
+      'Run every role x probe of a saved matrix in a real browser (one login per role, never two sessions of one role at once). Returns ' +
+      'IMMEDIATELY with a runId; then call get_permission_matrix_result. Pass buildId so the result says which build it describes.',
+    inputSchema: matrixRunBodySchema.extend({ id: safeName }),
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async ({ id, ...body }) => {
+    try {
+      return toToolResult(await postJson(`/v1/permissions/${id}/run`, body));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_permission_matrix_result',
+  {
+    title: 'Get a permission matrix result',
+    description:
+      'The role x probe table of a matrix run: each cell allowed/denied/error (controls: hidden/enabled/disabled), which deniedWhen rule matched, ' +
+      'the expectation and whether it was met, the jobId for the evidence, and "changes" against the previous run (gainedAccess with alert=true ' +
+      'means a role reached something nobody said it should). Verdict: green (0), red (1: an expectation failed or an unexpected gain of access), ' +
+      'infra-error (2: a cell could not be answered). waitSeconds (max 55) blocks until the run ends.',
+    inputSchema: z.object({ runId: z.string().regex(/^perm_[A-Za-z0-9_-]{1,40}$/), waitSeconds: z.number().int().min(0).max(55).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ runId, waitSeconds }) => {
+    try {
+      return toToolResult(await getJson(`/v1/permissions/runs/${encodeURIComponent(runId)}${waitSeconds ? `?wait=${waitSeconds}` : ''}`));
     } catch (error) {
       return toErrorResult(error);
     }

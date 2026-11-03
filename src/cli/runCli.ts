@@ -68,6 +68,9 @@ Commands
   vault run --impact [--changed-files <file|->] [--surface s]... [--fail-fast] [--build-id b]
                                     (whole vault, items most likely to break first; same exit codes as 'suite')
   vault confirm-green <ITEM-ID> [--build-id b]
+  permissions run <matrixId> [--build-id b] [--retention ephemeral|standard] [--timeout-seconds N] [--no-wait]
+                                    (role x probe permission matrix; exit 1 on an unmet expectation or an unexpected gain of access)
+  permissions show <runId>
 
 Global options
   --json         one machine-readable JSON object on stdout (cliSchema ${CLI_SCHEMA_VERSION})
@@ -177,6 +180,42 @@ function formatSuite(state: Record<string, any>): string {
   return `${lines.join('\n')}\n`;
 }
 
+function formatMatrix(state: Record<string, any>): string {
+  const lines = [`Permission matrix "${state.matrixId}" (${state.runId}): ${state.status}${state.buildId ? `  build ${state.buildId}` : ''}`];
+  const cells = state.cells as Array<Record<string, any>>;
+  const probes = [...new Set(cells.map((cell) => String(cell.probeId)))];
+  const roles = [...new Set(cells.map((cell) => String(cell.role)))];
+  const word = (cell: Record<string, any>): string => {
+    const answer = cell.outcome === 'allowed' && cell.state ? String(cell.state) : String(cell.outcome);
+    return cell.matches === false ? `${answer}!=${cell.expected}` : answer;
+  };
+  const columns = probes.map((probe) =>
+    Math.max(probe.length, ...cells.filter((cell) => cell.probeId === probe).map((cell) => word(cell).length)),
+  );
+  const width = Math.max(4, ...roles.map((role) => role.length));
+  lines.push(`  ${'role'.padEnd(width)}  ${probes.map((probe, i) => probe.padEnd(columns[i]!)).join('  ')}`);
+  for (const role of roles) {
+    const row = probes.map((probe, i) => {
+      const cell = cells.find((c) => c.role === role && c.probeId === probe);
+      return (cell ? word(cell) : '-').padEnd(columns[i]!);
+    });
+    lines.push(`  ${role.padEnd(width)}  ${row.join('  ')}`);
+  }
+  for (const cell of cells.filter((c) => c.outcome === 'error')) {
+    lines.push(`  ERROR  ${cell.role} / ${cell.probeId}: ${cell.errorType ?? ''} ${cell.errorMessage ?? ''}`.trimEnd());
+  }
+  for (const change of (state.changes ?? []) as Array<Record<string, any>>) {
+    lines.push(`  ${change.alert ? 'ALERT ' : 'change'}  ${change.role} / ${change.probeId}: ${change.from} -> ${change.to} (${change.change})`);
+  }
+  if (state.comparedTo) {
+    lines.push(`  compared with ${state.comparedTo.runId} (${state.comparedTo.createdAt}${state.comparedTo.buildId ? `, build ${state.comparedTo.buildId}` : ''})`);
+  }
+  if (state.verdict) {
+    lines.push(`Verdict: ${String(state.verdict).toUpperCase()} (exit ${state.exitCode}) - ${state.verdictReason ?? ''}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 export async function runCli(argv: string[], config: CliConfig, io: CliIo): Promise<ExitCode> {
   let command = argv[0] ?? '';
   let asJson = argv.includes('--json');
@@ -192,7 +231,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -233,6 +272,77 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const formatted = formatRun(response.body as Record<string, any>);
       emit(formatted.json, formatted.text);
       return formatted.exitCode;
+    }
+
+    if (command === 'permissions run' || command === 'permissions show') {
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { ...common, 'build-id': { type: 'string' }, retention: { type: 'string' }, 'timeout-seconds': { type: 'string' }, 'no-wait': { type: 'boolean' } },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [id] = positionals;
+
+      if (command === 'permissions show') {
+        if (!id || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai permissions show <runId>');
+        const response = await api('GET', `/v1/permissions/runs/${encodeURIComponent(id)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const state = response.body as Record<string, any>;
+        if (state.status === 'running') {
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'permissions show', exitCode: 2, result: state as never }, formatMatrix(state));
+          return 2;
+        }
+        const exitCode = (state.exitCode ?? 2) as ExitCode;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'permissions show', exitCode, result: state as never }, formatMatrix(state));
+        return exitCode;
+      }
+
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai permissions run <matrixId> [options]');
+      if (values.retention !== undefined && values.retention !== 'ephemeral' && values.retention !== 'standard') {
+        throw new CliError('UsageError', '--retention must be ephemeral or standard');
+      }
+      const timeoutSeconds = values['timeout-seconds'] === undefined ? 3600 : Number(values['timeout-seconds']);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1) throw new CliError('UsageError', '--timeout-seconds must be a positive number');
+
+      const started = await api('POST', `/v1/permissions/${encodeURIComponent(id)}/run`, {
+        ...(values['build-id'] ? { buildId: values['build-id'] } : {}),
+        ...(values.retention ? { retention: values.retention } : {}),
+      });
+      if (started.status !== 202) throw errorOf(started);
+      const accepted = started.body as { runId: string; matrixId: string; status: string; cells: number; sessions: number };
+
+      if (values['no-wait']) {
+        const { runId, matrixId, status, cells, sessions } = accepted;
+        emit(
+          { cliSchema: CLI_SCHEMA_VERSION, command: 'permissions run', exitCode: 0, result: { runId, matrixId, status, cells, sessions } },
+          `Matrix run started: ${runId} (${cells} cells, ${sessions} sessions). Poll with: GET /v1/permissions/runs/${runId}\n`,
+        );
+        return 0;
+      }
+
+      io.err(`[${accepted.runId}] started: ${accepted.cells} cell(s) in ${accepted.sessions} session(s)\n`);
+      const deadline = Date.now() + timeoutSeconds * 1000;
+      for (;;) {
+        if (io.signal?.aborted) {
+          await api('POST', `/v1/permissions/runs/${accepted.runId}/cancel`).catch(() => undefined);
+          throw new CliError('Cancelled', `interrupted; the matrix run ${accepted.runId} was cancelled`);
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new CliError(
+            'MatrixWaitTimeout',
+            `the matrix run ${accepted.runId} did not finish within ${timeoutSeconds}s; it keeps running (GET /v1/permissions/runs/${accepted.runId})`,
+          );
+        }
+        const poll = await api('GET', `/v1/permissions/runs/${accepted.runId}?wait=${Math.min(50, Math.max(1, Math.floor(remaining / 1000)))}`, undefined, 70_000);
+        if (poll.status !== 200) throw errorOf(poll);
+        const state = poll.body as Record<string, any>;
+        if (state.status !== 'running') {
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'permissions run', exitCode: state.exitCode as ExitCode, result: state as never }, formatMatrix(state));
+          return state.exitCode as ExitCode;
+        }
+      }
     }
 
     if (command === 'suite') {

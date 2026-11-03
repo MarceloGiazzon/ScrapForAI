@@ -890,6 +890,7 @@ Variable value:
 | `assertCount` | Fail unless selector count matches condition. | `selector`, `operator`, `count` |
 | `screenshot` | Save a named screenshot. | `name` |
 | `collect` | Collect selected evidence. | `what` |
+| `probePage` | Record the page state into `extracted` without ever failing: URL, navigation HTTP status, which `textMarkers` are present, and for `selector` its count/visible/enabled (waits up to `timeoutMs` for it to appear). Used by permission matrices. | `name`, `selector`, `textMarkers`, `timeoutMs` |
 | `extractText` | Save selector inner text to `extracted`. | `selector`, `name`, `timeoutMs` |
 | `extractAttribute` | Save an attribute to `extracted`. | `selector`, `attribute`, `name`, `timeoutMs` |
 | `evaluate` | Run page JavaScript and save result. | `name`, `script` |
