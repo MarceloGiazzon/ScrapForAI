@@ -176,6 +176,14 @@ function resolveValue(step: RunnableStep, request: ResolvedExplorationRequest, t
     return value;
   }
 
+  if ('valueFromParameter' in step && step.valueFromParameter !== undefined) {
+    const value = request.parameterRecord?.values[step.valueFromParameter];
+    if (value === undefined) {
+      throw new StepExecutionError('Parameter value was not generated');
+    }
+    return value;
+  }
+
   if ('valueFromVariable' in step && step.valueFromVariable !== undefined) {
     const value = request.variables?.[step.valueFromVariable];
     if (value === undefined) {
@@ -655,6 +663,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     targetUrl: normalizedTargetUrl,
     caller: request.caller ?? null,
     ...(functional ? { profile: 'functional' as const } : {}),
+    ...(request.parameterRecord ? { parameters: request.parameterRecord } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
     ...(request.teardown
       ? { teardown: teardownSteps, teardownStatus: teardownSteps.length === request.teardown.length && teardownSteps.every((s) => s.status === 'passed') ? ('passed' as const) : ('failed' as const) }
@@ -701,6 +710,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         targetProfile: request.targetProfile,
         credentialSet: request.credentialSet,
         options: request.options,
+        // T5.3: declared parameters (never the generated values or the seed: those are per run).
+        ...(request.parameters ? { parameters: request.parameters } : {}),
         // As written, with include steps intact, so saving the run keeps the reuse.
         steps: request.unexpanded?.steps ?? request.steps,
         teardown: request.unexpanded?.teardown ?? request.teardown,

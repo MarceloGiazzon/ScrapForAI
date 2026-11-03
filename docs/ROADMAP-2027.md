@@ -988,6 +988,12 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.3 — Parâmetros e geradores de valores · G
 
+> **Parte 1 implementada em 2026-11-03** (`src/generators/`, `src/schemas/parameters.schema.ts`, ver AGENTS.md, "Parameters and generators"):
+> `parameters` (geradores `int`, `decimal`, `date`, `string` com os charsets `alpha|alnum|unicode|hostile`, `oneOf`, ou `cases`),
+> `valueFromParameter` e `valueFromGenerator` (açúcar), bordas primeiro, `seed` reproduzível, `sample`, e `result.parameters`.
+> **Falta (parte 2):** o gerador `document` (`ci-uy`, `rut-uy`, `cpf`, `cnpj`, válidos ou inválidos) com a marca `synthetic` nos relatórios,
+> e parâmetros próprios em rotinas incluídas (hoje uma rotina incluída só usa os parâmetros da que a inclui).
+
 **Especificação** ([Apêndice A](#a6-parâmetros-e-geradores)):
 - A rotina declara `parameters: [{ name, generator | cases }]`, e os steps usam
   `valueFromParameter`. Um `valueFromGenerator` inline é açúcar sintático para um parâmetro

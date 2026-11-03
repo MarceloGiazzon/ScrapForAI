@@ -140,6 +140,15 @@ login URL it bounces to, its "not authorized" text, a 403) and the probes: `url`
 - Never put a role in a matrix to "see what happens" against an environment where its actions change real data; action probes
   really run.
 
+## Test data: parameters and generators
+
+For a field with limits (a quantity, a date, a name of at most N characters) do not type one value: declare `parameters` and use
+`valueFromParameter` (or `valueFromGenerator` on the step, which needs a step `id`). The generator tries the **edge values first** (min,
+min-1, max, max+1, zero, empty, the maximum length, quotes/markup/emoji for `hostile` strings) and then random ones; `sample` picks which. The
+values just outside the range are deliberate: the page SHOULD reject them, so assert on the rejection for those samples. Read
+`result.parameters` for what was typed, and replay a failure with the same `seed` and `sample`. Never put a password in `cases`; use the vault.
+Not available yet: `document` (CI/RUT/CPF/CNPJ) generators.
+
 ## Describing a system's screens (catalogue and evolution)
 
 - `propose_screen_catalog` (an MCP prompt, argument `targetProfile`) walks you through exploring a profile read-only and PROPOSING

@@ -1,5 +1,7 @@
+import { ParameterError, resolveParameters } from '../generators/resolveParameters.js';
 import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpander.js';
 import type { ExplorationRequest, ExplorationStep, RunnableStep } from '../schemas/explorationRequest.schema.js';
+import type { ParameterRecord } from '../schemas/parameters.schema.js';
 import type { BuildInfo } from './buildProbe.js';
 import { RequestResolutionError } from './resolutionError.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
@@ -17,6 +19,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   teardown?: RunnableStep[];
   /** The routines expanded into this run, with the versions actually used. */
   includes?: IncludedRoutineRef[];
+  /** T5.3: the values the run's parameters take for its seed and sample. Absent when the run uses no parameter. */
+  parameterRecord?: ParameterRecord;
   /** The request as written (include steps intact), kept so a good run can be saved as a routine. */
   unexpanded?: { steps: ExplorationStep[]; teardown?: ExplorationStep[] };
   /** Set only when `credentialSet` was used; drives the per-fill origin check. */
@@ -63,20 +67,41 @@ export async function resolveExplorationRequest(
   }
 
   const expanded = await expandIncludes(
-    { steps: request.steps, teardown: request.teardown },
+    { steps: request.steps, teardown: request.teardown, ...(request.parameters ? { parameters: request.parameters } : {}) },
     // The includes must belong to the app the routine was written for, even when a suite runs it against
     // another environment's profile (qa instead of dev).
     { targetProfile: options.includeProfile ?? request.targetProfile },
   );
+  // T5.3: parameters and inline generators become concrete values (the seed is returned, so a run can be replayed).
+  let parameterized: ReturnType<typeof resolveParameters<RunnableStep>>;
+  try {
+    parameterized = resolveParameters<RunnableStep>({
+      steps: expanded.steps,
+      ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
+      ...(request.parameters ? { parameters: request.parameters } : {}),
+      ...(request.seed ? { seed: request.seed } : {}),
+      ...(request.sample === undefined ? {} : { sample: request.sample }),
+    });
+  } catch (error) {
+    if (error instanceof ParameterError) throw new RequestResolutionError(400, error.type, error.message);
+    throw error;
+  }
+
   const { steps: _steps, teardown: _teardown, ...rest } = request;
   const resolved: ResolvedExplorationRequest = {
     ...rest,
     targetUrl,
-    steps: expanded.steps,
+    steps: parameterized.steps,
     ...(buildProbe ? { buildProbe } : {}),
-    ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
-    ...(expanded.includes.length > 0
-      ? { includes: expanded.includes, unexpanded: { steps: request.steps, ...(request.teardown ? { teardown: request.teardown } : {}) } }
+    ...(parameterized.teardown && parameterized.teardown.length > 0 ? { teardown: parameterized.teardown } : {}),
+    ...(parameterized.record ? { parameterRecord: parameterized.record } : {}),
+    // Kept "as written" whenever the steps were rewritten (includes expanded, inline generators turned into parameters), so a good
+    // run saves as the routine its author wrote, not as the expansion.
+    ...(expanded.includes.length > 0 || parameterized.record
+      ? {
+          ...(expanded.includes.length > 0 ? { includes: expanded.includes } : {}),
+          unexpanded: { steps: request.steps, ...(request.teardown ? { teardown: request.teardown } : {}) },
+        }
       : {}),
   };
 

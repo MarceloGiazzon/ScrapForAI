@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
+import { checkedGeneratorSchema, parameterName, parametersSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 /** Build/revision label of the application under test, e.g. "rev4519" or "2026.11/rc1". */
@@ -80,12 +81,17 @@ const valueSource = z.union([
   z.object({ value: valueText }).strict(),
   z.object({ valueFromCredential: safeName }).strict(),
   z.object({ valueFromVariable: safeName }).strict(),
+  z.object({ valueFromParameter: parameterName }).strict(),
+  z.object({ valueFromGenerator: checkedGeneratorSchema }).strict(),
 ]);
 
 const valueFields = {
   value: valueText.optional(),
   valueFromCredential: safeName.optional(),
   valueFromVariable: safeName.optional(),
+  // T5.3: a declared parameter of the run/routine, or an inline generator (sugar for a parameter of its own).
+  valueFromParameter: parameterName.optional(),
+  valueFromGenerator: checkedGeneratorSchema.optional(),
 };
 
 function withValueSource<T extends z.ZodRawShape>(shape: T) {
@@ -94,8 +100,12 @@ function withValueSource<T extends z.ZodRawShape>(shape: T) {
     .strict()
     .refine(
       (step) => {
-        const valueStep = step as { value?: string; valueFromCredential?: string; valueFromVariable?: string };
-        return [valueStep.value, valueStep.valueFromCredential, valueStep.valueFromVariable].filter((value) => value !== undefined).length === 1;
+        const valueStep = step as Record<'value' | 'valueFromCredential' | 'valueFromVariable' | 'valueFromParameter' | 'valueFromGenerator', unknown>;
+        return (
+          [valueStep.value, valueStep.valueFromCredential, valueStep.valueFromVariable, valueStep.valueFromParameter, valueStep.valueFromGenerator].filter(
+            (value) => value !== undefined,
+          ).length === 1
+        );
       },
       {
         message: 'Exactly one value source is required',
@@ -386,6 +396,11 @@ export const explorationRequestBaseSchema = z
     // T1.2: id of a vault credential set. Its fields are loaded server-side into `credentials`.
     credentialSet: safeName.optional(),
     variables: z.record(safeName, z.string().max(5000)).optional(),
+    // T5.3: values the steps draw with `valueFromParameter`. `seed` makes them reproducible (absent: a fresh one is generated and
+    // returned in result.parameters); `sample` is which value of each parameter this run takes (edge values first, then random).
+    parameters: parametersSchema.optional(),
+    seed: seedSchema.optional(),
+    sample: sampleIndexSchema.optional(),
     caller: callerSchema.optional(),
     options: explorationOptionsSchema.default({ headless: true, trace: false, screenshots: 'onFailure', profile: 'full', collectDomOnFailure: false }),
     steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
@@ -398,6 +413,7 @@ export const explorationRequestBaseSchema = z
 type RoutineForValidation = {
   targetUrl?: string;
   targetProfile?: string;
+  parameters?: Array<{ name: string }>;
   steps: Array<z.infer<typeof explorationStepSchema>>;
   teardown?: Array<z.infer<typeof explorationStepSchema>>;
 };
@@ -412,6 +428,7 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
   }
 
   validateStepList(routine.steps, 'steps', ctx);
+  validateParameterReferences(routine, ctx);
 
   if (routine.teardown) {
     validateStepList(routine.teardown, 'teardown', ctx);
@@ -423,6 +440,24 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
         message: `steps + teardown exceed MAX_STEPS_PER_JOB (${env.MAX_STEPS_PER_JOB})`,
       });
     }
+  }
+}
+
+/**
+ * A `valueFromParameter` must name a declared parameter. When the routine includes another one the name may be declared there, which
+ * only the server can see (includes are expanded before the run), so the check is left to it; without includes it is made here.
+ */
+function validateParameterReferences(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
+  const lists = { steps: routine.steps, ...(routine.teardown ? { teardown: routine.teardown } : {}) };
+  if (Object.values(lists).some((list) => list.some((step) => step.action === 'include'))) return;
+  const declared = new Set((routine.parameters ?? []).map((parameter) => parameter.name));
+  for (const [field, list] of Object.entries(lists)) {
+    list.forEach((step, index) => {
+      const name = (step as { valueFromParameter?: string }).valueFromParameter;
+      if (name !== undefined && !declared.has(name)) {
+        ctx.addIssue({ code: 'custom', path: [field, index, 'valueFromParameter'], message: `parameter "${name}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
+      }
+    });
   }
 }
 

@@ -635,3 +635,18 @@ test('run --profile: sent to the API as is; anything but full/functional is a us
   assert.equal((await cli(['run', 'login-flow', '--profile', 'turbo'])).code, 2);
   assert.equal(seen.length, 0);
 });
+
+// T5.3: `scrapforai run --seed --sample`
+
+test('run --seed/--sample: sent to the API as they are; a bad sample or an empty seed is a usage error that never reaches it', async () => {
+  handler = (_req, respond) => respond(200, { jobId: 'job_1', status: 'passed', durationMs: 1, steps: [], evidence: { screenshots: [], consoleErrors: [], networkFailures: [] } });
+  await cli(['run', 'form-flow', '--seed', 'abc', '--sample', '3', '--json']);
+  assert.deepEqual(seen[0]!.body, { seed: 'abc', sample: 3 });
+  await cli(['run', 'form-flow', '--sample', '0', '--json']);
+  assert.deepEqual(seen[0]!.body, { sample: 0 }, 'sample 0 is a real value, not "absent"');
+
+  for (const args of [['run', 'a', '--sample', '-1'], ['run', 'a', '--sample', 'x'], ['run', 'a', '--sample', '1.5'], ['run', 'a', '--seed', '']]) {
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+  }
+  assert.equal(seen.length, 0);
+});

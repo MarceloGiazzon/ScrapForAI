@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { buildIdSchema, explorationOptionsSchema, explorationStepSchema, safeName } from './explorationRequest.schema.js';
+import { parametersSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 /**
  * T1.3 library routine. A routine is DATA: this JSON is what gets stored, versioned, reviewed in PRs
@@ -21,6 +22,8 @@ const contentShape = {
   targetProfile: safeName,
   credentialSet: safeName.optional(),
   options: explorationOptionsSchema.optional(),
+  // T5.3. Optional with no default, like teardown: a default would change the digest of routines saved before parameters existed.
+  parameters: parametersSchema.optional(),
   steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
   // T1.4. Optional with NO default on purpose: a default would add `teardown: []` to every routine and
   // change the digest of versions saved before teardown existed, failing their integrity check.
@@ -56,6 +59,7 @@ export const routineSaveBodyBase = z
     targetProfile: safeName.optional(),
     credentialSet: safeName.optional(),
     options: explorationOptionsSchema.optional(),
+    parameters: contentShape.parameters,
     steps: contentShape.steps.optional(),
     teardown: contentShape.teardown,
     fromJobId: jobId.optional(),
@@ -93,6 +97,9 @@ export const routineRunBodySchema = z
     retention: z.enum(['ephemeral', 'standard']).optional(),
     // T5.2: `functional` = stand-ins for images/media/fonts, no screenshots, no trace. Default: what the routine says (full).
     profile: z.enum(['full', 'functional']).optional(),
+    // T5.3: replay a run's generated values (the seed is in its result.parameters) or take another sample.
+    seed: seedSchema.optional(),
+    sample: sampleIndexSchema.optional(),
     buildId: buildIdSchema.optional(),
     caller: z
       .object({

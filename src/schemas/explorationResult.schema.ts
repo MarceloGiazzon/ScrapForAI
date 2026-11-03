@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { parameterRecordSchema } from './parameters.schema.js';
+
 import { callerSchema } from './explorationRequest.schema.js';
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
@@ -82,6 +84,8 @@ export const explorationResultSchema = z.object({
   durationMs: z.number(),
   targetUrl: z.string(),
   caller: callerSchema.nullable(),
+  /** The values the run's parameters took, with the seed that reproduces them (T5.3). Present only when the run used parameters. */
+  parameters: parameterRecordSchema.optional(),
   /** Present only for a `functional` run (T5.2): screenshots/trace were off and images, media and fonts were stand-ins. */
   profile: z.literal('functional').optional(),
   /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */

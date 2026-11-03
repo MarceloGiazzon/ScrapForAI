@@ -217,6 +217,21 @@ step limits, artifact retention, etc.).
   manifest), never in isolation; a real `EPERM` on a rename was captured in one run. After the change 3 consecutive full runs passed 52/52, with no
   `[fs]` line in the last two, so the cause is the best explanation, not a proven one. If a "not found right after a run" failure returns, look for
   `[fs]`/`[evidence]` lines first.
+- **Parameters and generators** (`src/generators/`, `src/schemas/parameters.schema.ts`, T5.3 part 1): a run or routine declares
+  `parameters: [{ name, generator, includeBoundaries? } | { name, cases }]` and a fill/selectOption step takes `valueFromParameter: name`;
+  `valueFromGenerator: { type: ... }` on a step is sugar for a parameter of its own (named `gen_<stepId>`, so give such steps an id). Generators:
+  `int`, `decimal` (scale 0-8, exact steps), `date` (ISO `from`/`to`, output `format` of yyyy/yy/MM/dd, default `dd/MM/yyyy`), `string` (length in
+  characters, charset `alpha|alnum|unicode|hostile`; hostile = quotes, `<script>`, SQL injection, format directives, emoji, a right-to-left override),
+  `oneOf`. **Edge values first**, in this order and without repeats: int `min, min-1, max, max+1, 0, -1`; decimal the same in exact steps of 10^-scale;
+  date `from`, the day before, `to`, the day after, empty; string empty, `min`, `min-1`, `max`, `max+1`; oneOf its values. Values just outside the range are
+  INTENDED (they test validation); a test that wants only valid input uses `includeBoundaries: false` or `oneOf`/`cases`. After the edges, random values.
+  `sample` (default 0) is which value of each parameter the run takes (all parameters move together; combinations are T5.4); a random value depends only
+  on (seed, name, position), so any sample replays alone. `seed` is the caller's, or a fresh one that is returned: `result.parameters` = `{ seed, sample,
+  values, sources }` (present only when the run used parameters; not secrets, shown as they are). Replay with the same `seed` + `sample`
+  (`POST /v1/routines/:id/run`, `run_routine`, `scrapforai run --seed s --sample N`). A routine saves its `parameters` (optional, no default, so older digests
+  hold) and, saved `fromJobId`, keeps the steps AS WRITTEN (generators intact), never the seed or the generated values. A `valueFromParameter` must name a declared
+  parameter (checked at validation when the routine has no `include`, after expansion otherwise); `cases` and `oneOf` literals are linted like step values (a
+  secret in them is refused, 422). An included routine can use its includer's parameters but not declare its own (part 2). `document` generators: part 2.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

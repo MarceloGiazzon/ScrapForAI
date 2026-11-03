@@ -20,7 +20,7 @@ import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { getTarget } from '../targets/targetStore.js';
 import { listAllCredentialValues } from '../vault/credentials/credentialVault.js';
 import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
-import { lintRoutineSteps } from './routineLint.js';
+import { lintRoutineSteps, lintParameters } from './routineLint.js';
 
 function zodDetails(error: ZodError): Array<{ path: string; message: string }> {
   return error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
@@ -40,6 +40,7 @@ interface JobRequestFile {
   targetProfile?: string;
   credentialSet?: string;
   options?: unknown;
+  parameters?: unknown;
   steps?: unknown;
   teardown?: unknown;
 }
@@ -74,6 +75,7 @@ async function contentFromJob(body: RoutineSaveBody, jobId: string, allowFailedJ
     targetProfile: body.targetProfile ?? request.targetProfile,
     credentialSet: body.credentialSet ?? request.credentialSet,
     options: body.options ?? request.options,
+    parameters: body.parameters ?? request.parameters,
     steps: request.steps,
     teardown: request.teardown,
   };
@@ -100,6 +102,7 @@ export async function saveRoutine(
     targetProfile: body.targetProfile,
     credentialSet: body.credentialSet,
     options: body.options,
+    parameters: body.parameters,
     steps: body.steps,
     teardown: body.teardown,
     // From the job, but anything the caller passed explicitly wins (contentFromJob already applies that).
@@ -120,6 +123,7 @@ export async function saveRoutine(
     targetProfile: content.targetProfile,
     credentialSet: content.credentialSet,
     options: content.options,
+    parameters: content.parameters,
     steps: content.steps,
     teardown: content.teardown,
   });
@@ -129,9 +133,10 @@ export async function saveRoutine(
 
   // Includes are checked now, not at the first run: cycles (this routine included, directly or not),
   // depth, a missing or retired routine, another target profile, or an invalid expanded result.
-  await expandIncludes({ steps: content.steps, teardown: content.teardown }, { targetProfile: content.targetProfile, selfId: id });
+  await expandIncludes({ steps: content.steps, teardown: content.teardown, ...(content.parameters ? { parameters: content.parameters } : {}) }, { targetProfile: content.targetProfile, selfId: id });
 
-  const issues = lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], await listAllCredentialValues());
+  const vaultValues = await listAllCredentialValues();
+  const issues = [...lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], vaultValues), ...lintParameters(content.parameters ?? [], vaultValues)];
   if (issues.length > 0) {
     throw new RoutineLibraryError(422, 'RoutineLintError', 'Routine contains what looks like a secret', issues);
   }
@@ -164,6 +169,9 @@ export async function runLibraryRoutine(
     targetProfile: body.targetProfile ?? routine.targetProfile,
     credentialSet: body.credentialSet ?? routine.credentialSet,
     variables: body.variables,
+    parameters: routine.parameters,
+    seed: body.seed,
+    sample: body.sample,
     caller: body.caller,
     options:
       body.retention || body.profile

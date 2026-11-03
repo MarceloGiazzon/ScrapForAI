@@ -131,7 +131,9 @@ async function expandList(
  * through others, is refused at save time rather than at run time.
  */
 export async function expandIncludes(
-  input: { steps: ExplorationStep[]; teardown?: ExplorationStep[] },
+  // `parameters` (T5.3): what the including run/routine declares, so the expanded steps may use `valueFromParameter`.
+  // An included routine's steps can use the includer's parameters; they cannot bring their own.
+  input: { steps: ExplorationStep[]; teardown?: ExplorationStep[]; parameters?: unknown[] },
   options: { targetProfile?: string; selfId?: string } = {},
 ): Promise<ExpandedSteps> {
   const context: Context = {
@@ -159,6 +161,7 @@ export async function expandIncludes(
     targetProfile: options.targetProfile ?? 'expanded',
     steps: main.steps.length > 0 ? main.steps : input.steps,
     ...(teardown.length > 0 ? { teardown } : {}),
+    ...(input.parameters ? { parameters: input.parameters } : {}),
   });
   if (!check.success) {
     throw new IncludeError(

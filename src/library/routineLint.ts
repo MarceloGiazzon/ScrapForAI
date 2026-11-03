@@ -30,6 +30,28 @@ function matchesVaultValue(text: string, secret: string): boolean {
   return text === secret || (secret.length >= MIN_SUBSTRING_SECRET_LENGTH && text.includes(secret));
 }
 
+/** Why a piece of text may not be stored in a routine, or undefined when it is fine. Never echoes the text. */
+function secretProblem(text: string, vaultValues: string[]): string | undefined {
+  if (vaultValues.some((secret) => matchesVaultValue(text, secret))) {
+    return 'contains a credential vault value; use valueFromCredential instead of a literal';
+  }
+  const known = SECRET_PATTERNS.find(({ pattern }) => pattern.test(text));
+  return known ? `looks like ${known.name}; secrets must not be stored in a routine` : undefined;
+}
+
+/** The literals a routine's parameters carry (`cases`, `oneOf` values) are stored with it, so they are checked like step values. */
+export function lintParameters(parameters: Array<{ name: string; cases?: string[]; generator?: { type: string; values?: string[] } }>, vaultValues: string[]): LintIssue[] {
+  const issues: LintIssue[] = [];
+  parameters.forEach((parameter, index) => {
+    const literals = parameter.cases ?? (parameter.generator?.type === 'oneOf' ? (parameter.generator.values ?? []) : []);
+    literals.forEach((text, position) => {
+      const problem = secretProblem(text, vaultValues);
+      if (problem) issues.push({ path: `parameters.${index}.${parameter.cases ? 'cases' : 'generator.values'}.${position}`, message: problem });
+    });
+  });
+  return issues;
+}
+
 /**
  * Refuses routines that embed a secret. Messages name the step and the kind of problem but never
  * echo the offending text, so an error response cannot leak what it is refusing.
@@ -44,17 +66,8 @@ export function lintRoutineSteps(steps: ExplorationStep[], vaultValues: string[]
         continue;
       }
 
-      const where = `steps.${index}.${property}`;
-
-      if (vaultValues.some((secret) => matchesVaultValue(text, secret))) {
-        issues.push({ path: where, message: 'contains a credential vault value; use valueFromCredential instead of a literal' });
-        continue;
-      }
-
-      const known = SECRET_PATTERNS.find(({ pattern }) => pattern.test(text));
-      if (known) {
-        issues.push({ path: where, message: `looks like ${known.name}; secrets must not be stored in a routine` });
-      }
+      const problem = secretProblem(text, vaultValues);
+      if (problem) issues.push({ path: `steps.${index}.${property}`, message: problem });
     }
   });
 

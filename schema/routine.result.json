@@ -58,6 +58,64 @@
         }
       ]
     },
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "string"
+        },
+        "sample": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "values": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sources": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "enum": [
+                  "boundary",
+                  "random",
+                  "case"
+                ]
+              },
+              "index": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "source",
+              "index"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "seed",
+        "sample",
+        "values",
+        "sources"
+      ],
+      "additionalProperties": false
+    },
     "profile": {
       "type": "string",
       "const": "functional"
