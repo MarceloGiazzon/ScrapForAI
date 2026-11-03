@@ -802,5 +802,71 @@ window.SCRAPFORAI_SEARCH_INDEX = [
     "title": "Ferramentas MCP",
     "href": "foundations.html#mcp-tools",
     "keywords": "Ferramentas MCP"
+  },
+  {
+    "section": "Guias",
+    "title": "Cofre de regressão, assinatura e relatórios",
+    "href": "assurance.html",
+    "keywords": "Cofre de regressão, assinatura e relatórios cofre de regressão RED GREEN provenRed firstGreen ordem por impacto evidência assinada Ed25519 cadeia exportar verificar keyId relatório html pdf homologação"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Cofre de regressão",
+    "href": "assurance.html#regression-vault",
+    "keywords": "Cofre de regressão"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Um item",
+    "href": "assurance.html#vault-item",
+    "keywords": "Um item"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "De RED para GREEN",
+    "href": "assurance.html#red-green",
+    "keywords": "De RED para GREEN"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Rodando o cofre, ordenado por impacto",
+    "href": "assurance.html#vault-suites",
+    "keywords": "Rodando o cofre, ordenado por impacto"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "A tela Vault",
+    "href": "assurance.html#vault-ui",
+    "keywords": "A tela Vault"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Evidência assinada",
+    "href": "assurance.html#signed-evidence",
+    "keywords": "Evidência assinada"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "A cadeia",
+    "href": "assurance.html#chain",
+    "keywords": "A cadeia"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Exportação e verificação offline",
+    "href": "assurance.html#export-verify",
+    "keywords": "Exportação e verificação offline"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "O que uma assinatura prova",
+    "href": "assurance.html#signature-proves",
+    "keywords": "O que uma assinatura prova"
+  },
+  {
+    "section": "Cofre de regressão, assinatura e relatórios",
+    "title": "Relatórios",
+    "href": "assurance.html#reports",
+    "keywords": "Relatórios"
   }
 ];

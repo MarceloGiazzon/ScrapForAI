@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cofre de regressão, assinatura e relatórios · ScrapForAI</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="pt">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Buscar">Buscar</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">Manual do Usuário · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link" href="../en/assurance.html">EN</a>
+      <a class="lang-link active" href="#">PT</a>
+      <a class="lang-link" href="../es/assurance.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Pesquisar no manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Primeiros passos</div>
+        <a class="nav-link" href="index.html">Visão geral</a>
+        <a class="nav-link" href="installation.html">Instalação e configuração</a>
+        <a class="nav-link" href="quickstart.html">Início rápido</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Conceitos e segurança</div>
+        <a class="nav-link" href="security.html">Modelo de segurança</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Referência</div>
+        <a class="nav-link" href="api-reference.html">Referência da API</a>
+        <a class="nav-link" href="routine-guide.html">Guia da requisição de rotina</a>
+        <a class="nav-link" href="step-actions.html">Referência de ações de passo</a>
+        <a class="nav-link" href="schemas.html">Esquemas JSON</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guias</div>
+        <a class="nav-link" href="examples.html">Exemplos práticos</a>
+        <a class="nav-link" href="dom-inspection.html">Inspeção do DOM</a>
+        <a class="nav-link" href="web-console.html">Console web</a>
+        <a class="nav-link" href="artifacts.html">Artefatos e evidências</a>
+        <a class="nav-link" href="foundations.html">Credenciais, rotinas e suítes</a>
+        <a class="nav-link active" href="assurance.html">Cofre de regressão, assinatura e relatórios</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker e túnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Projeto</div>
+        <a class="nav-link" href="development.html">Fluxo de desenvolvimento</a>
+        <a class="nav-link" href="troubleshooting.html">Solução de problemas</a>
+        <a class="nav-link" href="glossary.html">Glossário</a>
+      </div>
+    <div class="sidebar-footer">
+      Executor de exploração de navegador para ambientes de dev e QA controlados.<br><br>
+      &copy; Projeto ScrapForAI
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guias</div>
+      <h1>Cofre de regressão, assinatura e relatórios</h1>
+      <p class="lede">Como um bug corrigido vira prova permanente: o cofre de regressão guarda a execução que falhou (RED) e a primeira que passou (GREEN) como evidência fixada, a evidência é assinada para poder ser verificada em qualquer lugar, e um relatório a transforma num documento que você pode entregar.</p>
+
+<h2 id="regression-vault">Cofre de regressão</h2>
+<p>Um bug corrigido deve continuar corrigido. O cofre de regressão guarda cada bug corrigido (ou cenário difícil) num arquivo JSON, <code>&lt;ITEM-ID&gt;.json</code>, junto com a <strong>rotina que o reproduz</strong> e <strong>duas evidências fixadas</strong>: a execução que falhou antes da correção e a primeira que passou depois dela. Aponte <code>REGRESSION_VAULT_DIR</code> para dentro de um repositório git para revisar os itens em pull requests; o padrão é <code>&lt;dataDir&gt;/regression-vault</code>.</p>
+
+<h2 id="vault-item">Um item</h2>
+<table>
+  <tr><th>Campo</th><th>Significado</th></tr>
+  <tr><td><code>id</code></td><td>Como <code>GX-12</code> ou <code>REG-209</code>.</td></tr>
+  <tr><td><code>title</code>, <code>surface</code>, <code>tags</code></td><td>O que é e que área da aplicação toca.</td></tr>
+  <tr><td><code>type</code></td><td><code>BUG</code>, <code>SCENARIO</code> ou <code>BOUNDARY</code>.</td></tr>
+  <tr><td><code>severity</code></td><td><code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code>, <code>P0</code>, <code>P1</code> ou nulo.</td></tr>
+  <tr><td><code>status</code></td><td><code>ACTIVE</code>, <code>QUARANTINED</code> ou <code>RETIRED</code>.</td></tr>
+  <tr><td><code>routine</code></td><td><code>{ id, version }</code>: uma rotina da biblioteca numa versão fixa.</td></tr>
+  <tr><td><code>provenRed</code></td><td>A execução que falhou: <code>jobId</code>, data, <code>buildId</code> e o sha256 do manifesto fixado. Nulo só com um <code>redNotCapturedReason</code>.</td></tr>
+  <tr><td><code>firstGreen</code></td><td>A primeira execução aprovada num build com a correção. Nulo até ser confirmado; depois nunca é sobrescrito.</td></tr>
+  <tr><td><code>lastRun</code></td><td>A execução mais recente do item, gravada por <code>vault run</code>.</td></tr>
+  <tr><td><code>ledgerRef</code></td><td>Vínculo opcional com um ledger externo, por exemplo <code>npdev:REG-209</code>.</td></tr>
+</table>
+<p><strong>Evidência não se digita.</strong> <code>PUT /v1/vault/:id</code> grava só a definição. <code>provenRed</code>, <code>firstGreen</code> e <code>lastRun</code> são preenchidos apenas pelos fluxos abaixo, então ninguém consegue declarar um RED ou um GREEN que nenhuma execução produziu.</p>
+
+<h2 id="red-green">De RED para GREEN</h2>
+<pre><code class="language-http">POST /v1/vault/add-from-run          (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{ "id": "REG-209", "fromJobId": "job_abc123", "title": "Total ignora o desconto",
+  "type": "BUG", "severity": "HIGH", "surface": "checkout", "ledgerRef": "npdev:REG-209" }
+
+// ... o bug é corrigido e publicado ...
+
+POST /v1/vault/REG-209/confirm-green  (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{ "buildId": "2026.11.3-rc1" }</code></pre>
+<ol>
+  <li><strong><code>add-from-run</code></strong> recebe uma execução que <em>falhou</em>, salva seus passos como rotina da biblioteca (sem credenciais), fixa a execução como <code>provenRed</code> e cria o item.</li>
+  <li><strong><code>confirm-green</code></strong> roda a mesma versão da rotina. Só se ela <em>passar</em> a execução é fixada como <code>firstGreen</code>. Se ainda estiver vermelha, a resposta é 409 e o item não muda.</li>
+  <li><strong><code>POST /v1/vault/:id/run</code></strong> reverifica um item a qualquer momento e grava <code>lastRun</code>.</li>
+</ol>
+<p>Os dois endpoints de captura exigem o token bearer; uma sessão do console web não consegue chamá-los. O <code>buildId</code> fica nos resultados e nas referências de evidência, para dizer <em>qual build</em> estava vermelho e qual ficou verde. O mesmo está disponível na linha de comando:</p>
+<pre><code class="language-powershell">npm run cli -- vault list --status ACTIVE --tags checkout
+npm run cli -- vault show REG-209
+npm run cli -- vault run REG-209 --build-id 2026.11.3-rc1
+npm run cli -- vault confirm-green REG-209 --build-id 2026.11.3-rc1
+npm run cli -- vault export                    # retrato determinístico do cofre inteiro</code></pre>
+<p>Ferramentas MCP: <code>vault_list</code>, <code>vault_show</code>, <code>vault_add_from_run</code>, <code>vault_confirm_green</code> e <code>vault_run</code>.</p>
+
+<h2 id="vault-suites">Rodando o cofre, ordenado por impacto</h2>
+<p>Um item de suíte pode puxar itens do cofre por filtro em vez de nomear rotinas. Com <code>"order": "impact"</code>, os itens com mais chance de quebrar depois de uma mudança rodam primeiro, então uma execução vermelha (e o <code>failFast</code>) aparece cedo.</p>
+<pre><code class="language-http">POST /v1/suites
+{
+  "name": "pre-merge",
+  "buildId": "2026.11.3-rc1",
+  "items": [ { "vault": { "status": ["ACTIVE"], "tags": ["checkout"] } } ],
+  "order": "impact",
+  "impact": { "changedFiles": ["src/cart/total.js", "web/checkout/payment.html"] },
+  "failFast": true
+}</code></pre>
+<p>A ordem é: <strong>superfície tocada</strong> (uma entrada explícita em <code>impact.surfaces</code>, ou um arquivo alterado que case com os globs de <code>surfaces</code> do perfil de alvo) &gt; <strong>falhou nas últimas 5 execuções</strong> &gt; <strong>severidade</strong> &gt; id. Cada execução registra os motivos da sua posição. <code>POST /v1/vault/plan</code> mostra a ordem e os motivos sem executar nada.</p>
+<pre><code class="language-powershell">npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1
+git diff --name-only main | npm run cli -- vault run --impact --changed-files -</code></pre>
+<p>Usa o mesmo veredito e os mesmos códigos de saída de qualquer suíte: <strong>0</strong> verde, <strong>1</strong> vermelho, <strong>2</strong> erro de infraestrutura.</p>
+
+<h2 id="vault-ui">A tela Vault</h2>
+<p>Com o console web ligado, <strong>Vault</strong> lista os itens com status, severidade, links para a prova RED e GREEN, última execução e um botão <strong>Run</strong> por item. <strong>Run by impact</strong> recebe uma lista de arquivos alterados, mostra a ordem e os motivos, roda o cofre como suíte e abre o relatório. O console autentica com cookie de sessão, então capturar evidência (<code>add-from-run</code>, <code>confirm-green</code>), fixar e gerenciar credenciais continuam disponíveis só com o token bearer, pela API, pela CLI ou pelo MCP.</p>
+
+<h2 id="signed-evidence">Evidência assinada</h2>
+<p>Toda execução <strong>fixada</strong> tem um <code>manifest.json</code> com o sha256 de cada arquivo. No momento da fixação esse manifesto é assinado com a chave <strong>Ed25519</strong> da instalação (<code>&lt;dataDir&gt;/signing/ed25519.key</code>, legível só pelo dono). O <code>keyId</code> é o sha256 da chave pública.</p>
+<ul>
+  <li><code>GET /v1/evidence/public-key</code> devolve a chave pública e seu <code>keyId</code>.</li>
+  <li>Evidência fixada <em>antes</em> de a assinatura existir aparece como <code>unsigned</code>, não é confiável e não pode ser exportada. Fixe de novo a partir de uma nova execução.</li>
+</ul>
+
+<h2 id="chain">A cadeia</h2>
+<p>Cada manifesto assinado carrega <code>chain: { sequence, previousManifestSha256 }</code>. Editar um manifesto quebra o elo seguinte; remover um deixa um buraco na sequência; remover os mais recentes é detectado por uma marca d'água (<code>pinned/chain.json</code>).</p>
+<pre><code class="language-http">GET /v1/evidence/chain            // elos, buracos, assinaturas
+GET /v1/evidence/chain?deep=1     // também recalcula o hash de cada arquivo fixado</code></pre>
+<pre><code class="language-powershell">npm run cli -- evidence chain --deep</code></pre>
+
+<h2 id="export-verify">Exportação e verificação offline</h2>
+<pre><code class="language-powershell">npm run cli -- evidence export job_abc123 --out REG-209-red.zip
+# em qualquer máquina, sem servidor e sem configuração:
+scrapforai evidence verify .\REG-209-red --expected-key-id &lt;keyId&gt;</code></pre>
+<p><code>GET /v1/runs/:jobId/export</code> (só execuções fixadas) devolve um .zip com os arquivos de evidência, o manifesto assinado, <code>public-key.pem</code> e um README. É recusado (409) se a execução não estiver fixada, não tiver assinatura válida desta instalação, ou se os arquivos não baterem mais com o manifesto. <code>evidence verify</code> aceita uma pasta descompactada ou um job id; sai com 0 quando tudo confere e com 1 caso contrário. O código de verificação não importa configuração do servidor de propósito, então funciona onde os arquivos estiverem.</p>
+<p>Passe <code>--expected-key-id</code> com o id que você obteve do dono por outro canal. Sem isso, a chave dentro da pasta só prova que o pacote é consistente consigo mesmo.</p>
+
+<h2 id="signature-proves">O que uma assinatura prova</h2>
+<ul>
+  <li><strong>Prova</strong> integridade e origem: esta instalação assinou exatamente estes arquivos, e nenhum mudou desde então.</li>
+  <li><strong>Não prova</strong> que o teste estava correto, que a aplicação testada é o que diz ser, nem nada sobre uma máquina cuja chave privada ou diretório de dados inteiro esteja comprometido.</li>
+  <li>Faça backup de <code>&lt;dataDir&gt;/signing/</code> e de <code>pinned/</code> juntos. A evidência fixada nunca é apagada automaticamente (o limite é <code>PINNED_EVIDENCE_MAX_MB</code>; acima dele, a fixação é recusada com 409).</li>
+</ul>
+
+<h2 id="reports">Relatórios</h2>
+<p>Um relatório transforma uma execução, ou uma suíte inteira, num documento de homologação: aplicação, ambiente, build, data, executor, rotina e versão, veredito, passos com tempos, captura da falha, resumo de console e rede, aviso de teardown se a limpeza falhou, e um rodapé com o <code>keyId</code> da assinatura, o sha256 do manifesto e a posição na cadeia (ou um "não assinado / expirado" explícito).</p>
+<pre><code class="language-http">GET /v1/runs/job_abc123/report?format=pdf&amp;lang=pt
+GET /v1/suites/suite_xyz/report?format=html&amp;lang=es</code></pre>
+<pre><code class="language-powershell">npm run cli -- report job_abc123 --out relatorio.pdf --format pdf --lang pt
+npm run cli -- report suite_xyz --out suite.html --lang es</code></pre>
+<ul>
+  <li><code>format</code> é <code>html</code> (padrão) ou <code>pdf</code>; <code>lang</code> é <code>en</code> (padrão), <code>pt</code> ou <code>es</code>.</li>
+  <li>O HTML é um único arquivo autocontido com as capturas embutidas, sob uma política de segurança de conteúdo sem scripts. Tudo o que vem da execução é escapado, então a página testada não consegue injetar nada nele.</li>
+  <li>O PDF é impresso pelo mesmo Chromium, com todas as requisições de rede abortadas.</li>
+  <li>Um relatório precisa que a evidência da execução ainda exista. <strong>Fixe o que você vai reportar.</strong> O relatório de uma suíte é recusado (409) enquanto ela ainda roda.</li>
+</ul>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="foundations.html"><span class="dir">&larr; Anterior</span><span class="title">Credenciais, rotinas e suítes</span></a>
+      <a class="pager-link next" href="docker-tunnel.html"><span class="dir">Próximo &rarr;</span><span class="title">Docker e túnel</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">Nesta página</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Pesquisar no manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copiar","copied":"Copiado","noResultsFor":"Nenhum resultado para"};</script>
+<script src="../assets/search-index.pt.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>

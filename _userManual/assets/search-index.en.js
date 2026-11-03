@@ -802,5 +802,71 @@ window.SCRAPFORAI_SEARCH_INDEX = [
     "title": "MCP tools",
     "href": "foundations.html#mcp-tools",
     "keywords": "MCP tools"
+  },
+  {
+    "section": "Guides",
+    "title": "Regression vault, signed evidence & reports",
+    "href": "assurance.html",
+    "keywords": "Regression vault, signed evidence & reports regression vault RED GREEN provenRed firstGreen impact order signed evidence Ed25519 chain export verify keyId report html pdf homologation"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "Regression vault",
+    "href": "assurance.html#regression-vault",
+    "keywords": "Regression vault"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "An item",
+    "href": "assurance.html#vault-item",
+    "keywords": "An item"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "RED to GREEN",
+    "href": "assurance.html#red-green",
+    "keywords": "RED to GREEN"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "Running the vault, ordered by impact",
+    "href": "assurance.html#vault-suites",
+    "keywords": "Running the vault, ordered by impact"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "The Vault screen",
+    "href": "assurance.html#vault-ui",
+    "keywords": "The Vault screen"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "Signed evidence",
+    "href": "assurance.html#signed-evidence",
+    "keywords": "Signed evidence"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "The chain",
+    "href": "assurance.html#chain",
+    "keywords": "The chain"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "Export and offline verification",
+    "href": "assurance.html#export-verify",
+    "keywords": "Export and offline verification"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "What a signature proves",
+    "href": "assurance.html#signature-proves",
+    "keywords": "What a signature proves"
+  },
+  {
+    "section": "Regression vault, signed evidence & reports",
+    "title": "Reports",
+    "href": "assurance.html#reports",
+    "keywords": "Reports"
   }
 ];

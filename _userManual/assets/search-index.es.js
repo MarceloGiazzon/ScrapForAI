@@ -802,5 +802,71 @@ window.SCRAPFORAI_SEARCH_INDEX = [
     "title": "Herramientas MCP",
     "href": "foundations.html#mcp-tools",
     "keywords": "Herramientas MCP"
+  },
+  {
+    "section": "Guías",
+    "title": "Bóveda de regresión, firma e informes",
+    "href": "assurance.html",
+    "keywords": "Bóveda de regresión, firma e informes bóveda de regresión RED GREEN provenRed firstGreen orden por impacto evidencia firmada Ed25519 cadena exportar verificar keyId informe html pdf homologación"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Bóveda de regresión",
+    "href": "assurance.html#regression-vault",
+    "keywords": "Bóveda de regresión"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Un ítem",
+    "href": "assurance.html#vault-item",
+    "keywords": "Un ítem"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "De RED a GREEN",
+    "href": "assurance.html#red-green",
+    "keywords": "De RED a GREEN"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Ejecutar la bóveda, ordenada por impacto",
+    "href": "assurance.html#vault-suites",
+    "keywords": "Ejecutar la bóveda, ordenada por impacto"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "La pantalla Vault",
+    "href": "assurance.html#vault-ui",
+    "keywords": "La pantalla Vault"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Evidencia firmada",
+    "href": "assurance.html#signed-evidence",
+    "keywords": "Evidencia firmada"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "La cadena",
+    "href": "assurance.html#chain",
+    "keywords": "La cadena"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Exportación y verificación offline",
+    "href": "assurance.html#export-verify",
+    "keywords": "Exportación y verificación offline"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Qué prueba una firma",
+    "href": "assurance.html#signature-proves",
+    "keywords": "Qué prueba una firma"
+  },
+  {
+    "section": "Bóveda de regresión, firma e informes",
+    "title": "Informes",
+    "href": "assurance.html#reports",
+    "keywords": "Informes"
   }
 ];

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regression vault, signed evidence &amp; reports · ScrapForAI</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body data-lang="en">
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">S</div>
+    <strong>ScrapForAI</strong>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button data-search-open aria-label="Search">Search</button>
+    <button data-sidebar-toggle aria-label="Menu">Menu</button>
+  </div>
+</div>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-text">
+        <div class="name">ScrapForAI</div>
+        <div class="tag">User Manual · v1.1</div>
+      </div>
+    </div>
+    <div class="lang-switch">
+      <a class="lang-link active" href="#">EN</a>
+      <a class="lang-link" href="../pt/assurance.html">PT</a>
+      <a class="lang-link" href="../es/assurance.html">ES</a>
+    </div>
+    <div class="sidebar-search" data-search-open>
+      <span>&#128269;</span><span>Search the manual</span><kbd>Ctrl K</kbd>
+    </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Get started</div>
+        <a class="nav-link" href="index.html">Overview</a>
+        <a class="nav-link" href="installation.html">Installation & setup</a>
+        <a class="nav-link" href="quickstart.html">Quick start</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Concepts & security</div>
+        <a class="nav-link" href="security.html">Security model</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Reference</div>
+        <a class="nav-link" href="api-reference.html">API reference</a>
+        <a class="nav-link" href="routine-guide.html">Routine request guide</a>
+        <a class="nav-link" href="step-actions.html">Step actions reference</a>
+        <a class="nav-link" href="schemas.html">JSON schemas</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Guides</div>
+        <a class="nav-link" href="examples.html">Practical examples</a>
+        <a class="nav-link" href="dom-inspection.html">DOM inspection</a>
+        <a class="nav-link" href="web-console.html">Web console</a>
+        <a class="nav-link" href="artifacts.html">Artifacts & evidence</a>
+        <a class="nav-link" href="foundations.html">Credentials, routines & suites</a>
+        <a class="nav-link active" href="assurance.html">Regression vault, signed evidence &amp; reports</a>
+        <a class="nav-link" href="docker-tunnel.html">Docker & tunnel</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Project</div>
+        <a class="nav-link" href="development.html">Development workflow</a>
+        <a class="nav-link" href="troubleshooting.html">Troubleshooting</a>
+        <a class="nav-link" href="glossary.html">Glossary</a>
+      </div>
+    <div class="sidebar-footer">
+      Browser exploration runner for controlled dev &amp; QA environments.<br><br>
+      &copy; ScrapForAI project
+    </div>
+  </nav>
+  <div class="main">
+    <main class="content">
+      <div class="page-eyebrow">Guides</div>
+      <h1>Regression vault, signed evidence &amp; reports</h1>
+      <p class="lede">How a fixed bug becomes permanent proof: the regression vault keeps the failing run (RED) and the first passing run (GREEN) as pinned evidence, the evidence is signed so it can be verified anywhere, and a report turns it into a document you can hand over.</p>
+
+<h2 id="regression-vault">Regression vault</h2>
+<p>A bug that was fixed should stay fixed. The regression vault stores each fixed bug (or hard scenario) as one JSON file, <code>&lt;ITEM-ID&gt;.json</code>, together with the <strong>routine that reproduces it</strong> and <strong>two pieces of pinned evidence</strong>: the run that failed before the fix and the first run that passed after it. Set <code>REGRESSION_VAULT_DIR</code> inside a git repository to review items in pull requests; the default is <code>&lt;dataDir&gt;/regression-vault</code>.</p>
+
+<h2 id="vault-item">An item</h2>
+<table>
+  <tr><th>Field</th><th>Meaning</th></tr>
+  <tr><td><code>id</code></td><td>Like <code>GX-12</code> or <code>REG-209</code>.</td></tr>
+  <tr><td><code>title</code>, <code>surface</code>, <code>tags</code></td><td>What it is and which area of the application it touches.</td></tr>
+  <tr><td><code>type</code></td><td><code>BUG</code>, <code>SCENARIO</code> or <code>BOUNDARY</code>.</td></tr>
+  <tr><td><code>severity</code></td><td><code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code>, <code>P0</code>, <code>P1</code> or null.</td></tr>
+  <tr><td><code>status</code></td><td><code>ACTIVE</code>, <code>QUARANTINED</code> or <code>RETIRED</code>.</td></tr>
+  <tr><td><code>routine</code></td><td><code>{ id, version }</code>: a library routine at a pinned version.</td></tr>
+  <tr><td><code>provenRed</code></td><td>The failing run: <code>jobId</code>, date, <code>buildId</code> and the sha256 of its pinned manifest. Null only with a <code>redNotCapturedReason</code>.</td></tr>
+  <tr><td><code>firstGreen</code></td><td>The first passing run on a build with the fix. Null until confirmed; never overwritten afterwards.</td></tr>
+  <tr><td><code>lastRun</code></td><td>The most recent run of the item, recorded by <code>vault run</code>.</td></tr>
+  <tr><td><code>ledgerRef</code></td><td>Optional link to an external ledger, e.g. <code>npdev:REG-209</code>.</td></tr>
+</table>
+<p><strong>Evidence cannot be typed in.</strong> <code>PUT /v1/vault/:id</code> writes only the definition. <code>provenRed</code>, <code>firstGreen</code> and <code>lastRun</code> are set only by the flows below, so nobody can claim a RED or a GREEN that no run produced.</p>
+
+<h2 id="red-green">RED to GREEN</h2>
+<pre><code class="language-http">POST /v1/vault/add-from-run          (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{ "id": "REG-209", "fromJobId": "job_abc123", "title": "Total ignores discount",
+  "type": "BUG", "severity": "HIGH", "surface": "checkout", "ledgerRef": "npdev:REG-209" }
+
+// ... the bug is fixed and deployed ...
+
+POST /v1/vault/REG-209/confirm-green  (Authorization: Bearer &lt;SCRAPFORAI_API_KEY&gt;)
+{ "buildId": "2026.11.3-rc1" }</code></pre>
+<ol>
+  <li><strong><code>add-from-run</code></strong> takes a run that <em>failed</em>, saves its steps as a library routine (credentials stripped), pins the run as <code>provenRed</code> and creates the item.</li>
+  <li><strong><code>confirm-green</code></strong> runs the same routine version. Only if it <em>passes</em> is the run pinned as <code>firstGreen</code>. If it is still red the answer is 409 and the item is untouched.</li>
+  <li><strong><code>POST /v1/vault/:id/run</code></strong> re-checks an item at any time and records <code>lastRun</code>.</li>
+</ol>
+<p>Both capture endpoints need the bearer token; a web-console session cannot call them. <code>buildId</code> is stored in the results and in the evidence references so you can say <em>which build</em> was red and which was green. The same is available from the command line:</p>
+<pre><code class="language-powershell">npm run cli -- vault list --status ACTIVE --tags checkout
+npm run cli -- vault show REG-209
+npm run cli -- vault run REG-209 --build-id 2026.11.3-rc1
+npm run cli -- vault confirm-green REG-209 --build-id 2026.11.3-rc1
+npm run cli -- vault export                    # deterministic snapshot of the whole vault</code></pre>
+<p>MCP tools: <code>vault_list</code>, <code>vault_show</code>, <code>vault_add_from_run</code>, <code>vault_confirm_green</code> and <code>vault_run</code>.</p>
+
+<h2 id="vault-suites">Running the vault, ordered by impact</h2>
+<p>A suite item can pull vault items by filter instead of naming routines. With <code>"order": "impact"</code> the items most likely to break after a change run first, so a red run (and <code>failFast</code>) comes early.</p>
+<pre><code class="language-http">POST /v1/suites
+{
+  "name": "pre-merge",
+  "buildId": "2026.11.3-rc1",
+  "items": [ { "vault": { "status": ["ACTIVE"], "tags": ["checkout"] } } ],
+  "order": "impact",
+  "impact": { "changedFiles": ["src/cart/total.js", "web/checkout/payment.html"] },
+  "failFast": true
+}</code></pre>
+<p>The order is: <strong>surface touched</strong> (an explicit <code>impact.surfaces</code> entry, or a changed file matching the <code>surfaces</code> globs of the target profile) &gt; <strong>failed in its last 5 runs</strong> &gt; <strong>severity</strong> &gt; id. Every run records the reasons for its position. <code>POST /v1/vault/plan</code> shows the order and reasons without running anything.</p>
+<pre><code class="language-powershell">npm run cli -- vault run --impact --changed-files changed.txt --fail-fast --build-id 2026.11.3-rc1
+git diff --name-only main | npm run cli -- vault run --impact --changed-files -</code></pre>
+<p>It uses the same verdict and exit codes as any suite: <strong>0</strong> green, <strong>1</strong> red, <strong>2</strong> infrastructure error.</p>
+
+<h2 id="vault-ui">The Vault screen</h2>
+<p>With the web console enabled, <strong>Vault</strong> lists the items with status, severity, links to the RED and GREEN proof, last run and a per-item <strong>Run</strong> button. <strong>Run by impact</strong> takes a list of changed files, shows the order and the reasons, runs the vault as a suite and opens its report. The console authenticates with a session cookie, so capturing evidence (<code>add-from-run</code>, <code>confirm-green</code>), pinning and credentials stay available only through the bearer token, from the API, the CLI or MCP.</p>
+
+<h2 id="signed-evidence">Signed evidence</h2>
+<p>Every <strong>pinned</strong> run has a <code>manifest.json</code> listing the sha256 of each file. At pin time that manifest is signed with the installation's <strong>Ed25519</strong> key (<code>&lt;dataDir&gt;/signing/ed25519.key</code>, readable only by its owner). The <code>keyId</code> is the sha256 of the public key.</p>
+<ul>
+  <li><code>GET /v1/evidence/public-key</code> returns the public key and its <code>keyId</code>.</li>
+  <li>Evidence pinned <em>before</em> signing existed is listed as <code>unsigned</code>, is not trusted and cannot be exported. Pin it again from a new run.</li>
+</ul>
+
+<h2 id="chain">The chain</h2>
+<p>Each signed manifest carries <code>chain: { sequence, previousManifestSha256 }</code>. Editing one manifest breaks the next link; removing one leaves a gap in the sequence; removing the most recent ones is caught by a high-water mark (<code>pinned/chain.json</code>).</p>
+<pre><code class="language-http">GET /v1/evidence/chain            // links, gaps, signatures
+GET /v1/evidence/chain?deep=1     // also re-hashes every pinned file</code></pre>
+<pre><code class="language-powershell">npm run cli -- evidence chain --deep</code></pre>
+
+<h2 id="export-verify">Export and offline verification</h2>
+<pre><code class="language-powershell">npm run cli -- evidence export job_abc123 --out REG-209-red.zip
+# on any machine, no server and no configuration:
+scrapforai evidence verify .\REG-209-red --expected-key-id &lt;keyId&gt;</code></pre>
+<p><code>GET /v1/runs/:jobId/export</code> (pinned runs only) returns a .zip with the evidence files, the signed manifest, <code>public-key.pem</code> and a README. It is refused (409) if the run is not pinned, has no valid signature from this installation, or its files no longer match the manifest. <code>evidence verify</code> accepts an unzipped folder or a job id; it exits 0 when everything verifies and 1 otherwise. The verification code imports no server configuration on purpose, so it works wherever the files are.</p>
+<p>Pass <code>--expected-key-id</code> with the id you obtained from the owner through another channel. Without it, the key inside the folder only proves that the bundle is consistent with itself.</p>
+
+<h2 id="signature-proves">What a signature proves</h2>
+<ul>
+  <li><strong>It proves</strong> integrity and origin: this installation signed exactly these files, and none has changed since.</li>
+  <li><strong>It does not prove</strong> that the test was correct, that the application under test is what it claims to be, or anything about a machine whose private key or whole data directory is compromised.</li>
+  <li>Back up <code>&lt;dataDir&gt;/signing/</code> and <code>pinned/</code> together. Pinned evidence is never deleted automatically (the cap is <code>PINNED_EVIDENCE_MAX_MB</code>; over it, a pin is refused with 409).</li>
+</ul>
+
+<h2 id="reports">Reports</h2>
+<p>A report turns a run, or a whole suite, into a homologation document: application, environment, build, date, executor, routine and version, verdict, steps with times, the failure screenshot, a console and network summary, a teardown warning if cleanup failed, and a footer with the signing <code>keyId</code>, manifest sha256 and chain position (or an explicit "not signed / expired").</p>
+<pre><code class="language-http">GET /v1/runs/job_abc123/report?format=pdf&amp;lang=en
+GET /v1/suites/suite_xyz/report?format=html&amp;lang=pt</code></pre>
+<pre><code class="language-powershell">npm run cli -- report job_abc123 --out report.pdf --format pdf --lang en
+npm run cli -- report suite_xyz --out suite.html --lang es</code></pre>
+<ul>
+  <li><code>format</code> is <code>html</code> (default) or <code>pdf</code>; <code>lang</code> is <code>en</code> (default), <code>pt</code> or <code>es</code>.</li>
+  <li>The HTML is one self-contained file with the screenshots embedded, under a content security policy without scripts. Everything that came from the run is escaped, so the page under test cannot inject anything into it.</li>
+  <li>The PDF is printed by the same Chromium with every network request aborted.</li>
+  <li>A report needs the run's evidence to still exist. <strong>Pin what you will report on.</strong> A suite report is refused (409) while the suite is still running.</li>
+</ul>
+
+    <div class="page-pager">
+      <a class="pager-link prev" href="foundations.html"><span class="dir">&larr; Previous</span><span class="title">Credentials, routines &amp; suites</span></a>
+      <a class="pager-link next" href="docker-tunnel.html"><span class="dir">Next &rarr;</span><span class="title">Docker &amp; tunnel</span></a>
+    </div>
+    </main>
+    <aside class="toc">
+      <div class="toc-title">On this page</div>
+      <ul></ul>
+    </aside>
+  </div>
+</div>
+<div class="search-overlay">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span>&#128269;</span>
+      <input type="text" placeholder="Search the manual..." autocomplete="off">
+      <span class="esc">Esc</span>
+    </div>
+    <div class="search-results"></div>
+  </div>
+</div>
+<script>window.SCRAPFORAI_UI = {"copy":"Copy","copied":"Copied","noResultsFor":"No results for"};</script>
+<script src="../assets/search-index.en.js"></script>
+<script src="../assets/app.js"></script>
+</body>
+</html>
