@@ -1,0 +1,81 @@
+{
+  "title": "GeneXus login (GAM)",
+  "description": "Template. Replace every REPLACE_* value, then save it as the routine 'login' and pin it from other routines with include. See templates/routines/README.md.",
+  "tags": ["login", "genexus"],
+  "surface": "auth",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "steps": [
+    {
+      "id": "open-login",
+      "label": "Open the login page",
+      "action": "goto",
+      "url": "$targetUrl",
+      "timeoutMs": 30000
+    },
+    {
+      "id": "wait-login-form",
+      "label": "Wait for the login form",
+      "action": "waitForSelector",
+      "selector": "#vUSER",
+      "state": "visible",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "fill-user",
+      "label": "Fill the user",
+      "action": "fill",
+      "selector": "#vUSER",
+      "valueFromCredential": "loginUser",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "blur-user",
+      "label": "Leave the user field (GeneXus validates on blur)",
+      "action": "press",
+      "selector": "#vUSER",
+      "key": "Tab",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "fill-password",
+      "label": "Fill the password",
+      "action": "fill",
+      "selector": "#vUSRPSWING",
+      "valueFromCredential": "loginPassword",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "blur-password",
+      "label": "Leave the password field",
+      "action": "press",
+      "selector": "#vUSRPSWING",
+      "key": "Tab",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "submit",
+      "label": "Click Confirm",
+      "action": "click",
+      "selector": "span[onclick*=\"BTNENTER\"]",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "gate-login-complete",
+      "label": "Fail fast if login did not reach the app",
+      "action": "waitForUrlContains",
+      "value": "REPLACE_POST_LOGIN_URL_TOKEN",
+      "timeoutMs": 15000
+    }
+  ],
+  "teardown": [
+    {
+      "id": "logout",
+      "label": "Log out so the single session is released",
+      "action": "goto",
+      "url": "REPLACE_LOGOUT_URL",
+      "timeoutMs": 15000
+    }
+  ]
+}

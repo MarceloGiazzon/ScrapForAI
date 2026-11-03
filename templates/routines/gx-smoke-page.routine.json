@@ -1,0 +1,51 @@
+{
+  "title": "Smoke: open a page after login",
+  "description": "Template of the shape every vault item should have: include the login (pinned version), reach the page, assert, screenshot. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["smoke", "genexus"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "steps": [
+    {
+      "id": "auth",
+      "label": "Log in",
+      "action": "include",
+      "routineId": "login",
+      "version": 1
+    },
+    {
+      "id": "open-page",
+      "label": "Open the page under test",
+      "action": "goto",
+      "url": "REPLACE_PAGE_URL",
+      "timeoutMs": 30000
+    },
+    {
+      "id": "wait-page-ready",
+      "label": "Wait for the page to settle",
+      "action": "waitForLoadState",
+      "state": "networkidle",
+      "timeoutMs": 15000
+    },
+    {
+      "id": "assert-url",
+      "label": "We are on the expected page, not bounced to the login",
+      "action": "assertUrlContains",
+      "value": "REPLACE_PAGE_URL_TOKEN"
+    },
+    {
+      "id": "assert-main-visible",
+      "label": "The main element is visible",
+      "action": "assertVisible",
+      "selector": "REPLACE_MAIN_SELECTOR",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "shot",
+      "label": "Evidence",
+      "action": "screenshot",
+      "name": "page-ready"
+    }
+  ]
+}
