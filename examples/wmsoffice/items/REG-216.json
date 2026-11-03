@@ -1,0 +1,19 @@
+{
+  "title": "Auto-generated Selection panel \"New\" opens the Workbench instead of a blank server-side create",
+  "type": "BUG",
+  "severity": "HIGH",
+  "status": "ACTIVE",
+  "surface": "MovimentoSelection",
+  "tags": [
+    "npdev",
+    "wmsoffice",
+    "panel"
+  ],
+  "routine": {
+    "id": "reg-216",
+    "version": 1
+  },
+  "ledgerRef": "npdev:REG-216",
+  "opened": "2026-09-19",
+  "redNotCapturedReason": "Fixed on 2026-09-19, before the regression vault existed; the original failing run expired (4 h retention) and the bug cannot be reproduced on a fixed build."
+}

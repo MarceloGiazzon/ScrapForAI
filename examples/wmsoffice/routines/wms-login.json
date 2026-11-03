@@ -1,0 +1,61 @@
+{
+  "title": "WmsOffice login (JWT shell)",
+  "description": "Logs in through login.html. The gate waits for #concept-Area because the login URL already contains next=%2Fnpdev-business-ui.",
+  "tags": [
+    "login",
+    "npdev",
+    "wmsoffice"
+  ],
+  "surface": "auth",
+  "status": "active",
+  "targetProfile": "wmsoffice-dev",
+  "credentialSet": "wms-admin",
+  "steps": [
+    {
+      "id": "open",
+      "label": "Open the business UI (the shell bounces to login.html?next=)",
+      "action": "goto",
+      "url": "http://localhost:8100/npdev-business-ui/index.html",
+      "timeoutMs": 30000
+    },
+    {
+      "id": "wait-form",
+      "label": "Login form visible",
+      "action": "waitForSelector",
+      "selector": "#username",
+      "state": "visible",
+      "timeoutMs": 15000
+    },
+    {
+      "id": "user",
+      "label": "User",
+      "action": "fill",
+      "selector": "#username",
+      "valueFromCredential": "loginUser",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "pass",
+      "label": "Password",
+      "action": "fill",
+      "selector": "#password",
+      "valueFromCredential": "loginPassword",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "submit",
+      "label": "Sign in",
+      "action": "click",
+      "selector": "button[type=\"submit\"]",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "gate",
+      "label": "Gate: the business UI rendered (not just the login URL with next=)",
+      "action": "waitForSelector",
+      "selector": "#concept-Area",
+      "state": "visible",
+      "timeoutMs": 20000
+    }
+  ]
+}

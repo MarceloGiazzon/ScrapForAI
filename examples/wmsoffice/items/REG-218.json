@@ -1,0 +1,19 @@
+{
+  "title": "Importar Contagem (Parse) no longer fails with JAVA_SOURCE_OPERATION_NOT_BOUND",
+  "type": "BUG",
+  "severity": "HIGH",
+  "status": "ACTIVE",
+  "surface": "InventarioArquivoAggregateWorkbench",
+  "tags": [
+    "npdev",
+    "wmsoffice",
+    "plugin-ipc"
+  ],
+  "routine": {
+    "id": "reg-218",
+    "version": 1
+  },
+  "ledgerRef": "npdev:REG-218",
+  "opened": "2026-09-19",
+  "redNotCapturedReason": "Fixed on 2026-09-19, before the regression vault existed; the original failing run expired (4 h retention) and the bug cannot be reproduced on a fixed build."
+}

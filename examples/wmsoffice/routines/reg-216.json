@@ -1,0 +1,116 @@
+{
+  "title": "REG-216: \"New\" on the Movimento selection panel opens the Workbench",
+  "description": "Clicking \"New\" on the auto-generated Movimento Selection panel must land on MovimentoWorkbench.html?id=new with the empty-shell editor rendered (header fields, itens grid at \"0 rows\", Save / Sugerir Destino / Sugerir Origem / Recalcular Saldos) and no \"Internal Server Error\" banner. Before the fix (REG-215/REG-216) the click made a blank server-side create that failed with \"Required concept field is missing: Movimento.id\" and rendered a banner and no form.",
+  "tags": [
+    "regression",
+    "npdev",
+    "wmsoffice",
+    "panel"
+  ],
+  "surface": "MovimentoSelection",
+  "status": "active",
+  "targetProfile": "wmsoffice-dev",
+  "credentialSet": "wms-admin",
+  "steps": [
+    {
+      "id": "auth",
+      "label": "Log in",
+      "action": "include",
+      "routineId": "wms-login",
+      "version": 1
+    },
+    {
+      "id": "go-panel",
+      "label": "Open the Movimento Selection panel",
+      "action": "goto",
+      "url": "http://localhost:8100/npdev-business-ui/index.html#concept-__panel-MovimentoSelection__",
+      "timeoutMs": 30000
+    },
+    {
+      "id": "wait-new",
+      "label": "The panel and its New button are there",
+      "action": "waitForSelector",
+      "selector": "[id=\"concept-__panel-MovimentoSelection__\"] button.primary",
+      "state": "visible",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "shot-before",
+      "label": "Before clicking",
+      "action": "screenshot",
+      "name": "before-click-new"
+    },
+    {
+      "id": "click-new",
+      "label": "Click New",
+      "action": "click",
+      "selector": "[id=\"concept-__panel-MovimentoSelection__\"] button.primary",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "gate-url",
+      "label": "Gate: we landed on the Workbench (id=new)",
+      "action": "waitForUrlContains",
+      "value": "MovimentoWorkbench.html?id=new",
+      "timeoutMs": 15000
+    },
+    {
+      "id": "settle",
+      "label": "Let the Workbench load its metadata",
+      "action": "waitForLoadState",
+      "state": "networkidle",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "assert-url",
+      "label": "Still on the Workbench, not bounced elsewhere",
+      "action": "assertUrlContains",
+      "value": "/npdev-workbench/MovimentoWorkbench.html?id=new"
+    },
+    {
+      "id": "assert-save",
+      "label": "Save button rendered",
+      "action": "assertVisible",
+      "selector": "button:has-text(\"Save\")",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "assert-recalc",
+      "label": "Recalcular Saldos button rendered",
+      "action": "assertVisible",
+      "selector": "button:has-text(\"Recalcular Saldos\")",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "assert-itens-empty",
+      "label": "The itens grid is an empty shell",
+      "action": "assertTextContains",
+      "selector": "body",
+      "text": "0 rows",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "assert-no-error-banner",
+      "label": "No \"Internal Server Error\" banner",
+      "action": "assertCount",
+      "selector": "text=Internal Server Error",
+      "operator": "=",
+      "count": 0
+    },
+    {
+      "id": "shot-after",
+      "label": "The landed Workbench",
+      "action": "screenshot",
+      "name": "after-click-new"
+    },
+    {
+      "id": "collect",
+      "label": "Console and page errors as evidence",
+      "action": "collect",
+      "what": [
+        "pageErrors",
+        "console"
+      ]
+    }
+  ]
+}

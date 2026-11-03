@@ -1,0 +1,100 @@
+{
+  "title": "REG-218: \"Importar Contagem (Parse)\" parses a pasted CSV into the linhas grid",
+  "description": "On InventarioArquivoAggregateWorkbench (id=new), pasting a two-line count CSV into \"texto\" and clicking \"Importar Contagem (Parse)\" must fill the linhas grid with 2 rows and show the review message. Before the fix, ManifestDrivenJavaSourcePluginHandler did a case-exact operation lookup, so every click failed with JAVA_SOURCE_OPERATION_NOT_BOUND and the grid stayed empty.",
+  "tags": [
+    "regression",
+    "npdev",
+    "wmsoffice",
+    "plugin-ipc"
+  ],
+  "surface": "InventarioArquivoAggregateWorkbench",
+  "status": "active",
+  "targetProfile": "wmsoffice-dev",
+  "credentialSet": "wms-admin",
+  "steps": [
+    {
+      "id": "auth",
+      "label": "Log in",
+      "action": "include",
+      "routineId": "wms-login",
+      "version": 1
+    },
+    {
+      "id": "go",
+      "label": "Open the new InventarioArquivo workbench",
+      "action": "goto",
+      "url": "http://localhost:8100/npdev-workbench/InventarioArquivoAggregateWorkbench.html?id=new",
+      "timeoutMs": 30000
+    },
+    {
+      "id": "wait-texto",
+      "label": "The paste-CSV textarea is there",
+      "action": "waitForSelector",
+      "selector": "textarea[placeholder=\"texto\"]",
+      "state": "visible",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "fill-csv",
+      "label": "Paste a two-line count CSV",
+      "action": "fill",
+      "selector": "textarea[placeholder=\"texto\"]",
+      "value": "00000000-0000-4000-8000-0000000000a1;00000000-0000-4000-8000-0000000000b1;00000000-0000-4000-8000-0000000000c1;20;20\n00000000-0000-4000-8000-0000000000a2;00000000-0000-4000-8000-0000000000b1;00000000-0000-4000-8000-0000000000c1;20;15",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "click-import",
+      "label": "Click \"Importar Contagem (Parse)\"",
+      "action": "click",
+      "selector": "button:has-text(\"Importar Contagem (Parse)\")",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "wait-rows",
+      "label": "The linhas grid filled with 2 rows",
+      "action": "waitForSelector",
+      "selector": "text=2 rows",
+      "state": "visible",
+      "timeoutMs": 20000
+    },
+    {
+      "id": "assert-message",
+      "label": "The review message is shown",
+      "action": "assertTextContains",
+      "selector": "body",
+      "text": "review and Save",
+      "timeoutMs": 10000
+    },
+    {
+      "id": "assert-not-bound-gone",
+      "label": "The old error is not on the page",
+      "action": "assertCount",
+      "selector": "text=JAVA_SOURCE_OPERATION_NOT_BOUND",
+      "operator": "=",
+      "count": 0
+    },
+    {
+      "id": "assert-no-error-banner",
+      "label": "No \"Internal Server Error\" banner",
+      "action": "assertCount",
+      "selector": "text=Internal Server Error",
+      "operator": "=",
+      "count": 0
+    },
+    {
+      "id": "shot",
+      "label": "The filled grid",
+      "action": "screenshot",
+      "name": "after-import"
+    },
+    {
+      "id": "collect",
+      "label": "Console and page errors as evidence",
+      "action": "collect",
+      "what": [
+        "pageErrors",
+        "console"
+      ]
+    }
+  ]
+}

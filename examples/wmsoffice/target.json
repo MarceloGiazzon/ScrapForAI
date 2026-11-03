@@ -1,0 +1,9 @@
+{
+  "name": "WmsOffice (local)",
+  "platform": "npdev",
+  "environment": "dev",
+  "baseUrl": "http://localhost:8100",
+  "credentialSets": [
+    "wms-admin"
+  ]
+}
