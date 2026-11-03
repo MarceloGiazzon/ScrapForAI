@@ -3,11 +3,15 @@
   "version": "1.1.0",
   "description": "Security-first Playwright exploration runner for controlled development and test sites.",
   "main": "dist/server.js",
+  "bin": {
+    "scrapforai": "dist/cli.js"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "mcp": "tsx src/mcp/server.ts",
+    "cli": "tsx src/cli.ts",
     "test": "tsx --test test/**/*.test.ts",
-    "test:smoke": "tsx --test test/routine-runner.smoke.ts",
+    "test:smoke": "tsx --test --test-concurrency=1 test/routine-runner.smoke.ts test/credential-vault.smoke.ts test/routine-library.smoke.ts test/routine-composition.smoke.ts test/suite-run.smoke.ts test/cli.smoke.ts test/regression-flow.smoke.ts test/report-pdf.smoke.ts",
     "test:all": "npm test && npm run test:smoke",
     "generate:schema": "tsx scripts/generate-schema.ts",
     "prebuild": "npm run generate:schema",

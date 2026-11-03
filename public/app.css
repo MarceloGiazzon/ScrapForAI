@@ -115,7 +115,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-weight: 600; margin-bottom: 3px; }
 .field .help { color: var(--muted); font-size: 12px; margin-bottom: 5px; }
-.field input, .field select { width: 100%; }
+.field input, .field select, .field textarea { width: 100%; }
 .field.locked input, .field.locked select { opacity: .6; }
 
 .login-wrap { max-width: 380px; margin: 12vh auto; }

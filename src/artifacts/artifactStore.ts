@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { env } from '../config/env.js';
+import { readManifest } from '../evidence/manifest.js';
 
 const SAFE_FILENAME_PATTERN = /[^a-zA-Z0-9_-]+/g;
 
@@ -13,6 +14,8 @@ export interface ArtifactStore {
   screenshotPath(name: string): { absolutePath: string; relativePath: string; safeName: string };
   tracePath(): { absolutePath: string; relativePath: string };
   resultPath(): { absolutePath: string; relativePath: string };
+  /** Sanitized copy of the request (no credential values), so a good run can be saved as a routine. */
+  requestPath(): { absolutePath: string; relativePath: string };
 }
 
 export function safeFileName(name: string, fallback = 'artifact'): string {
@@ -84,6 +87,12 @@ export async function createArtifactStore(jobId: string): Promise<ArtifactStore>
         relativePath: relativeArtifactPath(safeJobId, 'result.json'),
       };
     },
+    requestPath() {
+      return {
+        absolutePath: path.join(rootDir, 'request.json'),
+        relativePath: relativeArtifactPath(safeJobId, 'request.json'),
+      };
+    },
   };
 }
 
@@ -91,9 +100,17 @@ export async function saveJsonFile(filePath: string, value: unknown): Promise<vo
   await fs.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-async function pruneExpiredArtifacts(artifactsRoot: string): Promise<void> {
-  const retentionMs = env.ARTIFACT_RETENTION_HOURS * 60 * 60 * 1000;
-  const expiresBefore = Date.now() - retentionMs;
+/**
+ * Removes expired evidence from the artifact root. Retention is per class (T1.5), read from each
+ * job's manifest: standard = STANDARD_RETENTION_DAYS, anything else (including no manifest, as for
+ * runs recorded before classes existed) = ARTIFACT_RETENTION_HOURS.
+ *
+ * Pinned evidence is never touched: it lives outside this root, and a job whose manifest says
+ * "pinned" is skipped even if one is ever found here. `now` is injectable so tests can move the clock.
+ */
+export async function pruneExpiredArtifacts(artifactsRoot: string, now = Date.now()): Promise<void> {
+  const ephemeralMs = env.ARTIFACT_RETENTION_HOURS * 60 * 60 * 1000;
+  const standardMs = env.STANDARD_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
   await fs.mkdir(artifactsRoot, { recursive: true });
   const entries = await fs.readdir(artifactsRoot, { withFileTypes: true }).catch(() => []);
@@ -104,8 +121,18 @@ async function pruneExpiredArtifacts(artifactsRoot: string): Promise<void> {
       .map(async (entry) => {
         const entryPath = path.join(artifactsRoot, entry.name);
         const stats = await fs.stat(entryPath).catch(() => undefined);
+        if (!stats) {
+          return;
+        }
 
-        if (stats && stats.mtimeMs < expiresBefore) {
+        // An unreadable manifest must not make evidence disappear sooner or later than its class says.
+        const retention = (await readManifest(entryPath).catch(() => undefined))?.manifest.retention;
+        if (retention === 'pinned') {
+          return;
+        }
+
+        const retentionMs = retention === 'standard' ? standardMs : ephemeralMs;
+        if (stats.mtimeMs < now - retentionMs) {
           await fs.rm(entryPath, { recursive: true, force: true });
         }
       }),

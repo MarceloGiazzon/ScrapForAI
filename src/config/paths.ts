@@ -54,6 +54,54 @@ export function historyDir(): string {
   return path.join(dataDir(), 'history');
 }
 
+/** Pinned evidence (T1.5): <dataDir>/evidence/pinned/<jobId>/. Outside the artifact root, so no prune can reach it. */
+export function pinnedEvidenceDir(): string {
+  return path.join(dataDir(), 'evidence', 'pinned');
+}
+
+/**
+ * Regression vault (T2.1): one <ITEM-ID>.json per item. REGRESSION_VAULT_DIR may point into a git repository
+ * (e.g. the one that owns the ledger) so items are reviewed in pull requests.
+ */
+export function regressionVaultDir(): string {
+  const override = process.env.REGRESSION_VAULT_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'regression-vault');
+}
+
+/** Suite run states (T1.6): <dataDir>/suites/<suiteRunId>.json. */
+export function suitesDir(): string {
+  return path.join(dataDir(), 'suites');
+}
+
+/** Ed25519 key pair that signs pinned evidence manifests (T2.6): ed25519.key (private) + ed25519.pub. */
+export function signingDir(): string {
+  return path.join(dataDir(), 'signing');
+}
+
+/** Target profiles: one <id>.json per profile (T1.1). */
+export function targetsDir(): string {
+  return path.join(dataDir(), 'targets');
+}
+
+/**
+ * Routine library (T1.3): <id>/v<N>.json + current.json. ROUTINE_LIBRARY_DIR may point into a git
+ * repository so routines are reviewed in PRs like code.
+ */
+export function routineLibraryDir(): string {
+  const override = process.env.ROUTINE_LIBRARY_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'library');
+}
+
+/** Encrypted credential vault (T1.2). Never exported by the API. */
+export function credentialVaultFile(): string {
+  return path.join(dataDir(), 'credentials.enc.json');
+}
+
+/** Vault key, used only when SCRAPFORAI_VAULT_KEY is not set (T1.2). */
+export function vaultKeyFile(): string {
+  return path.join(dataDir(), 'vault.key');
+}
+
 export function logsDir(): string {
   return path.join(dataDir(), 'logs');
 }

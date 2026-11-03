@@ -13,7 +13,8 @@ import { artifactsDir } from './paths.js';
 // silently resolving to the wrong directory is exactly the kind of "edited .env, nothing
 // happened" symptom this project has already hit once.
 const dotEnvPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '.env');
-dotenv.config({ path: dotEnvPath });
+// quiet: dotenv >= 17 prints a banner on stdout, which would corrupt `scrapforai --json` and the MCP stdio stream.
+dotenv.config({ path: dotEnvPath, quiet: true });
 
 const integerFromEnv = z.coerce.number().int().positive();
 
@@ -27,6 +28,12 @@ const booleanFromEnv = z
 
     return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
   });
+
+// Same parsing as booleanFromEnv, but absent means true (for opt-out flags kept on for compatibility).
+const booleanFromEnvDefaultTrue = z
+  .union([z.boolean(), z.string()])
+  .default(true)
+  .transform((value) => (typeof value === 'boolean' ? value : ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())));
 
 const originListFromEnv = z
   .string()
@@ -57,6 +64,9 @@ export const envSchema = z.object({
   STEP_TIMEOUT_MS: integerFromEnv.default(10000),
   MAX_REQUEST_BODY_SIZE: z.string().min(1).default('1mb'),
   MAX_PARALLEL_JOBS: integerFromEnv.default(2),
+  // Slots suites/scheduled runs may not take, so ad-hoc requests are not locked out by a long suite.
+  // Capped at MAX_PARALLEL_JOBS - 1 (a suite always has at least one slot). 0 disables the reservation.
+  INTERACTIVE_RESERVED_SLOTS: z.coerce.number().int().min(0).default(1),
   MAX_DOM_SNAPSHOT_CHARS: integerFromEnv.default(20000),
   ALLOW_EVALUATE: booleanFromEnv,
   MAX_EVALUATE_SCRIPT_CHARS: integerFromEnv.default(4000),
@@ -66,6 +76,31 @@ export const envSchema = z.object({
   MIN_WATCH_INTERVAL_MS: integerFromEnv.default(100),
   MAX_WATCH_SAMPLES: integerFromEnv.default(200),
   ARTIFACT_RETENTION_HOURS: integerFromEnv.default(4),
+
+  // --- Evidence retention classes (T1.5) ---
+  // ephemeral (default): ARTIFACT_RETENTION_HOURS. standard: this many days. pinned: never removed.
+  STANDARD_RETENTION_DAYS: integerFromEnv.default(30),
+  // Cap on pinned evidence. Past it, new pins are refused (409); pinned evidence is never deleted.
+  PINNED_EVIDENCE_MAX_MB: integerFromEnv.default(2048),
+
+  // --- Credential vault (T1.2) ---
+  // Optional 32-byte AES key, base64. Validated here so a malformed key fails at startup; the
+  // vault itself reads process.env lazily. When unset, a key file is generated in the data dir.
+  SCRAPFORAI_VAULT_KEY: z
+    .string()
+    .optional()
+    .refine((value) => value === undefined || value.trim() === '' || Buffer.from(value.trim(), 'base64').length === 32, {
+      message: 'SCRAPFORAI_VAULT_KEY must be 32 bytes encoded as base64',
+    }),
+  // Deprecated compatibility switch: accept literal `credentials` in the REST request body.
+  // Set to false to force every secret through the vault (credentialSet).
+  ALLOW_INLINE_CREDENTIALS: booleanFromEnvDefaultTrue,
+
+  // --- Regression vault (T2.1) --- read lazily by config/paths.ts; declared here for documentation.
+  REGRESSION_VAULT_DIR: z.string().min(1).optional(),
+
+  // --- Routine library (T1.3) --- read lazily by config/paths.ts; declared here for documentation.
+  ROUTINE_LIBRARY_DIR: z.string().min(1).optional(),
 
   // --- Run history index (separate retention from evidence above) ---
   HISTORY_RETENTION_DAYS: integerFromEnv.default(90),

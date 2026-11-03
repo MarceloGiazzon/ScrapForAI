@@ -59,6 +59,24 @@ export function hasValidBearerToken(req: Request): boolean {
   return Boolean(match) && timingSafeEqualText(match?.[1] ?? '', env.SCRAPFORAI_API_KEY);
 }
 
+/**
+ * Guard for writes that must not be reachable from a UI session cookie alone (credential vault,
+ * target profiles), mirroring the locked fields of the config API. Place after apiAuth.
+ */
+export function requireBearer(req: Request, res: Response, next: NextFunction): void {
+  if (hasValidBearerToken(req)) {
+    next();
+    return;
+  }
+
+  res.status(403).json({
+    error: {
+      type: 'BearerTokenRequired',
+      message: 'This operation requires the API key (send it as a Bearer token); a UI session is not enough',
+    },
+  });
+}
+
 export function apiAuth(req: Request, res: Response, next: NextFunction): void {
   if (isPublicPath(req)) {
     next();

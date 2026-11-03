@@ -72,6 +72,21 @@ export const explorationResultSchema = z.object({
   durationMs: z.number(),
   targetUrl: z.string(),
   caller: callerSchema.nullable(),
+  /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */
+  includes: z.array(z.object({ routineId: z.string(), version: z.number().int().positive(), sha256: z.string() })).optional(),
+  /** Teardown step results (T1.4), apart from `steps`. Present only when the run had a teardown. */
+  teardown: z.array(stepResultSchema).optional(),
+  /**
+   * Outcome of the teardown. It does NOT change `status`: that stays the verdict of the steps, so a
+   * failed cleanup never masks (or manufactures) a test result. Callers that care check this too.
+   */
+  teardownStatus: z.enum(['passed', 'failed']).optional(),
+  /** Build of the application under test, when the caller said (T2.1). */
+  buildId: z.string().optional(),
+  /** Set when this run is one variant of a suite (T1.6). */
+  suite: z.object({ suiteRunId: z.string(), variantKey: z.string() }).optional(),
+  /** Set when the run came from a library routine (T1.3). */
+  routine: z.object({ id: z.string(), version: z.number().int().positive(), sha256: z.string() }).optional(),
   finalUrl: z.string().optional(),
   failedStepIndex: z.number().optional(),
   error: errorSchema.optional(),

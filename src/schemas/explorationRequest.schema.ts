@@ -2,7 +2,13 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 
-const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
+export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
+/** Build/revision label of the application under test, e.g. "rev4519" or "2026.11/rc1". */
+export const buildIdSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[\w.+\-/]+$/);
 const stepId = z.string().min(1).max(80);
 const selector = z.string().min(1).max(500);
 const shortText = z.string().max(500);
@@ -236,7 +242,23 @@ const setViewportSizeStep = z
   })
   .strict();
 
+// T1.4: expands, server-side and before the run, into the steps of another library routine. Its id (or,
+// without one, the routineId) prefixes the ids of the expanded steps: "login.submit". The runner never
+// sees an include step. Pin `version` for a reproducible run; without it the CURRENT version is used,
+// and the version actually used is recorded in the result.
+const includeStep = z
+  .object({
+    id: stepId.optional(),
+    label: z.string().min(1).max(160).optional(),
+    description: z.string().min(1).max(500).optional(),
+    action: z.literal('include'),
+    routineId: safeName,
+    version: z.number().int().positive().optional(),
+  })
+  .strict();
+
 export const explorationStepSchema = z.discriminatedUnion('action', [
+  includeStep,
   gotoStep,
   reloadStep,
   setOfflineStep,
@@ -272,68 +294,128 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   setViewportSizeStep,
 ]);
 
-export const explorationRequestSchema = z
+// The object BEFORE superRefine. Derived schemas (e.g. the MCP one, without `credentials`) must be
+// built from this, not from the refined schema, so no validation is lost or broken.
+export const explorationOptionsSchema = z
   .object({
-    scenarioName: z.string().min(1).max(160).optional(),
-    targetUrl: z.string().url().max(2048),
-    credentials: z.record(safeName, z.string().max(5000)).optional(),
-    variables: z.record(safeName, z.string().max(5000)).optional(),
-    caller: callerSchema.optional(),
-    options: z
+    headless: z.boolean().default(true),
+    trace: z.boolean().default(false),
+    screenshots: z.enum(['off', 'onFailure', 'always']).default('onFailure'),
+    collectDomOnFailure: z.boolean().default(false),
+    viewport: z
       .object({
-        headless: z.boolean().default(true),
-        trace: z.boolean().default(false),
-        screenshots: z.enum(['off', 'onFailure', 'always']).default('onFailure'),
-        collectDomOnFailure: z.boolean().default(false),
-        viewport: z
-          .object({
-            width: z.number().int().min(50).max(4096),
-            height: z.number().int().min(50).max(4096),
-          })
-          .strict()
-          .optional(),
+        width: z.number().int().min(50).max(4096),
+        height: z.number().int().min(50).max(4096),
       })
       .strict()
-      .default({ headless: true, trace: false, screenshots: 'onFailure', collectDomOnFailure: false }),
-    steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
+      .optional(),
+    // Evidence retention class (T1.5). Absent = ephemeral (ARTIFACT_RETENTION_HOURS). Pinning is a
+    // separate, explicit action (POST /v1/runs/:jobId/pin), never an option of the run itself.
+    retention: z.enum(['ephemeral', 'standard']).optional(),
   })
-  .strict()
-  .superRefine((routine, ctx) => {
-    const previousIds = new Set<string>();
+  .strict();
 
-    routine.steps.forEach((step, index) => {
-      if (!env.ALLOW_EVALUATE && (step.action === 'evaluate' || step.action === 'watch')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['steps', index, 'action'],
-          message: 'evaluate/watch are disabled (set ALLOW_EVALUATE=true)',
-        });
-      }
+export const explorationRequestBaseSchema = z
+  .object({
+    scenarioName: z.string().min(1).max(160).optional(),
+    // Optional only when `targetProfile` supplies a default (enforced in validateRoutine).
+    targetUrl: z.string().url().max(2048).optional(),
+    // Build/revision of the application under test (e.g. "rev4519"). Recorded in the result and in pinned evidence, so a
+    // proof says WHICH build it proves. Until the target profile can probe it (T3.1), the caller supplies it.
+    buildId: buildIdSchema.optional(),
+    // T1.1: named target profile (src/targets). Its baseUrl is the default targetUrl.
+    targetProfile: safeName.optional(),
+    // Inline secret values. Deprecated: prefer `credentialSet`, whose values live in the server-side
+    // vault (T1.2) and never pass through the caller. Not exposed on the MCP tool schema.
+    credentials: z.record(safeName, z.string().max(5000)).optional(),
+    // T1.2: id of a vault credential set. Its fields are loaded server-side into `credentials`.
+    credentialSet: safeName.optional(),
+    variables: z.record(safeName, z.string().max(5000)).optional(),
+    caller: callerSchema.optional(),
+    options: explorationOptionsSchema.default({ headless: true, trace: false, screenshots: 'onFailure', collectDomOnFailure: false }),
+    steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
+    // T1.4: always runs after the steps, pass or fail (like `finally`). Failures here are recorded
+    // apart and never replace the failure of the steps. Steps + teardown share MAX_STEPS_PER_JOB.
+    teardown: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB).optional(),
+  })
+  .strict();
 
-      if (step.action === 'waitForElapsed' && !previousIds.has(step.sinceStepId)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['steps', index, 'sinceStepId'],
-          message: `sinceStepId "${step.sinceStepId}" must match the id of an earlier step`,
-        });
-      }
+type RoutineForValidation = {
+  targetUrl?: string;
+  targetProfile?: string;
+  steps: Array<z.infer<typeof explorationStepSchema>>;
+  teardown?: Array<z.infer<typeof explorationStepSchema>>;
+};
 
-      if (step.id) {
-        if (previousIds.has(step.id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['steps', index, 'id'],
-            message: `duplicate step id "${step.id}"`,
-          });
-        }
-
-        previousIds.add(step.id);
-      }
+function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
+  if (routine.targetUrl === undefined && routine.targetProfile === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['targetUrl'],
+      message: 'targetUrl is required unless targetProfile is given',
     });
+  }
+
+  validateStepList(routine.steps, 'steps', ctx);
+
+  if (routine.teardown) {
+    validateStepList(routine.teardown, 'teardown', ctx);
+
+    if (routine.steps.length + routine.teardown.length > env.MAX_STEPS_PER_JOB) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['teardown'],
+        message: `steps + teardown exceed MAX_STEPS_PER_JOB (${env.MAX_STEPS_PER_JOB})`,
+      });
+    }
+  }
+}
+
+/** Per-list checks: evaluate gating, forward references of waitForElapsed, duplicate ids. */
+function validateStepList(steps: Array<z.infer<typeof explorationStepSchema>>, field: 'steps' | 'teardown', ctx: z.RefinementCtx): void {
+  const previousIds = new Set<string>();
+
+  steps.forEach((step, index) => {
+    if (!env.ALLOW_EVALUATE && (step.action === 'evaluate' || step.action === 'watch')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field, index, 'action'],
+        message: 'evaluate/watch are disabled (set ALLOW_EVALUATE=true)',
+      });
+    }
+
+    if (step.action === 'waitForElapsed' && !previousIds.has(step.sinceStepId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [field, index, 'sinceStepId'],
+        message: `sinceStepId "${step.sinceStepId}" must match the id of an earlier step`,
+      });
+    }
+
+    if (step.id) {
+      if (previousIds.has(step.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field, index, 'id'],
+          message: `duplicate step id "${step.id}"`,
+        });
+      }
+
+      previousIds.add(step.id);
+    }
   });
+}
+
+export const explorationRequestSchema = explorationRequestBaseSchema.superRefine(validateRoutine);
+
+// What the MCP tool accepts: the same request minus inline `credentials`, so a model cannot
+// supply secret values. (.strict() makes a stray `credentials` key a validation error.)
+export const mcpExplorationRequestSchema = explorationRequestBaseSchema.omit({ credentials: true }).superRefine(validateRoutine);
 
 export type ExplorationRequest = z.infer<typeof explorationRequestSchema>;
 export type ExplorationStep = z.infer<typeof explorationStepSchema>;
+/** A step the runner can execute: includes have already been expanded away (T1.4). */
+export type RunnableStep = Exclude<ExplorationStep, { action: 'include' }>;
 export type ValueSource = z.infer<typeof valueSource>;
 export type Caller = z.infer<typeof callerSchema>;
 export type FrameRef = z.infer<typeof frameRefSchema>;

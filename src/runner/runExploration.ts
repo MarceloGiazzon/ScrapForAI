@@ -5,13 +5,16 @@ import type { Frame, Page } from 'playwright';
 
 import { createArtifactStore, saveJsonFile } from '../artifacts/artifactStore.js';
 import { env } from '../config/env.js';
+import { buildManifest, writeManifest } from '../evidence/manifest.js';
 import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
-import type { ExplorationRequest, ExplorationStep, FrameRef, WaitCondition } from '../schemas/explorationRequest.schema.js';
+import type { FrameRef, RunnableStep, WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
+import { assertCredentialOrigin } from '../security/credentialBinding.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
+import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
 
 class StepExecutionError extends Error {
@@ -21,7 +24,7 @@ class StepExecutionError extends Error {
   }
 }
 
-function timeoutFor(step: ExplorationStep): number {
+function timeoutFor(step: RunnableStep): number {
   const timeoutMs = 'timeoutMs' in step ? step.timeoutMs : undefined;
   return Math.min(timeoutMs ?? env.STEP_TIMEOUT_MS, env.STEP_TIMEOUT_MS);
 }
@@ -156,7 +159,7 @@ export async function runEvaluate(frame: Frame, script: string): Promise<unknown
   }
 }
 
-function resolveValue(step: ExplorationStep, request: ExplorationRequest): string {
+function resolveValue(step: RunnableStep, request: ResolvedExplorationRequest, targetFrame: Frame): string {
   if ('value' in step && step.value !== undefined) {
     return step.value;
   }
@@ -166,6 +169,8 @@ function resolveValue(step: ExplorationStep, request: ExplorationRequest): strin
     if (value === undefined) {
       throw new StepExecutionError('Credential value was not provided');
     }
+    // Vault-sourced values may only be typed into pages of their bound origins (T1.2).
+    assertCredentialOrigin(request.credentialBinding, step.valueFromCredential, targetFrame.url());
     return value;
   }
 
@@ -227,11 +232,11 @@ async function withJobTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-export async function runExploration(request: ExplorationRequest): Promise<ExplorationResult> {
+export async function runExploration(request: ResolvedExplorationRequest): Promise<ExplorationResult> {
   return withJobTimeout(runExplorationInner(request));
 }
 
-async function runExplorationInner(request: ExplorationRequest): Promise<ExplorationResult> {
+async function runExplorationInner(request: ResolvedExplorationRequest): Promise<ExplorationResult> {
   const knownSecrets = collectKnownSecretValues(request.credentials, { SCRAPFORAI_API_KEY: env.SCRAPFORAI_API_KEY });
   const jobId = `job_${nanoid(12)}`;
   const startedAt = new Date();
@@ -241,6 +246,7 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
   let evidence: EvidenceCollector | undefined;
   const extracted: Record<string, JsonValue> = {};
   const steps: StepResult[] = [];
+  const teardownSteps: StepResult[] = [];
   const stepFinishedAt = new Map<string, number>();
   let failedStepIndex: number | undefined;
   let resultError: ExplorationResult['error'];
@@ -260,7 +266,15 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
       await playwright.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
     }
 
-    for (const [index, step] of request.steps.entries()) {
+    // One step, in either phase. Teardown (T1.4) uses the same machinery but must not touch the verdict:
+    // its failures stay in teardownSteps and never set failedStepIndex/resultError.
+    // Narrowed here, once, because TypeScript does not carry the narrowing of `let` variables into closures.
+    const activePlaywright = playwright;
+    const activeEvidence = evidence;
+    const runStep = async (step: RunnableStep, index: number, phase: 'steps' | 'teardown'): Promise<boolean> => {
+      const playwright = activePlaywright;
+      const evidence = activeEvidence;
+      let stepFailed = false;
       const stepStartedAt = new Date();
       let responseWaiter: Promise<unknown> | undefined;
       const stepResult: StepResult = {
@@ -348,7 +362,7 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
             break;
           }
           case 'fill':
-            await frame.locator(step.selector).fill(resolveValue(step, request), { timeout });
+            await frame.locator(step.selector).fill(resolveValue(step, request, frame), { timeout });
             break;
           case 'click':
             await frame.locator(step.selector).click({ timeout });
@@ -363,7 +377,7 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
             await frame.locator(step.selector).press(step.key, { timeout });
             break;
           case 'selectOption':
-            await frame.locator(step.selector).selectOption(resolveValue(step, request), { timeout });
+            await frame.locator(step.selector).selectOption(resolveValue(step, request, frame), { timeout });
             break;
           case 'check':
             await frame.locator(step.selector).check({ timeout });
@@ -509,28 +523,32 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
         }
       } catch (error) {
         responseWaiter?.catch(() => undefined);
-        failedStepIndex = index;
+        stepFailed = true;
         const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown step error';
         stepResult.status = 'failed';
         stepResult.error = {
           type: error instanceof Error ? error.name : 'StepExecutionError',
           message,
         };
-        resultError = {
-          type: stepResult.error.type,
-          message,
-        };
+        if (phase === 'steps') {
+          failedStepIndex = index;
+          resultError = {
+            type: stepResult.error.type,
+            message,
+          };
+        }
       } finally {
         const finishedAt = new Date();
         stepResult.finishedAt = finishedAt.toISOString();
         stepResult.durationMs = finishedAt.getTime() - stepStartedAt.getTime();
-        steps.push(stepResult);
+        (phase === 'steps' ? steps : teardownSteps).push(stepResult);
         if (step.id) {
           stepFinishedAt.set(step.id, finishedAt.getTime());
         }
       }
 
-      if (failedStepIndex !== undefined) {
+      // Evidence of the failing state is taken BEFORE teardown runs and changes the page.
+      if (stepFailed && phase === 'steps') {
         if (request.options.screenshots === 'onFailure' || request.options.screenshots === 'always') {
           await evidence.captureScreenshot('failure');
         }
@@ -541,8 +559,21 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
             domTextSnapshot = domText;
           }
         }
+      }
+
+      return stepFailed;
+    };
+
+    for (const [index, step] of request.steps.entries()) {
+      if (await runStep(step, index, 'steps')) {
         break;
       }
+    }
+
+    // Always runs once a browser exists, whether the steps passed or failed. Each teardown step is
+    // attempted even if an earlier one failed: cleanup is best-effort and independent.
+    for (const [index, step] of (request.teardown ?? []).entries()) {
+      await runStep(step, index, 'teardown');
     }
   } catch (error) {
     const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown runner error';
@@ -575,6 +606,13 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     targetUrl: normalizedTargetUrl,
     caller: request.caller ?? null,
+    ...(request.includes ? { includes: request.includes } : {}),
+    ...(request.teardown
+      ? { teardown: teardownSteps, teardownStatus: teardownSteps.length === request.teardown.length && teardownSteps.every((s) => s.status === 'passed') ? ('passed' as const) : ('failed' as const) }
+      : {}),
+    ...(request.routine ? { routine: request.routine } : {}),
+    ...(request.suite ? { suite: request.suite } : {}),
+    ...(request.buildId ? { buildId: request.buildId } : {}),
     finalUrl,
     failedStepIndex,
     error: resultError,
@@ -597,9 +635,36 @@ async function runExplorationInner(request: ExplorationRequest): Promise<Explora
   const result = redactSecrets(rawResult, knownSecrets);
   await saveJsonFile(artifactStore.resultPath().absolutePath, result);
 
+  // Sanitized request for "save this run as a routine" (T1.3). Never the credential values: only
+  // the credentialSet NAME survives. Values that equal a known secret are redacted as well.
+  // `variables` are left out on purpose; they are per-run inputs, not part of a routine.
+  await saveJsonFile(
+    artifactStore.requestPath().absolutePath,
+    redactSecrets(
+      {
+        scenarioName: request.scenarioName,
+        targetUrl: normalizedTargetUrl,
+        targetProfile: request.targetProfile,
+        credentialSet: request.credentialSet,
+        options: request.options,
+        // As written, with include steps intact, so saving the run keeps the reuse.
+        steps: request.unexpanded?.steps ?? request.steps,
+        teardown: request.unexpanded?.teardown ?? request.teardown,
+      },
+      knownSecrets,
+    ),
+  ).catch(() => undefined);
+
+  // Last file written: the manifest hashes everything above (T1.5). Like the history write below, a
+  // failure here must never turn a finished run into a failed request.
+  const retention = request.options.retention ?? 'ephemeral';
+  await buildManifest(artifactStore.rootDir, jobId, retention)
+    .then((manifest) => writeManifest(artifactStore.rootDir, manifest))
+    .catch(() => undefined);
+
   // Record in the durable index. appendRun() swallows its own errors by design: a history
   // write must never turn a successful exploration into a failed request.
-  await appendRun(summarizeResult(result));
+  await appendRun(summarizeResult(result, retention));
 
   return result;
 }

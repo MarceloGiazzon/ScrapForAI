@@ -9,7 +9,7 @@ const MAX_ERROR_MESSAGE_CHARS = 500;
  * The input has ALREADY been passed through redactSecrets() by runExploration, so no
  * further redaction is needed here. Do not add fields that could reintroduce bulk.
  */
-export function summarizeResult(result: ExplorationResult): RunSummary {
+export function summarizeResult(result: ExplorationResult, retention: 'ephemeral' | 'standard' = 'ephemeral'): RunSummary {
   let passedSteps = 0;
   let failedSteps = 0;
   let skippedSteps = 0;
@@ -35,6 +35,12 @@ export function summarizeResult(result: ExplorationResult): RunSummary {
 
     // caller is nullable on the result schema, so optional chaining covers both null and
     // an absent caller block.
+    teardownStatus: result.teardownStatus,
+    suiteRunId: result.suite?.suiteRunId,
+    variantKey: result.suite?.variantKey,
+    routineId: result.routine?.id,
+    routineVersion: result.routine?.version,
+
     callerSource: result.caller?.source,
     callerCorrelationId: result.caller?.correlationId,
 
@@ -51,6 +57,9 @@ export function summarizeResult(result: ExplorationResult): RunSummary {
     consoleErrorCount: result.evidence.consoleErrors.length,
     networkFailureCount: result.evidence.networkFailures.length,
     unexpectedExternalRequestCount: result.evidence.unexpectedExternalRequests.length,
+
+    retention,
+    pinned: false,
 
     artifactRelativeRoot: `artifacts/${result.jobId}`,
   };

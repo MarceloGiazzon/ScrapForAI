@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { env } from '../config/env.js';
 import { historyDir } from '../config/paths.js';
+import { writeFileAtomic } from '../storage/atomicWrite.js';
 import { runSummarySchema, type RunSummary } from './runSummary.js';
 
 /**
@@ -167,6 +168,20 @@ export async function listRuns(query: ListRunsQuery = {}): Promise<ListRunsResul
   };
 }
 
+/** Outcomes of the last `n` recorded runs of a library routine, newest first (T2.3 impact ordering). */
+export async function recentOutcomes(routineId: string, n: number): Promise<Array<'passed' | 'failed'>> {
+  await initRunHistory();
+
+  const outcomes: Array<'passed' | 'failed'> = [];
+  for (let i = runs.length - 1; i >= 0 && outcomes.length < n; i -= 1) {
+    if (runs[i]!.routineId === routineId) {
+      outcomes.push(runs[i]!.status);
+    }
+  }
+
+  return outcomes;
+}
+
 export async function getRun(jobId: string): Promise<RunSummary | undefined> {
   await initRunHistory();
   return byId.get(jobId);
@@ -229,9 +244,13 @@ export async function pruneHistory(): Promise<{ removed: number; kept: number }>
   const before = runs.length;
   const cutoff = new Date(Date.now() - env.HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  let kept = runs.filter((run) => run.startedAt >= cutoff);
-  if (kept.length > env.HISTORY_MAX_RUNS) {
-    kept = kept.slice(kept.length - env.HISTORY_MAX_RUNS);
+  // Pinned runs are proof: their summaries outlive both the age cutoff and the size cap, which only
+  // apply to the rest.
+  let kept = runs.filter((run) => run.pinned || run.startedAt >= cutoff);
+  const unpinned = kept.filter((run) => !run.pinned);
+  if (unpinned.length > env.HISTORY_MAX_RUNS) {
+    const dropped = new Set(unpinned.slice(0, unpinned.length - env.HISTORY_MAX_RUNS));
+    kept = kept.filter((run) => !dropped.has(run));
   }
 
   if (kept.length === before) {
@@ -252,6 +271,28 @@ export async function pruneHistory(): Promise<{ removed: number; kept: number }>
   }
 
   return { removed: before - kept.length, kept: kept.length };
+}
+
+/**
+ * Marks a run's evidence as pinned (T1.5). The index is append-only JSONL, so this rewrites the file
+ * atomically. A run that is no longer in the index (already pruned) is silently skipped.
+ */
+export async function markRunPinned(jobId: string, ref?: string): Promise<void> {
+  await initRunHistory();
+
+  const run = byId.get(jobId);
+  if (!run) {
+    return;
+  }
+
+  run.retention = 'pinned';
+  run.pinned = true;
+  if (ref !== undefined) {
+    run.pinRef = ref;
+  }
+
+  await writeFileAtomic(historyFilePath(), runs.map((item) => `${JSON.stringify(item)}
+`).join(''));
 }
 
 /** Test-only: drops in-memory state so the next call reloads from disk. */

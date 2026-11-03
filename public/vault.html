@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Regression vault</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="vault.html">Vault</a>
+      <a href="config.html">Configuration</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Run by impact</h2>
+      <p class="muted">Paste the files you changed (for example the output of <span class="mono">git diff --name-only main...HEAD</span>) and/or name surfaces. The fixed bugs and hard scenarios most likely to break run first, and each one says why.</p>
+      <div class="field">
+        <label for="changed-files">Changed files (one per line)</label>
+        <textarea id="changed-files" rows="5" class="mono" placeholder="src/cart/total.ts"></textarea>
+      </div>
+      <div class="field">
+        <label for="surfaces">Surfaces (comma separated, optional)</label>
+        <input id="surfaces" type="text" placeholder="cart, search">
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary" id="plan">Show order</button>
+        <button id="run-impact">Run vault by impact</button>
+      </div>
+      <div id="impact-result"></div>
+    </div>
+    <div class="card">
+      <h2>Regression vault</h2>
+      <p class="muted" id="vault-summary">Loading…</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Item</th><th>Status</th><th>Severity</th><th>Surface</th><th>RED proof</th><th>GREEN proof</th><th>Last run</th><th></th></tr>
+          </thead>
+          <tbody id="vault-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="vault.js"></script>
+</body>
+</html>

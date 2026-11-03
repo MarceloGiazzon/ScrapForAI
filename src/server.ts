@@ -8,13 +8,20 @@ import { pinoHttp } from 'pino-http';
 import { env, getLiveAllowedOrigins } from './config/env.js';
 import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
+import { recoverSuites } from './orchestrator/suiteRunner.js';
 import { authRouter } from './routes/auth.routes.js';
 import { configRouter } from './routes/config.routes.js';
+import { credentialsRouter } from './routes/credentials.routes.js';
+import { evidenceRouter } from './routes/evidence.routes.js';
 import { domInspectionRouter } from './routes/domInspection.routes.js';
 import { explorationRouter } from './routes/exploration.routes.js';
+import { routinesRouter } from './routes/routines.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
 import { statusRouter } from './routes/status.routes.js';
+import { suitesRouter } from './routes/suites.routes.js';
+import { targetsRouter } from './routes/targets.routes.js';
+import { vaultRouter } from './routes/vault.routes.js';
 import { apiAuth } from './security/apiAuth.js';
 import { redactSecrets } from './security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from './security/validateTargetUrl.js';
@@ -120,6 +127,13 @@ app.use('/v1/explorations/inspect-dom', explorationLimiter, domInspectionRouter)
 app.use('/v1/runs', runsRouter);
 app.use('/v1/config', configRouter);
 app.use('/v1/status', statusRouter);
+app.post('/v1/suites', explorationLimiter); // starting a suite drives browsers, like /v1/explorations
+app.use('/v1/suites', suitesRouter);
+app.use('/v1/evidence', evidenceRouter);
+app.use('/v1/vault', vaultRouter);
+app.use('/v1/routines', routinesRouter);
+app.use('/v1/targets', targetsRouter);
+app.use('/v1/credentials', credentialsRouter);
 
 if (env.UI_ENABLED) {
   app.use('/ui', express.static(publicDir(), { index: 'index.html', maxAge: 0 }));
@@ -162,6 +176,11 @@ async function start(): Promise<void> {
   const pruned = await pruneHistory();
   if (pruned.removed > 0) {
     logger.info(pruned, 'Pruned expired run history entries');
+  }
+
+  const recovered = await recoverSuites();
+  if (recovered.interrupted > 0 || recovered.pruned > 0) {
+    logger.info(recovered, 'Recovered suite run states');
   }
 
   app.listen(env.PORT, env.HOST, () => {

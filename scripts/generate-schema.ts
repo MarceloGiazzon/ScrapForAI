@@ -3,13 +3,14 @@ process.env.ALLOWED_TARGET_ORIGINS ??= 'https://placeholder.example.com';
 
 const { mkdir, writeFile } = await import('node:fs/promises');
 const { resolve } = await import('node:path');
-const { buildRoutineRequestJsonSchema, buildRoutineResultJsonSchema } = await import('../src/schemas/jsonSchema.js');
+const { buildRoutineRequestJsonSchema, buildRoutineResultJsonSchema, buildCliOutputJsonSchema } = await import('../src/schemas/jsonSchema.js');
 
 const outDir = resolve(process.cwd(), 'schema');
 
 const artifacts: Array<[string, Record<string, unknown>]> = [
   ['routine.request.json', buildRoutineRequestJsonSchema()],
   ['routine.result.json', buildRoutineResultJsonSchema()],
+  ['cli.output.json', buildCliOutputJsonSchema()],
 ];
 
 await mkdir(outDir, { recursive: true });

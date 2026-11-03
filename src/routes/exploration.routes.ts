@@ -5,11 +5,12 @@ import { env } from '../config/env.js';
 import { explorationRequestSchema } from '../schemas/explorationRequest.schema.js';
 import { redactSecrets } from '../security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from '../security/validateTargetUrl.js';
+import { RequestResolutionError, resolveExplorationRequest } from '../runner/resolveRequest.js';
+import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { runExploration } from '../runner/runExploration.js';
+import { VaultError } from '../vault/credentials/credentialVault.js';
 
 export const explorationRouter = Router();
-
-let activeJobs = 0;
 
 function safeValidationDetails(error: ZodError): Array<{ path: string; message: string }> {
   return error.issues.map((issue) => ({
@@ -19,16 +20,6 @@ function safeValidationDetails(error: ZodError): Array<{ path: string; message: 
 }
 
 explorationRouter.post('/run', async (req, res, next) => {
-  if (activeJobs >= env.MAX_PARALLEL_JOBS) {
-    res.status(429).json({
-      error: {
-        type: 'TooManyRequests',
-        message: 'Too many exploration jobs are already running',
-      },
-    });
-    return;
-  }
-
   const parsed = explorationRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -42,11 +33,39 @@ explorationRouter.post('/run', async (req, res, next) => {
     return;
   }
 
-  activeJobs += 1;
+  if (parsed.data.credentials !== undefined) {
+    if (!env.ALLOW_INLINE_CREDENTIALS) {
+      res.status(400).json({
+        error: {
+          type: 'InlineCredentialsDisabled',
+          message: 'Inline "credentials" are disabled on this server (ALLOW_INLINE_CREDENTIALS=false). Store the secrets in the vault and pass "credentialSet".',
+        },
+      });
+      return;
+    }
+
+    // Names only, never values.
+    req.log?.warn(
+      { deprecated: 'inline-credentials', fields: Object.keys(parsed.data.credentials) },
+      'Inline "credentials" are deprecated; store them in the vault (POST /v1/credentials/:id) and pass "credentialSet"',
+    );
+  }
+
+  const slot = await acquireInteractiveSlot(parsed.data);
+  if (!slot.ok) {
+    res.status(slot.status).json({ error: { type: slot.type, message: slot.message } });
+    return;
+  }
+
   try {
-    const result = await runExploration(parsed.data);
+    const result = await runExploration(await resolveExplorationRequest(parsed.data));
     res.status(result.status === 'passed' ? 200 : 500).json(result);
   } catch (error) {
+    if (error instanceof RequestResolutionError || error instanceof VaultError) {
+      res.status(error.status).json({ error: { type: error.name, message: error.message } });
+      return;
+    }
+
     if (error instanceof TargetUrlNotAllowedError) {
       res.status(400).json({
         error: {
@@ -59,6 +78,6 @@ explorationRouter.post('/run', async (req, res, next) => {
 
     next(redactSecrets(error));
   } finally {
-    activeJobs -= 1;
+    slot.release();
   }
 });

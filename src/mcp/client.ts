@@ -43,18 +43,18 @@ function describeError(payload: unknown, status: number): { type: string; messag
   return { type: error.type ?? 'HttpError', message };
 }
 
-async function postJson(path: string, body: unknown): Promise<unknown> {
+async function requestJson(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<unknown> {
   const url = new URL(path, mcpConfig.baseUrl);
   let response: Response;
 
   try {
     response = await fetch(url, {
-      method: 'POST',
+      method,
       headers: {
-        'content-type': 'application/json',
+        ...(method === 'GET' ? {} : { 'content-type': 'application/json' }),
         authorization: `Bearer ${mcpConfig.apiKey}`,
       },
-      body: JSON.stringify(body),
+      ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
       signal: AbortSignal.timeout(mcpConfig.requestTimeoutMs),
     });
   } catch (error) {
@@ -77,6 +77,20 @@ async function postJson(path: string, body: unknown): Promise<unknown> {
 
   const { type, message } = describeError(payload, response.status);
   throw new ScrapForAiRequestError(response.status, type, message);
+}
+
+export function postJson(path: string, body: unknown): Promise<unknown> {
+  return requestJson('POST', path, body);
+}
+
+export function putJson(path: string, body: unknown): Promise<unknown> {
+  return requestJson('PUT', path, body);
+}
+
+
+
+export function getJson(path: string): Promise<unknown> {
+  return requestJson('GET', path);
 }
 
 export function runExploration(body: unknown): Promise<unknown> {

@@ -1,0 +1,1515 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "run"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            },
+            "durationMs": {
+              "type": "number"
+            },
+            "routine": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "number"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "sha256"
+              ],
+              "additionalProperties": false
+            },
+            "steps": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": "number"
+                },
+                "passed": {
+                  "type": "number"
+                },
+                "failed": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "total",
+                "passed",
+                "failed"
+              ],
+              "additionalProperties": false
+            },
+            "failedStepIndex": {
+              "type": "number"
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "teardownStatus": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            },
+            "screenshots": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "durationMs",
+            "steps",
+            "screenshots"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "suite"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "suiteRunId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "completed",
+                    "cancelled",
+                    "interrupted"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "type": "string"
+                },
+                "request": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "items": {
+                      "minItems": 1,
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema2"
+                      }
+                    },
+                    "variants": {
+                      "type": "object",
+                      "properties": {
+                        "credentialSets": {
+                          "minItems": 1,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/__schema3"
+                          }
+                        },
+                        "targetProfiles": {
+                          "minItems": 1,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/__schema3"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "statuses": {
+                      "default": [
+                        "active"
+                      ],
+                      "minItems": 1,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema7"
+                      }
+                    },
+                    "order": {
+                      "default": "asIs",
+                      "type": "string",
+                      "enum": [
+                        "asIs",
+                        "impact"
+                      ]
+                    },
+                    "impact": {
+                      "type": "object",
+                      "properties": {
+                        "changedFiles": {
+                          "maxItems": 5000,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/__schema8"
+                          }
+                        },
+                        "surfaces": {
+                          "maxItems": 100,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/$defs/__schema9"
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "buildId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100,
+                      "pattern": "^[\\w.+\\-/]+$"
+                    },
+                    "mode": {
+                      "default": "sequential",
+                      "type": "string",
+                      "enum": [
+                        "sequential",
+                        "parallel"
+                      ]
+                    },
+                    "concurrency": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "failFast": {
+                      "default": false,
+                      "type": "boolean"
+                    },
+                    "retention": {
+                      "type": "string",
+                      "enum": [
+                        "ephemeral",
+                        "standard"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "items",
+                    "statuses",
+                    "order",
+                    "mode",
+                    "failFast"
+                  ],
+                  "additionalProperties": false
+                },
+                "total": {
+                  "type": "number"
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "pending": {
+                      "type": "number"
+                    },
+                    "running": {
+                      "type": "number"
+                    },
+                    "passed": {
+                      "type": "number"
+                    },
+                    "failed": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": "number"
+                    },
+                    "notRun": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "pending",
+                    "running",
+                    "passed",
+                    "failed",
+                    "error",
+                    "notRun"
+                  ],
+                  "additionalProperties": false
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "green",
+                    "red",
+                    "infra-error"
+                  ]
+                },
+                "verdictReason": {
+                  "type": "string"
+                },
+                "exitCode": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    },
+                    {
+                      "type": "number",
+                      "const": 2
+                    }
+                  ]
+                },
+                "teardownFailures": {
+                  "type": "number"
+                },
+                "variants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "variantKey": {
+                        "type": "string"
+                      },
+                      "routineId": {
+                        "type": "string"
+                      },
+                      "routineVersion": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "vaultItemId": {
+                        "type": "string"
+                      },
+                      "order": {
+                        "type": "object",
+                        "properties": {
+                          "position": {
+                            "type": "number"
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "position",
+                          "reasons"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "credentialSet": {
+                        "type": "string"
+                      },
+                      "targetProfile": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "running",
+                          "passed",
+                          "failed",
+                          "error",
+                          "notRun"
+                        ]
+                      },
+                      "jobId": {
+                        "type": "string"
+                      },
+                      "startedAt": {
+                        "type": "string"
+                      },
+                      "finishedAt": {
+                        "type": "string"
+                      },
+                      "durationMs": {
+                        "type": "number"
+                      },
+                      "failedStepIndex": {
+                        "type": "number"
+                      },
+                      "errorType": {
+                        "type": "string"
+                      },
+                      "errorMessage": {
+                        "type": "string"
+                      },
+                      "teardownStatus": {
+                        "type": "string",
+                        "enum": [
+                          "passed",
+                          "failed"
+                        ]
+                      },
+                      "notRunReason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "variantKey",
+                      "routineId",
+                      "routineVersion",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "suiteRunId",
+                "name",
+                "status",
+                "createdAt",
+                "request",
+                "total",
+                "counts",
+                "variants"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "suiteRunId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "total": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "suiteRunId",
+                "status",
+                "total"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "routines list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "routines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "number"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "targetProfile": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "version",
+                  "title",
+                  "status",
+                  "tags",
+                  "targetProfile",
+                  "sha256"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "routines"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "runs show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "object",
+              "properties": {
+                "jobId": {
+                  "type": "string"
+                },
+                "scenarioName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "startedAt": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "type": "string"
+                },
+                "durationMs": {
+                  "type": "number"
+                },
+                "targetUrl": {
+                  "type": "string"
+                },
+                "teardownStatus": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "suiteRunId": {
+                  "type": "string"
+                },
+                "variantKey": {
+                  "type": "string"
+                },
+                "routineId": {
+                  "type": "string"
+                },
+                "routineVersion": {
+                  "type": "number"
+                },
+                "callerSource": {
+                  "type": "string"
+                },
+                "callerCorrelationId": {
+                  "type": "string"
+                },
+                "stepCount": {
+                  "type": "number"
+                },
+                "passedSteps": {
+                  "type": "number"
+                },
+                "failedSteps": {
+                  "type": "number"
+                },
+                "skippedSteps": {
+                  "type": "number"
+                },
+                "failedStepIndex": {
+                  "type": "number"
+                },
+                "errorType": {
+                  "type": "string"
+                },
+                "errorMessage": {
+                  "type": "string"
+                },
+                "screenshotCount": {
+                  "type": "number"
+                },
+                "consoleErrorCount": {
+                  "type": "number"
+                },
+                "networkFailureCount": {
+                  "type": "number"
+                },
+                "unexpectedExternalRequestCount": {
+                  "type": "number"
+                },
+                "retention": {
+                  "default": "ephemeral",
+                  "type": "string",
+                  "enum": [
+                    "ephemeral",
+                    "standard",
+                    "pinned"
+                  ]
+                },
+                "pinned": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "pinRef": {
+                  "type": "string"
+                },
+                "artifactRelativeRoot": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "jobId",
+                "status",
+                "startedAt",
+                "finishedAt",
+                "durationMs",
+                "targetUrl",
+                "stepCount",
+                "passedSteps",
+                "failedSteps",
+                "skippedSteps",
+                "screenshotCount",
+                "consoleErrorCount",
+                "networkFailureCount",
+                "unexpectedExternalRequestCount",
+                "retention",
+                "pinned",
+                "artifactRelativeRoot"
+              ],
+              "additionalProperties": false
+            },
+            "evidenceAvailable": {
+              "type": "boolean"
+            },
+            "detail": {}
+          },
+          "required": [
+            "summary",
+            "evidenceAvailable"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "pin"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "alreadyPinned": {
+              "type": "boolean"
+            },
+            "pinnedAt": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            },
+            "files": {
+              "type": "number"
+            },
+            "bytes": {
+              "type": "number"
+            },
+            "traceDiscarded": {
+              "type": "boolean"
+            },
+            "integrityBaseline": {
+              "type": "string",
+              "enum": [
+                "run",
+                "pin"
+              ]
+            },
+            "manifestSha256": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "jobId",
+            "alreadyPinned",
+            "pinnedAt",
+            "files",
+            "bytes",
+            "traceDiscarded",
+            "integrityBaseline",
+            "manifestSha256"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "report"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "html",
+                "pdf"
+              ]
+            },
+            "lang": {
+              "type": "string",
+              "enum": [
+                "en",
+                "pt",
+                "es"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "bytes": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "format",
+            "lang",
+            "path",
+            "bytes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "evidence verify"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "jobId": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "folder",
+                "server"
+              ]
+            },
+            "manifestSha256": {
+              "type": "string"
+            },
+            "files": {
+              "type": "object",
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                },
+                "checked": {
+                  "type": "number"
+                },
+                "problems": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "problem": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "problem"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "ok",
+                "checked",
+                "problems"
+              ],
+              "additionalProperties": false
+            },
+            "signature": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "status"
+              ],
+              "additionalProperties": {}
+            },
+            "keySource": {
+              "type": "string"
+            },
+            "keyTrusted": {
+              "type": "boolean"
+            },
+            "chain": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "sequence": {
+                      "type": "number"
+                    },
+                    "previousManifestSha256": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "sequence",
+                    "previousManifestSha256"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "ok",
+            "jobId",
+            "source",
+            "manifestSha256",
+            "files",
+            "signature",
+            "chain",
+            "reasons"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "evidence export"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "bytes": {
+              "type": "number"
+            },
+            "keyId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "jobId",
+            "path",
+            "bytes"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "evidence chain"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "keyId": {
+              "type": "string"
+            },
+            "deep": {
+              "type": "boolean"
+            },
+            "entries": {
+              "type": "number"
+            },
+            "signed": {
+              "type": "number"
+            },
+            "unsigned": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "highestSequence": {
+              "type": "number"
+            },
+            "problems": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "detail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "detail"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "ok",
+            "keyId",
+            "deep",
+            "entries",
+            "signed",
+            "unsigned",
+            "highestSequence",
+            "problems"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "vault list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "vault show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "vault export"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "exportedAt": {
+              "type": "string"
+            },
+            "count": {
+              "type": "number"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "exportedAt",
+            "count",
+            "items"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "vault run"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema10"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "vault confirm-green"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema10"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string"
+        },
+        "exitCode": {
+          "type": "number",
+          "const": 2
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "error"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "__schema0": {
+      "type": "number",
+      "const": 1
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "number",
+          "const": 0
+        },
+        {
+          "type": "number",
+          "const": 1
+        },
+        {
+          "type": "number",
+          "const": 2
+        }
+      ]
+    },
+    "__schema2": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "routineId": {
+              "$ref": "#/$defs/__schema3"
+            },
+            "version": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "routineId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "vault": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema4"
+                  }
+                },
+                "type": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema5"
+                  }
+                },
+                "tags": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema6"
+                  }
+                },
+                "surface": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "vault"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema3": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,80}$"
+    },
+    "__schema4": {
+      "type": "string",
+      "enum": [
+        "ACTIVE",
+        "QUARANTINED",
+        "RETIRED"
+      ]
+    },
+    "__schema5": {
+      "type": "string",
+      "enum": [
+        "BUG",
+        "SCENARIO",
+        "BOUNDARY"
+      ]
+    },
+    "__schema6": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema7": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "quarantined",
+        "retired"
+      ]
+    },
+    "__schema8": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "__schema9": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema10": {
+      "type": "object",
+      "properties": {
+        "confirmed": {
+          "type": "boolean"
+        },
+        "item": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": {}
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "passed",
+                "failed"
+              ]
+            },
+            "durationMs": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "jobId",
+            "status",
+            "durationMs"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "item",
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
