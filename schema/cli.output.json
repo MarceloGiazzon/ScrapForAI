@@ -269,6 +269,16 @@
                         "full",
                         "functional"
                       ]
+                    },
+                    "samples": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "seed": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
                     }
                   },
                   "required": [
@@ -280,6 +290,9 @@
                     "failFast"
                   ],
                   "additionalProperties": false
+                },
+                "seed": {
+                  "type": "string"
                 },
                 "total": {
                   "type": "number"
@@ -431,6 +444,35 @@
                       },
                       "notRunReason": {
                         "type": "string"
+                      },
+                      "sample": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "parameters": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "synthetic": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "extracted": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
                       }
                     },
                     "required": [
@@ -1626,6 +1668,273 @@
         },
         "command": {
           "type": "string",
+          "const": "shrink"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "shrinkId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "completed",
+                    "cancelled",
+                    "interrupted"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "type": "string"
+                },
+                "request": {},
+                "routine": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version"
+                  ],
+                  "additionalProperties": false
+                },
+                "signature": {
+                  "type": "object",
+                  "properties": {
+                    "stepId": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "errorType": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "stepId",
+                    "errorType"
+                  ],
+                  "additionalProperties": false
+                },
+                "runs": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "currentValues": {
+                  "$ref": "#/$defs/__schema29"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "minimal",
+                    "independent",
+                    "not-reproduced",
+                    "budget",
+                    "timeout",
+                    "cancelled",
+                    "error",
+                    "not-failing",
+                    "no-parameters",
+                    "failed"
+                  ]
+                },
+                "result": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "minimal",
+                        "independent",
+                        "not-reproduced",
+                        "budget",
+                        "timeout",
+                        "cancelled",
+                        "error"
+                      ]
+                    },
+                    "failing": {
+                      "$ref": "#/$defs/__schema29"
+                    },
+                    "minimal": {
+                      "$ref": "#/$defs/__schema29"
+                    },
+                    "minimalJobId": {
+                      "type": "string"
+                    },
+                    "essential": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "boundaries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "parameter": {
+                            "type": "string"
+                          },
+                          "fails": {
+                            "type": "string"
+                          },
+                          "passes": {
+                            "type": "string"
+                          },
+                          "precision": {
+                            "type": "string",
+                            "enum": [
+                              "adjacent",
+                              "bracket"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "parameter",
+                          "fails",
+                          "passes",
+                          "precision"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "runs": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "trail": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "run": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "what": {
+                            "type": "string"
+                          },
+                          "failed": {
+                            "type": "boolean"
+                          },
+                          "jobId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "run",
+                          "what",
+                          "failed"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "failing",
+                    "minimal",
+                    "essential",
+                    "boundaries",
+                    "runs",
+                    "trail"
+                  ],
+                  "additionalProperties": false
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "replay": {
+                  "type": "object",
+                  "properties": {
+                    "routineId": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "parameterValues": {
+                      "$ref": "#/$defs/__schema29"
+                    }
+                  },
+                  "required": [
+                    "routineId",
+                    "version",
+                    "parameterValues"
+                  ],
+                  "additionalProperties": false
+                },
+                "error": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "shrinkId",
+                "status",
+                "createdAt",
+                "request",
+                "runs"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "shrinkId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "shrinkId"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "evolution list"
         },
         "exitCode": {
@@ -2665,6 +2974,15 @@
         "perRole",
         "perProbe"
       ]
+    },
+    "__schema29": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   }
 }

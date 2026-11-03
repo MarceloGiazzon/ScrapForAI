@@ -32,17 +32,20 @@
     "sample": {
       "$ref": "#/$defs/__schema23"
     },
-    "caller": {
+    "parameterValues": {
       "$ref": "#/$defs/__schema24"
     },
-    "options": {
-      "$ref": "#/$defs/__schema25"
+    "caller": {
+      "$ref": "#/$defs/__schema26"
     },
-    "steps": {
+    "options": {
       "$ref": "#/$defs/__schema27"
     },
+    "steps": {
+      "$ref": "#/$defs/__schema29"
+    },
     "teardown": {
-      "$ref": "#/$defs/__schema57"
+      "$ref": "#/$defs/__schema59"
     }
   },
   "required": [
@@ -367,6 +370,19 @@
     },
     "__schema24": {
       "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/__schema10"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema25"
+      }
+    },
+    "__schema25": {
+      "type": "string",
+      "maxLength": 5000
+    },
+    "__schema26": {
+      "type": "object",
       "properties": {
         "correlationId": {
           "type": "string",
@@ -389,7 +405,7 @@
       },
       "additionalProperties": false
     },
-    "__schema25": {
+    "__schema27": {
       "default": {
         "headless": true,
         "trace": false,
@@ -431,7 +447,7 @@
               "maxItems": 3,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema26"
+                "$ref": "#/$defs/__schema28"
               }
             }
           },
@@ -474,24 +490,24 @@
       },
       "additionalProperties": false
     },
-    "__schema26": {
+    "__schema28": {
       "type": "string"
     },
-    "__schema27": {
+    "__schema29": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema28"
+        "$ref": "#/$defs/__schema30"
       }
     },
-    "__schema28": {
+    "__schema30": {
       "oneOf": [
         {
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema29"
+              "$ref": "#/$defs/__schema31"
             },
             "label": {
               "type": "string",
@@ -526,25 +542,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -556,7 +572,7 @@
               "maxLength": 2048
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -569,32 +585,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "reload"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -606,25 +622,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -644,25 +660,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -677,7 +693,7 @@
               ]
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -690,35 +706,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "waitForUrlContains"
             },
             "value": {
-              "$ref": "#/$defs/__schema45"
+              "$ref": "#/$defs/__schema47"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -731,25 +747,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -771,25 +787,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -817,25 +833,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -863,49 +879,49 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
-              "$ref": "#/$defs/__schema46"
-            },
-            "selector": {
-              "$ref": "#/$defs/__schema47"
-            },
-            "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
-            },
-            "value": {
               "$ref": "#/$defs/__schema48"
             },
-            "valueFromCredential": {
+            "selector": {
+              "$ref": "#/$defs/__schema49"
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "value": {
               "$ref": "#/$defs/__schema50"
             },
-            "valueFromVariable": {
-              "$ref": "#/$defs/__schema51"
-            },
-            "valueFromParameter": {
+            "valueFromCredential": {
               "$ref": "#/$defs/__schema52"
             },
-            "valueFromGenerator": {
+            "valueFromVariable": {
               "$ref": "#/$defs/__schema53"
+            },
+            "valueFromParameter": {
+              "$ref": "#/$defs/__schema54"
+            },
+            "valueFromGenerator": {
+              "$ref": "#/$defs/__schema55"
             }
           },
           "required": [
@@ -918,35 +934,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "click"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -959,35 +975,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "doubleClick"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1000,35 +1016,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "hover"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1041,32 +1057,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "press"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "key": {
               "type": "string",
@@ -1074,7 +1090,7 @@
               "maxLength": 80
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1088,49 +1104,49 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
-              "$ref": "#/$defs/__schema54"
+              "$ref": "#/$defs/__schema56"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             },
             "value": {
-              "$ref": "#/$defs/__schema48"
-            },
-            "valueFromCredential": {
               "$ref": "#/$defs/__schema50"
             },
-            "valueFromVariable": {
-              "$ref": "#/$defs/__schema51"
-            },
-            "valueFromParameter": {
+            "valueFromCredential": {
               "$ref": "#/$defs/__schema52"
             },
-            "valueFromGenerator": {
+            "valueFromVariable": {
               "$ref": "#/$defs/__schema53"
+            },
+            "valueFromParameter": {
+              "$ref": "#/$defs/__schema54"
+            },
+            "valueFromGenerator": {
+              "$ref": "#/$defs/__schema55"
             }
           },
           "required": [
@@ -1143,35 +1159,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "check"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1184,35 +1200,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "uncheck"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1225,32 +1241,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "waitForSelector"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "state": {
               "type": "string",
@@ -1262,7 +1278,7 @@
               ]
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1276,25 +1292,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1316,7 +1332,7 @@
               "maximum": 599
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1329,35 +1345,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertVisible"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1370,35 +1386,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertHidden"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1411,35 +1427,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertEnabled"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1452,35 +1468,35 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertDisabled"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1493,38 +1509,38 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertTextContains"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
-            },
-            "text": {
               "$ref": "#/$defs/__schema49"
             },
+            "text": {
+              "$ref": "#/$defs/__schema51"
+            },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1538,32 +1554,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertUrlContains"
             },
             "value": {
-              "$ref": "#/$defs/__schema45"
+              "$ref": "#/$defs/__schema47"
             }
           },
           "required": [
@@ -1576,32 +1592,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "assertCount"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "operator": {
               "type": "string",
@@ -1632,25 +1648,128 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
+            },
+            "action": {
+              "type": "string",
+              "const": "assertEquals"
+            },
+            "actual": {
+              "type": "object",
+              "properties": {
+                "extracted": {
+                  "$ref": "#/$defs/__schema4"
+                }
+              },
+              "required": [
+                "extracted"
+              ],
+              "additionalProperties": false
+            },
+            "expected": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "expr": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    }
+                  },
+                  "required": [
+                    "expr"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "tolerance": {
+              "type": "object",
+              "properties": {
+                "absolute": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "relative": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "locale": {
+              "default": "en",
+              "type": "string",
+              "enum": [
+                "en",
+                "pt",
+                "es"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "actual",
+            "expected"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema32"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1670,25 +1789,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1699,7 +1818,7 @@
               "maxItems": 5,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema55"
+                "$ref": "#/$defs/__schema57"
               }
             }
           },
@@ -1713,25 +1832,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1741,17 +1860,17 @@
               "$ref": "#/$defs/__schema4"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "textMarkers": {
               "maxItems": 20,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema56"
+                "$ref": "#/$defs/__schema58"
               }
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1764,25 +1883,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1806,38 +1925,38 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "extractText"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "name": {
               "$ref": "#/$defs/__schema4"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1851,32 +1970,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "extractAttribute"
             },
             "selector": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema49"
             },
             "attribute": {
               "$ref": "#/$defs/__schema4"
@@ -1885,7 +2004,7 @@
               "$ref": "#/$defs/__schema4"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema44"
+              "$ref": "#/$defs/__schema46"
             }
           },
           "required": [
@@ -1900,25 +2019,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -1944,25 +2063,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -2000,32 +2119,32 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
               "const": "waitForElapsed"
             },
             "sinceStepId": {
-              "$ref": "#/$defs/__schema29"
+              "$ref": "#/$defs/__schema31"
             },
             "minElapsedMs": {
               "type": "integer",
@@ -2049,25 +2168,25 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/__schema30"
-            },
-            "label": {
-              "$ref": "#/$defs/__schema31"
-            },
-            "description": {
               "$ref": "#/$defs/__schema32"
             },
-            "frame": {
+            "label": {
               "$ref": "#/$defs/__schema33"
             },
-            "delayMs": {
+            "description": {
               "$ref": "#/$defs/__schema34"
             },
-            "waitFor": {
+            "frame": {
               "$ref": "#/$defs/__schema35"
             },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema43"
+              "$ref": "#/$defs/__schema45"
             },
             "action": {
               "type": "string",
@@ -2093,25 +2212,25 @@
         }
       ]
     },
-    "__schema29": {
+    "__schema31": {
       "type": "string",
       "minLength": 1,
       "maxLength": 80
     },
-    "__schema30": {
-      "$ref": "#/$defs/__schema29"
+    "__schema32": {
+      "$ref": "#/$defs/__schema31"
     },
-    "__schema31": {
+    "__schema33": {
       "type": "string",
       "minLength": 1,
       "maxLength": 160
     },
-    "__schema32": {
+    "__schema34": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema33": {
+    "__schema35": {
       "anyOf": [
         {
           "type": "object",
@@ -2157,49 +2276,49 @@
         }
       ]
     },
-    "__schema34": {
+    "__schema36": {
       "type": "integer",
       "minimum": 0,
       "maximum": 60000
     },
-    "__schema35": {
-      "$ref": "#/$defs/__schema36"
+    "__schema37": {
+      "$ref": "#/$defs/__schema38"
     },
-    "__schema36": {
+    "__schema38": {
       "type": "object",
       "properties": {
         "timeoutMs": {
-          "$ref": "#/$defs/__schema37"
-        },
-        "selector": {
-          "$ref": "#/$defs/__schema38"
-        },
-        "state": {
           "$ref": "#/$defs/__schema39"
         },
-        "response": {
+        "selector": {
           "$ref": "#/$defs/__schema40"
         },
-        "loadState": {
+        "state": {
           "$ref": "#/$defs/__schema41"
         },
-        "urlContains": {
+        "response": {
           "$ref": "#/$defs/__schema42"
+        },
+        "loadState": {
+          "$ref": "#/$defs/__schema43"
+        },
+        "urlContains": {
+          "$ref": "#/$defs/__schema44"
         }
       },
       "additionalProperties": false
     },
-    "__schema37": {
+    "__schema39": {
       "type": "integer",
       "minimum": 0,
       "maximum": 60000
     },
-    "__schema38": {
+    "__schema40": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema39": {
+    "__schema41": {
       "type": "string",
       "enum": [
         "attached",
@@ -2208,7 +2327,7 @@
         "hidden"
       ]
     },
-    "__schema40": {
+    "__schema42": {
       "type": "object",
       "properties": {
         "urlContains": {
@@ -2227,7 +2346,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema41": {
+    "__schema43": {
       "type": "string",
       "enum": [
         "load",
@@ -2235,56 +2354,56 @@
         "networkidle"
       ]
     },
-    "__schema42": {
+    "__schema44": {
       "type": "string",
       "minLength": 1,
       "maxLength": 2048
     },
-    "__schema43": {
-      "$ref": "#/$defs/__schema36"
+    "__schema45": {
+      "$ref": "#/$defs/__schema38"
     },
-    "__schema44": {
+    "__schema46": {
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 30000
     },
-    "__schema45": {
+    "__schema47": {
       "type": "string",
       "maxLength": 500
     },
-    "__schema46": {
+    "__schema48": {
       "type": "string",
       "const": "fill"
     },
-    "__schema47": {
+    "__schema49": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema48": {
-      "$ref": "#/$defs/__schema49"
+    "__schema50": {
+      "$ref": "#/$defs/__schema51"
     },
-    "__schema49": {
+    "__schema51": {
       "type": "string",
       "maxLength": 5000
     },
-    "__schema50": {
-      "$ref": "#/$defs/__schema4"
-    },
-    "__schema51": {
-      "$ref": "#/$defs/__schema4"
-    },
     "__schema52": {
-      "$ref": "#/$defs/__schema10"
+      "$ref": "#/$defs/__schema4"
     },
     "__schema53": {
-      "$ref": "#/$defs/__schema11"
+      "$ref": "#/$defs/__schema4"
     },
     "__schema54": {
+      "$ref": "#/$defs/__schema10"
+    },
+    "__schema55": {
+      "$ref": "#/$defs/__schema11"
+    },
+    "__schema56": {
       "type": "string",
       "const": "selectOption"
     },
-    "__schema55": {
+    "__schema57": {
       "type": "string",
       "enum": [
         "console",
@@ -2294,17 +2413,17 @@
         "pageErrors"
       ]
     },
-    "__schema56": {
+    "__schema58": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema57": {
+    "__schema59": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema28"
+        "$ref": "#/$defs/__schema30"
       }
     }
   }

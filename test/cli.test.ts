@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 22);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 23);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -649,4 +649,58 @@ test('run --seed/--sample: sent to the API as they are; a bad sample or an empty
     assert.equal((await cli(args)).code, 2, args.join(' '));
   }
   assert.equal(seen.length, 0);
+});
+
+// T5.6: `scrapforai shrink`
+
+const shrinkState = (outcome: string, extra: Record<string, unknown> = {}) => ({
+  shrinkId: 'shrink_abc',
+  status: 'completed',
+  createdAt: '2026-11-03T10:00:00.000Z',
+  request: { fromJobId: 'job_1', maxShrinkRuns: 30, maxShrinkSeconds: 600 },
+  routine: { id: 'shop-total', version: 2 },
+  runs: 14,
+  outcome,
+  summary: 'fails with qty="1000", passes with qty=999 - 14 run(s)',
+  currentValues: { qty: '1000' },
+  result: {
+    status: outcome, failing: { qty: '5000' }, minimal: { qty: '1000' }, minimalJobId: 'job_min', essential: ['qty'],
+    boundaries: [{ parameter: 'qty', fails: '1000', passes: '999', precision: 'adjacent' }], runs: 14, trail: [{ run: 1, what: 'confirm the failing values', failed: true, jobId: 'job_a' }],
+  },
+  replay: { routineId: 'shop-total', version: 2, parameterValues: { qty: '1000' } },
+  ...extra,
+});
+
+test('shrink: sends the budget and the source, waits, prints the limit; exit 0 for a minimal answer and 2 otherwise; --json matches the contract', async () => {
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, { shrinkId: 'shrink_abc', status: 'running' }) : respond(200, shrinkState('minimal')));
+  const ok = await cli(['shrink', '--from-job', 'job_1', '--max-runs', '40', '--max-seconds', '120', '--profile', 'functional', '--credential', 'admin', '--var', 'a=b', '--json']);
+  assert.equal(ok.code, 0);
+  assert.deepEqual(seen[0]!.body, { fromJobId: 'job_1', credentialSet: 'admin', variables: { a: 'b' }, profile: 'functional', maxShrinkRuns: 40, maxShrinkSeconds: 120 });
+  assert.equal(validJson(ok.stdout).command, 'shrink');
+
+  const text = await cli(['shrink', 'shop-total', '--seed', 'S', '--sample', '2']);
+  assert.deepEqual(seen[0]!.body, { routineId: 'shop-total', seed: 'S', sample: 2 });
+  assert.match(text.stdout, /fails with qty="1000", passes with qty=999/);
+  assert.match(text.stdout, /proof: job_min/);
+
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, { shrinkId: 'shrink_abc', status: 'running' }) : respond(200, shrinkState('budget')));
+  assert.equal((await cli(['shrink', '--from-job', 'job_1'])).code, 2, 'stopped early is not a finished answer');
+
+  const started = await cli(['shrink', '--from-job', 'job_1', '--no-wait', '--json']);
+  assert.equal(started.code, 0);
+  assert.equal(validJson(started.stdout).result.shrinkId, 'shrink_abc');
+});
+
+test('shrink: an API refusal is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(409, { error: { type: 'JobDidNotFail', message: 'did not fail' } });
+  const refused = await cli(['shrink', '--from-job', 'job_1']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /JobDidNotFail/);
+
+  for (const args of [['shrink'], ['shrink', 'a', '--from-job', 'job_1'], ['shrink', 'a', 'b'], ['shrink', '--from-job', 'j', '--max-runs', '0'], ['shrink', '--from-job', 'j', '--profile', 'x'], ['shrink', '--from-job', 'j', '--var', 'novalue']]) {
+    seen.length = 0;
+    const result = await cli(args);
+    assert.equal(result.code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
+  }
 });

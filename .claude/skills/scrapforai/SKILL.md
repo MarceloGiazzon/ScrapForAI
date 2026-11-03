@@ -156,6 +156,11 @@ The formula may use the run's parameters and extracted values by name, `+ - * / 
 no code runs. Say the page's number format with `locale` (`en` 1,234.56; `pt`/`es` 1.234,56): it is never guessed. A failure reports the difference and the inputs. Use `tolerance`
 only for a gap you have decided to accept.
 
+When a sample FAILS, do not guess the limit: `shrink_failure { fromJobId }` (or `routineId` + `seed` + `sample`) replays it with smaller inputs and returns the exact edge ("fails with
+qty=1000, passes with qty=999") and which parameters matter, within `maxShrinkRuns` (default 30). Follow with `get_shrink_result` (`waitSeconds`); a `budget`/`timeout` outcome is still a failing
+input, just not proven minimal. To keep it: `vault_add_from_run` with `result.minimalJobId` and `type: "SCENARIO"` (the values are saved fixed), while the evidence still exists, and only for
+a failure you believe is a real bug.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

@@ -10,6 +10,7 @@ import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
 import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
 import { recoverSuites } from './orchestrator/suiteRunner.js';
+import { recoverShrinks } from './shrink/shrinkService.js';
 import { recoverMatrixRuns } from './permissions/matrixRunner.js';
 import { authRouter } from './routes/auth.routes.js';
 import { configRouter } from './routes/config.routes.js';
@@ -23,6 +24,7 @@ import { routinesRouter } from './routes/routines.routes.js';
 import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
 import { statusRouter } from './routes/status.routes.js';
+import { shrinksRouter } from './routes/shrinks.routes.js';
 import { suitesRouter } from './routes/suites.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
 import { vaultRouter } from './routes/vault.routes.js';
@@ -133,6 +135,8 @@ app.use('/v1/config', configRouter);
 app.use('/v1/status', statusRouter);
 app.post('/v1/suites', explorationLimiter); // starting a suite drives browsers, like /v1/explorations
 app.use('/v1/suites', suitesRouter);
+app.post('/v1/shrinks', explorationLimiter); // a shrink drives browsers, like a suite
+app.use('/v1/shrinks', shrinksRouter);
 app.use('/v1/evidence', evidenceRouter);
 app.use('/v1/vault', vaultRouter);
 app.use('/v1/permissions', permissionsRouter);
@@ -187,6 +191,11 @@ async function start(): Promise<void> {
   const recovered = await recoverSuites();
   if (recovered.interrupted > 0 || recovered.pruned > 0) {
     logger.info(recovered, 'Recovered suite run states');
+  }
+
+  const recoveredShrinks = await recoverShrinks();
+  if (recoveredShrinks.interrupted > 0 || recoveredShrinks.pruned > 0) {
+    logger.info(recoveredShrinks, 'Recovered shrink run states');
   }
 
   const recoveredSnapshots = await recoverSnapshotRuns();

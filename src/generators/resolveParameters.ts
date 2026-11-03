@@ -46,6 +46,8 @@ export interface ResolveInput<T extends StepLike> {
   parameters?: Parameter[];
   seed?: string;
   sample?: number;
+  /** T5.6: exact values for named parameters (final names, after includes are expanded). Every name must be a parameter of the run. */
+  fixed?: Record<string, string>;
 }
 
 export interface ResolveOutput<T extends StepLike> {
@@ -62,10 +64,18 @@ export function referencedParameters(steps: StepLike[]): string[] {
   return [...new Set(steps.flatMap((step) => (step.valueFromParameter !== undefined ? [step.valueFromParameter] : [])))];
 }
 
-export function resolveParameters<T extends StepLike>(input: ResolveInput<T>): ResolveOutput<T> {
+/**
+ * Every parameter a run has, declared ones and the implicit one of each inline generator, with the steps rewritten to `valueFromParameter`.
+ * No value is drawn. Throws ParameterError for a duplicate, an invalid generator or a step that uses an undeclared name.
+ */
+export function declareParameters<T extends StepLike>(input: Pick<ResolveInput<T>, 'steps' | 'teardown' | 'parameters'>): {
+  parameters: Parameter[];
+  steps: T[];
+  teardown?: T[];
+} {
   const declared = input.parameters ?? [];
   const all = [...input.steps, ...(input.teardown ?? [])];
-  if (declared.length === 0 && !all.some(usesParameters)) return { steps: input.steps, ...(input.teardown ? { teardown: input.teardown } : {}) };
+  if (declared.length === 0 && !all.some(usesParameters)) return { parameters: [], steps: input.steps, ...(input.teardown ? { teardown: input.teardown } : {}) };
 
   const parameters: Parameter[] = [];
   const names = new Set<string>();
@@ -101,11 +111,35 @@ export function resolveParameters<T extends StepLike>(input: ResolveInput<T>): R
     throw new ParameterError('UnknownParameter', `step(s) use parameter(s) that are not declared: ${unknown.join(', ')} (declared: ${[...names].join(', ') || 'none'})`);
   }
 
+  return { parameters, steps, ...(teardown ? { teardown } : {}) };
+}
+
+export function resolveParameters<T extends StepLike>(input: ResolveInput<T>): ResolveOutput<T> {
+  const { parameters, steps, teardown } = declareParameters(input);
+  // No parameter and no generator anywhere (and nothing fixed to place): the input comes back untouched.
+  if (parameters.length === 0 && Object.keys(input.fixed ?? {}).length === 0) {
+    return { steps: input.steps, ...(input.teardown ? { teardown: input.teardown } : {}) };
+  }
+
+  const fixed = input.fixed ?? {};
+  const unknownFixed = Object.keys(fixed).filter((name) => !parameters.some((parameter) => parameter.name === name));
+  if (unknownFixed.length > 0) {
+    throw new ParameterError(
+      'UnknownParameter',
+      `parameterValues names parameter(s) the run does not have: ${unknownFixed.join(', ')} (it has: ${parameters.map((parameter) => parameter.name).join(', ') || 'none'})`,
+    );
+  }
+
   const seed = input.seed ?? randomBytes(6).toString('hex');
   const sample = input.sample ?? 0;
   const values: Record<string, string> = {};
   const sources: ParameterRecord['sources'] = {};
   for (const parameter of parameters) {
+    if (Object.hasOwn(fixed, parameter.name)) {
+      values[parameter.name] = fixed[parameter.name]!;
+      sources[parameter.name] = { source: 'fixed', index: 0 };
+      continue;
+    }
     const generated = valueAt(parameter, sample, seed);
     values[parameter.name] = generated.value;
     sources[parameter.name] = { source: generated.source, index: generated.index };

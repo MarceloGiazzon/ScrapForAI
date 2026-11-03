@@ -1042,6 +1042,10 @@ gerada.
 
 ### T5.6 — Shrinking · G
 
+> **Implementada em 2026-11-03** (`src/shrink/`, ver AGENTS.md, "Shrinking"). `POST /v1/shrinks` (assíncrono), MCP `shrink_failure`/`get_shrink_result`, CLI `scrapforai shrink`. Aceite
+> cumprido em `test/shrink.test.ts` e `test/shrink.smoke.ts` (Chromium real): bug em qty >= 1000, "falha com 1000, passa com 999". "Salvar no cofre" = `vault add-from-run` com o
+> `minimalJobId` e `type: SCENARIO` (parâmetros fixados via `parameterValues`). Não feito: botão na UI web e shrinking automático dentro da suíte.
+
 **Especificação:**
 - Quando uma amostra falha, o sistema busca a **entrada mínima que ainda falha**:
   - numérico: busca binária entre o último valor bom conhecido e o que falhou;

@@ -266,6 +266,22 @@ step limits, artifact retention, etc.).
   tolerance 1e-9); with price=10.5, qty=1000`); a problem with the INPUTS (nothing extracted, not a number, unknown variable) is a step error that names it. In an included routine the
   formula follows the rename of its parameters (`qty` -> `<include>_qty`). Not done: the CSV case tables kept in the library (`expected: { table }`), a `sqrt`/`pow` family, and
   text (non-numeric) comparison. `test/oracle.test.ts` (grammar, safety, locales) and `test/oracle.smoke.ts` (a fixture with a boundary bug at quantity >= 1000).
+- **Shrinking** (`src/shrink/`, `POST /v1/shrinks`, T5.6): from a failing sample to the smallest input that still fails. `{ fromJobId }` (a failed run of a library routine that drew
+  values, e.g. a suite variant with `samples`; its evidence must still exist) or `{ routineId, version?, seed, sample }` answers **202** with a `shrinkId` (`GET /v1/shrinks/:id[?wait=N]`,
+  `POST .../cancel`; state in `<dataDir>/shrinks/<id>.json`, a run left `running` by a dead process becomes `interrupted`). Every probe is a real run through the job queue (suite priority,
+  one session per credential set) with **`parameterValues`** (new on requests and on `POST /v1/routines/:id/run`: exact values for named parameters, bypassing generators;
+  `result.parameters.sources` says `fixed`; a name the run does not have is `UnknownParameter`). **Same failure** = same failing step id AND error type: a smaller input that fails
+  elsewhere is not progress. Algorithm (`shrink.ts`, pure, probe injected): (1) confirm the failing values fail again (else `not-reproduced`); (2) reset every parameter that has a neutral
+  baseline (int/decimal: 0 clamped to the range; string: "a" x max(minLength,1); oneOf/cases: first value; date: `from`; document: a valid one) and run Zeller's **ddmin** to find the minimal
+  subset that must keep its failing value (everything reset still fails = `independent`: the parameters are not the cause); (3) per essential parameter, numbers: **binary search** between the
+  baseline (passes) and the failing value down to two ADJACENT values (`boundaries[]`: fails 1000 / passes 999), strings: halves, then one character (code point) at a time. Budget:
+  `maxShrinkRuns` (default 30, max 200, the confirmation counts) and `maxShrinkSeconds` (default 600); when it ends early (`budget`/`timeout`/`cancelled`/`error`) the best FAILING input so
+  far is returned and an open numeric bracket is marked `precision: 'bracket'`. Invariant: `minimal` is a configuration a run really failed with (`minimalJobId`) and every pass/fail claim
+  was observed. Limits: binary search assumes ONE failing interval (with several it still returns a true adjacent flip, not necessarily the only one); lists, dates and documents are reset,
+  not shrunk. **Save to the vault**: `vault add-from-run` with `fromJobId = minimalJobId` and `type: 'SCENARIO'`: a run that carried `parameterValues` is saved with each declared parameter as
+  a single case (and each inline generator as the literal it produced), so the item fails on every run; a value of an included routine's parameter cannot be pinned (422
+  `ParametersNotPinnable`). The probes' evidence is ephemeral: save before it expires. MCP `shrink_failure` + `get_shrink_result`; CLI `scrapforai shrink --from-job <id> | <routine> --seed s
+  --sample N` (exit 0 for `minimal`/`independent`, 2 otherwise: it is not a test verdict). Not done: a button in the web UI, shrinking inside a suite automatically, several failures at once.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -281,6 +297,7 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   credential vault. `POST|GET /v1/suites`, `GET /v1/suites/:id`, `POST /v1/suites/:id/cancel` — suites.
   `GET|PUT /v1/routines[/:id]`, `POST /v1/routines/:id/run` — the routine library.
   `GET /v1/targets[/:id]` and `PUT /v1/targets/:id` (bearer only) — target profiles.
+  `POST /v1/shrinks`, `GET /v1/shrinks/:id`, `POST /v1/shrinks/:id/cancel` — shrinking a failing sample.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
   `GET|PUT /v1/permissions[/:id]`, `POST /v1/permissions/:id/run`, `GET /v1/permissions/runs[/:runId]`,
@@ -299,7 +316,7 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
 matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
@@ -338,7 +355,7 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`routines list`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
 `permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
 `evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
 `evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 
 import type { ZodError } from 'zod';
 
+import { sanitizeParameterName } from '../schemas/parameters.schema.js';
 import { expandIncludes } from './includeExpander.js';
 import { resolveJobFile } from '../evidence/locate.js';
 import { resolveExplorationRequest } from '../runner/resolveRequest.js';
@@ -41,6 +42,7 @@ interface JobRequestFile {
   credentialSet?: string;
   options?: unknown;
   parameters?: unknown;
+  parameterValues?: Record<string, string>;
   steps?: unknown;
   teardown?: unknown;
 }
@@ -70,14 +72,56 @@ async function contentFromJob(body: RoutineSaveBody, jobId: string, allowFailedJ
     );
   }
 
+  const pinned = request.parameterValues ? pinParameterValues(request, request.parameterValues, jobId) : undefined;
+
   return {
     title: body.title ?? request.scenarioName,
     targetProfile: body.targetProfile ?? request.targetProfile,
     credentialSet: body.credentialSet ?? request.credentialSet,
     options: body.options ?? request.options,
-    parameters: body.parameters ?? request.parameters,
-    steps: request.steps,
-    teardown: request.teardown,
+    parameters: body.parameters ?? pinned?.parameters ?? request.parameters,
+    steps: pinned?.steps ?? request.steps,
+    teardown: pinned?.teardown ?? request.teardown,
+  };
+}
+
+/**
+ * T5.6: a run forced to exact parameter values (a shrunk failure) is saved with those values FIXED: each declared parameter becomes a
+ * single case, and an inline generator becomes the literal it produced. A parameter that belongs to an included routine cannot be pinned
+ * here (it lives in that routine), so the run is refused rather than saved with its values silently back to random.
+ */
+function pinParameterValues(request: JobRequestFile, values: Record<string, string>, jobId: string): { parameters?: unknown; steps: unknown; teardown?: unknown } {
+  const declared = Array.isArray(request.parameters) ? (request.parameters as Array<{ name: string }>) : [];
+  const remaining = new Set(Object.keys(values));
+  for (const parameter of declared) remaining.delete(parameter.name);
+
+  const rewrite = (steps: unknown): unknown =>
+    Array.isArray(steps)
+      ? steps.map((step: Record<string, unknown>, index) => {
+          if (step.valueFromGenerator === undefined) return step;
+          const name = sanitizeParameterName(`gen_${typeof step.id === 'string' ? step.id : `s${index}`}`);
+          const value = values[name];
+          if (value === undefined) return step;
+          remaining.delete(name);
+          const { valueFromGenerator: _generator, ...rest } = step;
+          return { ...rest, value };
+        })
+      : steps;
+  const steps = rewrite(request.steps);
+  const teardown = request.teardown === undefined ? undefined : rewrite(request.teardown);
+
+  if (remaining.size > 0) {
+    throw new RoutineLibraryError(
+      422,
+      'ParametersNotPinnable',
+      `${jobId} was run with fixed values for ${[...remaining].join(', ')}, which belong to an included routine (or to a generator in teardown/another phase) and cannot be pinned into this routine. Save the included routine's scenario instead.`,
+    );
+  }
+
+  return {
+    parameters: declared.map((parameter) => ({ name: parameter.name, cases: [values[parameter.name] ?? ''] })),
+    steps,
+    ...(teardown === undefined ? {} : { teardown }),
   };
 }
 
@@ -172,6 +216,7 @@ export async function runLibraryRoutine(
     parameters: routine.parameters,
     seed: body.seed,
     sample: body.sample,
+    parameterValues: body.parameterValues,
     caller: body.caller,
     options:
       body.retention || body.profile

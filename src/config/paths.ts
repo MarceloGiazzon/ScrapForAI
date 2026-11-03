@@ -87,6 +87,11 @@ export function suitesDir(): string {
   return path.join(dataDir(), 'suites');
 }
 
+/** Shrink run states (T5.6): <dataDir>/shrinks/<shrinkId>.json. */
+export function shrinksDir(): string {
+  return path.join(dataDir(), 'shrinks');
+}
+
 /** Permission matrices (T6.1): matrices/<id>.json (definitions) and runs/<runId>.json (results). */
 export function permissionsDir(): string {
   return path.join(dataDir(), 'permissions');

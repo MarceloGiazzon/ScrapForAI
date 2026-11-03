@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { buildIdSchema, explorationOptionsSchema, explorationStepSchema, safeName } from './explorationRequest.schema.js';
-import { parametersSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
+import { parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 /**
  * T1.3 library routine. A routine is DATA: this JSON is what gets stored, versioned, reviewed in PRs
@@ -100,6 +100,8 @@ export const routineRunBodySchema = z
     // T5.3: replay a run's generated values (the seed is in its result.parameters) or take another sample.
     seed: seedSchema.optional(),
     sample: sampleIndexSchema.optional(),
+    // T5.6: exact values for named parameters (a shrunk failure), instead of the seed/sample ones.
+    parameterValues: parameterValuesSchema.optional(),
     buildId: buildIdSchema.optional(),
     caller: z
       .object({

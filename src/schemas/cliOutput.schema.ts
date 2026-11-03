@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runSummarySchema } from '../history/runSummary.js';
 import { snapshotRunStateSchema } from './evolution.schema.js';
 import { matrixRunStateSchema } from './permissionMatrix.schema.js';
+import { shrinkStateSchema } from './shrink.schema.js';
 import { suiteStateSchema } from './suiteRequest.schema.js';
 
 /**
@@ -104,6 +105,9 @@ export const cliSnapshotStartedSchema = z
   .object({ snapshotId: z.string(), targetProfile: z.string(), status: z.string(), screens: z.number(), sessions: z.number() })
   .strict();
 
+/** `shrink --no-wait`. */
+export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
+
 /** `evolution list`: the snapshots stored for a target, oldest first. */
 export const cliEvolutionListSchema = z
   .object({
@@ -162,6 +166,7 @@ export const cliOutputSchema = z.union([
   success('permissions run', z.union([matrixRunStateSchema, cliMatrixStartedSchema])),
   success('permissions show', matrixRunStateSchema),
   success('evolution snapshot', z.union([snapshotRunStateSchema, cliSnapshotStartedSchema])),
+  success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),
   success('evolution timeline', cliEvolutionTimelineSchema),

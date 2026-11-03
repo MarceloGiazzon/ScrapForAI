@@ -8,6 +8,7 @@ import { mcpExplorationRequestSchema, safeName } from '../schemas/explorationReq
 import { mcpSaveRoutineSchema, routineRunBodySchema } from '../schemas/libraryRoutine.schema.js';
 import { addFromRunSchema, confirmGreenSchema, ITEM_ID_PATTERN, itemStatusSchema, itemTypeSchema } from '../schemas/regressionItem.schema.js';
 import { matrixRunBodySchema, permissionMatrixObjectSchema } from '../schemas/permissionMatrix.schema.js';
+import { shrinkRequestSchema } from '../schemas/shrink.schema.js';
 import { suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { getJson, inspectDom, postJson, putJson, runExploration, ScrapForAiRequestError } from './client.js';
 
@@ -166,6 +167,51 @@ server.registerTool(
   async ({ id, waitSeconds }) => {
     try {
       return toToolResult(await getJson(`/v1/suites/${encodeURIComponent(id)}${waitSeconds ? `?wait=${waitSeconds}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'shrink_failure',
+  {
+    title: 'Shrink a failing sample to the smallest input',
+    description:
+      'A routine with parameters failed for some generated value (e.g. a suite row with qty=2500000). This replays it with smaller and smaller ' +
+      'inputs and finds the smallest one that still fails THE SAME WAY: numbers by binary search between a neutral value and the failing one ' +
+      '(down to "fails with qty=1000, passes with qty=999"), text by halving and removing characters, several parameters by delta debugging ' +
+      '(which ones matter at all). Name the failure with fromJobId (a failed run of a library routine that used parameters) OR routineId + seed + ' +
+      'sample. Returns a shrinkId AT ONCE; follow with get_shrink_result (waitSeconds). Budget: maxShrinkRuns (default 30) and maxShrinkSeconds. ' +
+      'The result has minimalJobId: a run that really failed with the minimal values. To keep it as permanent proof call vault_add_from_run with ' +
+      'that jobId and type "SCENARIO" (the parameters are saved FIXED at the minimal values), while the evidence still exists.',
+    inputSchema: shrinkRequestSchema,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async (args) => {
+    try {
+      return toToolResult(await postJson('/v1/shrinks', args));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_shrink_result',
+  {
+    title: 'Get a shrink result',
+    description:
+      'State of a search started with shrink_failure: runs so far, the smallest failing values found so far (currentValues) and, when finished, ' +
+      'outcome (minimal, independent = the parameters are not the cause, not-reproduced = the failure does not repeat, budget/timeout/cancelled = ' +
+      'stopped early with the best input so far), a one-line summary, result.boundaries (the exact "fails with / passes with" pairs) and replay ' +
+      '(routine + parameterValues to run it again with run_routine). waitSeconds (max 55) blocks until it ends.',
+    inputSchema: z.object({ id: z.string().regex(/^shrink_[A-Za-z0-9_-]{1,40}$/), waitSeconds: z.number().int().min(0).max(55).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id, waitSeconds }) => {
+    try {
+      return toToolResult(await getJson(`/v1/shrinks/${encodeURIComponent(id)}${waitSeconds ? `?wait=${waitSeconds}` : ''}`));
     } catch (error) {
       return toErrorResult(error);
     }

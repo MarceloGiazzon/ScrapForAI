@@ -107,6 +107,8 @@ export const parametersSchema = z
 
 export const seedSchema = z.string().min(1).max(100);
 export const sampleIndexSchema = z.number().int().min(0).max(1_000_000);
+/** T5.6: the exact value of named parameters, bypassing generators (and `seed`/`sample` for those). Used to replay a shrunk failure. */
+export const parameterValuesSchema = z.record(parameterName, z.string().max(5000)).refine((values) => Object.keys(values).length <= 50, 'at most 50 parameters');
 
 /** What a run records about its parameters (T5.3): not secrets, so they are shown as they are. */
 export const parameterRecordSchema = z
@@ -114,8 +116,11 @@ export const parameterRecordSchema = z
     seed: z.string(),
     sample: z.number().int(),
     values: z.record(z.string(), z.string()),
-    /** Where each value came from: an edge value, a random one or a listed case; `index` is its position in that stream. */
-    sources: z.record(z.string(), z.object({ source: z.enum(['boundary', 'random', 'case']), index: z.number().int() }).strict()),
+    /**
+     * Where each value came from: an edge value, a random one, a listed case, or `fixed` (the caller named the exact value, T5.6: a shrunk
+     * failure replayed as it is); `index` is its position in that stream (0 for a fixed one).
+     */
+    sources: z.record(z.string(), z.object({ source: z.enum(['boundary', 'random', 'case', 'fixed']), index: z.number().int() }).strict()),
     /**
      * Parameters whose values are SYNTHETIC identity documents. A generated CPF/CI/RUT/CNPJ is made up, but with correct check digits it
      * can coincide with a real person's or company's: dev/QA environments only, and reports say so.

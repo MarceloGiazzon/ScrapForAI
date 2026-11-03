@@ -53,6 +53,8 @@ Commands
   run <routineId> [--version N] [--target id] [--credential set] [--var k=v]... [--retention ephemeral|standard] [--profile full|functional]
       [--seed s] [--sample N]   (replay or pick the generated values of a routine with parameters; the seed is in the result)
   suite <file.json|-> [--timeout-seconds N] [--no-wait]
+  shrink --from-job <jobId> | <routineId> --seed s --sample N  [--max-runs N] [--max-seconds N] [--profile functional] [--no-wait]
+                                    (smallest input that still fails; exit 0 when found, 2 otherwise)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -197,6 +199,15 @@ function formatSuite(state: Record<string, any>): string {
   if (state.teardownFailures) {
     lines.push(`warning: ${state.teardownFailures} run(s) passed but their teardown failed`);
   }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatShrink(state: Record<string, any>): string {
+  const lines = [`Shrink ${state.shrinkId} of ${state.routine ? `${state.routine.id}@v${state.routine.version}` : 'a routine'}: ${state.outcome ?? state.status} (${state.runs} run(s))`];
+  if (state.summary) lines.push(`  ${state.summary}`);
+  if (state.result?.minimalJobId) lines.push(`  proof: ${state.result.minimalJobId} (save it with: vault add-from-run, type SCENARIO)`);
+  if (state.replay) lines.push(`  replay: run ${state.replay.routineId} --version ${state.replay.version} with parameterValues ${JSON.stringify(state.replay.parameterValues)}`);
+  if (state.error) lines.push(`  error: ${state.error}`);
   return `${lines.join('\n')}\n`;
 }
 
@@ -642,6 +653,100 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
 
         const c = state.counts;
         const line = `[${suiteRunId}] ${c.passed + c.failed + c.error + c.notRun}/${state.total} done (${c.failed} failed, ${c.error} error, ${c.running} running)`;
+        if (line !== lastLine) {
+          io.err(`${line}\n`);
+          lastLine = line;
+        }
+      }
+    }
+
+    if (command === 'shrink') {
+      // T5.6: the smallest input that still fails. Exit 0 only when the search ended with a minimal answer; 2 otherwise (not a test verdict).
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          ...common,
+          'from-job': { type: 'string' },
+          version: { type: 'string' },
+          seed: { type: 'string' },
+          sample: { type: 'string' },
+          target: { type: 'string' },
+          credential: { type: 'string' },
+          var: { type: 'string', multiple: true },
+          profile: { type: 'string' },
+          'build-id': { type: 'string' },
+          'max-runs': { type: 'string' },
+          'max-seconds': { type: 'string' },
+          'timeout-seconds': { type: 'string' },
+          'no-wait': { type: 'boolean' },
+        },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+
+      const [routineId] = positionals;
+      const fromJob = values['from-job'];
+      if (positionals.length > 1 || (fromJob === undefined) === (routineId === undefined)) {
+        throw new CliError('UsageError', 'usage: scrapforai shrink --from-job <jobId>   or   scrapforai shrink <routineId> --seed s --sample N   [--max-runs N] [--max-seconds N]');
+      }
+      const integer = (name: string, text: string | undefined, min: number, max: number): number | undefined => {
+        if (text === undefined) return undefined;
+        if (!/^\d{1,7}$/.test(text) || Number(text) < min || Number(text) > max) throw new CliError('UsageError', `--${name} must be an integer from ${min} to ${max}`);
+        return Number(text);
+      };
+      const variables: Record<string, string> = {};
+      for (const pair of values.var ?? []) {
+        const at = pair.indexOf('=');
+        if (at < 1) throw new CliError('UsageError', `--var expects name=value, got "${pair}"`);
+        variables[pair.slice(0, at)] = pair.slice(at + 1);
+      }
+      if (values.profile !== undefined && values.profile !== 'full' && values.profile !== 'functional') throw new CliError('UsageError', '--profile must be full or functional');
+
+      const body = {
+        ...(fromJob === undefined ? { routineId, seed: values.seed, sample: integer('sample', values.sample, 0, 1_000_000), ...(values.version === undefined ? {} : { version: integer('version', values.version, 1, 1_000_000) }) } : { fromJobId: fromJob }),
+        ...(values.target ? { targetProfile: values.target } : {}),
+        ...(values.credential ? { credentialSet: values.credential } : {}),
+        ...(Object.keys(variables).length > 0 ? { variables } : {}),
+        ...(values.profile ? { profile: values.profile } : {}),
+        ...(values['build-id'] ? { buildId: values['build-id'] } : {}),
+        ...(values['max-runs'] === undefined ? {} : { maxShrinkRuns: integer('max-runs', values['max-runs'], 1, 200) }),
+        ...(values['max-seconds'] === undefined ? {} : { maxShrinkSeconds: integer('max-seconds', values['max-seconds'], 10, 3600) }),
+      };
+
+      const started = await api('POST', '/v1/shrinks', body);
+      if (started.status !== 202) throw errorOf(started);
+      const { shrinkId } = started.body as { shrinkId: string };
+      if (values['no-wait']) {
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'shrink', exitCode: 0, result: { shrinkId } as never }, `Shrink started: ${shrinkId}. Poll with: GET /v1/shrinks/${shrinkId}\n`);
+        return 0;
+      }
+
+      io.err(`[${shrinkId}] started\n`);
+      const timeoutSeconds = values['timeout-seconds'] === undefined ? 3700 : Number(values['timeout-seconds']);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1) throw new CliError('UsageError', '--timeout-seconds must be a positive number');
+      const deadline = Date.now() + timeoutSeconds * 1000;
+      let lastLine = '';
+      for (;;) {
+        if (io.signal?.aborted) {
+          const cancelled = await api('POST', `/v1/shrinks/${shrinkId}/cancel`).catch(() => undefined);
+          const final = cancelled?.status === 200 ? (cancelled.body as Record<string, any>) : undefined;
+          if (final) emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'shrink', exitCode: 2, result: final as never }, formatShrink(final));
+          else throw new CliError('Cancelled', `interrupted; the shrink ${shrinkId} may still be running`);
+          return 2;
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new CliError('ShrinkWaitTimeout', `the shrink ${shrinkId} did not finish within ${timeoutSeconds}s; it keeps running (GET /v1/shrinks/${shrinkId})`);
+
+        const poll = await api('GET', `/v1/shrinks/${shrinkId}?wait=${Math.min(50, Math.max(1, Math.floor(remaining / 1000)))}`, undefined, 70_000);
+        if (poll.status !== 200) throw errorOf(poll);
+        const state = poll.body as Record<string, any>;
+        if (state.status !== 'running') {
+          const exitCode: ExitCode = state.outcome === 'minimal' || state.outcome === 'independent' ? 0 : 2;
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'shrink', exitCode, result: state as never }, formatShrink(state));
+          return exitCode;
+        }
+        const line = `[${shrinkId}] ${state.runs} run(s); smallest failing so far: ${Object.entries(state.currentValues ?? {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ')}`;
         if (line !== lastLine) {
           io.err(`${line}\n`);
           lastLine = line;

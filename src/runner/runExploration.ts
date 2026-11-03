@@ -733,6 +733,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         options: request.options,
         // T5.3: declared parameters (never the generated values or the seed: those are per run).
         ...(request.parameters ? { parameters: request.parameters } : {}),
+        // T5.6: the exact values the run was forced to (a shrunk failure), so saving this run as a routine can pin them.
+        ...(request.parameterValues ? { parameterValues: request.parameterValues } : {}),
         // As written, with include steps intact, so saving the run keeps the reuse.
         steps: request.unexpanded?.steps ?? request.steps,
         teardown: request.unexpanded?.teardown ?? request.teardown,

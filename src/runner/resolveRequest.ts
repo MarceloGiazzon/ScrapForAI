@@ -81,6 +81,7 @@ export async function resolveExplorationRequest(
       ...(request.parameters || expanded.parameters.length > 0 ? { parameters: [...(request.parameters ?? []), ...expanded.parameters] } : {}),
       ...(request.seed ? { seed: request.seed } : {}),
       ...(request.sample === undefined ? {} : { sample: request.sample }),
+      ...(request.parameterValues ? { fixed: request.parameterValues } : {}),
     });
   } catch (error) {
     if (error instanceof ParameterError) throw new RequestResolutionError(400, error.type, error.message);

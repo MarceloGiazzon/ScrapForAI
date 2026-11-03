@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
-import { checkedGeneratorSchema, parameterName, parametersSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
+import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 /** Build/revision label of the application under test, e.g. "rev4519" or "2026.11/rc1". */
@@ -431,6 +431,8 @@ export const explorationRequestBaseSchema = z
     parameters: parametersSchema.optional(),
     seed: seedSchema.optional(),
     sample: sampleIndexSchema.optional(),
+    // T5.6: the exact value of named parameters (replays a shrunk failure: "fails with qty=1000"). Wins over seed/sample for those names.
+    parameterValues: parameterValuesSchema.optional(),
     caller: callerSchema.optional(),
     options: explorationOptionsSchema.default({ headless: true, trace: false, screenshots: 'onFailure', profile: 'full', collectDomOnFailure: false }),
     steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
