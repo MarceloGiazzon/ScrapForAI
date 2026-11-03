@@ -9,6 +9,8 @@ export const domInspectionRequestSchema = z
     timeoutMs: z.number().int().positive().max(env.STEP_TIMEOUT_MS).default(env.STEP_TIMEOUT_MS),
     includeRenderedHtml: z.boolean().default(false),
     includeHiddenControls: z.boolean().default(true),
+    // T4.3: also return `structure`: fields/actions/tables described WITHOUT their values (the input of a screen inventory).
+    includeStructure: z.boolean().default(false),
     includeConsole: z.boolean().default(true),
     includeNetwork: z.boolean().default(false),
     redactSensitiveValues: z.boolean().default(true),

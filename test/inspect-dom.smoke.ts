@@ -31,6 +31,7 @@ test('inspect-dom returns a DOM snapshot (regression: esbuild __name ReferenceEr
       timeoutMs: 10000,
       includeRenderedHtml: false,
       includeHiddenControls: true,
+      includeStructure: false,
       includeConsole: true,
       includeNetwork: false,
       redactSensitiveValues: true,

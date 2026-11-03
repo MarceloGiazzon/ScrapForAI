@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import type { DomInspectionRequest } from '../schemas/domInspectionRequest.schema.js';
 import { redactSecrets, redactString } from '../security/redactSecrets.js';
 import { isAllowedResourceUrl, validateTargetUrl } from '../security/validateTargetUrl.js';
+import { type DomStructure, extractStructure } from './extractStructure.js';
 import { createPlaywrightContext } from './playwrightContext.js';
 
 const MAX_CONTROLS = 300;
@@ -84,6 +85,8 @@ export interface DomInspectionResult {
   pageErrors: string[];
   network: DomNetworkEvidence[];
   renderedHtml?: string;
+  /** Only with `includeStructure` (T4.3): fields, actions and grids described without their values. */
+  structure?: DomStructure;
   sensitiveOutput: boolean;
   warning?: string;
   error?: {
@@ -185,6 +188,8 @@ export async function inspectDom(request: DomInspectionRequest): Promise<DomInsp
       maxDomSnapshotChars: env.MAX_DOM_SNAPSHOT_CHARS,
     });
 
+    const structure = request.includeStructure ? await extractStructure(page, { includeHiddenControls: request.includeHiddenControls }) : undefined;
+
     return redactSecrets({
       status: 'passed',
       inspectedAt,
@@ -199,6 +204,7 @@ export async function inspectDom(request: DomInspectionRequest): Promise<DomInsp
       pageErrors,
       network,
       renderedHtml: snapshot.renderedHtml,
+      structure,
       sensitiveOutput: request.includeRenderedHtml,
       warning: request.includeRenderedHtml
         ? 'renderedHtml can contain sensitive hidden state even after sanitization; request it only when necessary.'

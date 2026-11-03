@@ -146,6 +146,15 @@ step limits, artifact retention, etc.).
   Row suffix and prefix apply to identities and to `keyProperties` (default key/id/name/selector/targetKey); masks apply to every
   string. A string over 2000 chars skips the user masks (bounded cost against a catastrophic regex) but is never truncated. Pure,
   no configuration import. Consumers still to come: T4.4 snapshots, T6.3, T7.5.
+- **Screen inventory** (`src/inventory/`, `src/runner/extractStructure.ts`, T4.3): what a screen IS, never what it HOLDS. `inspect_dom` with
+  `includeStructure: true` returns `structure` (fields with label/required/enabled/visible/maxLength/select option labels, actions,
+  grids with header cells); `deriveScreenInventory(structure, { screenId, config })` turns it into the Appendix A.10 `ScreenInventory`
+  (`src/schemas/screenInventory.schema.ts`). No field value, typed text or cell text is read: labels come from `<label>` own text, aria,
+  placeholder or title (a wrapping label never includes the control's content), a select with more than 100 options is data and its
+  options are left out, `type=hidden` inputs are excluded, layout tables (no header cells) are not grids. Key = `name`, else `id`, else
+  a label slug, through the diff normalizers; same key twice -> `key`, `key#2` (document order), radios with one name are ONE field;
+  controls with nothing to build a key from are counted in `unkeyed`. Lists are sorted by key (stable files in git).
+  `diffInventories()` is `structuralDiff` with the inventory identities. `test/screen-inventory.smoke.ts` proves no seeded value leaks.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
