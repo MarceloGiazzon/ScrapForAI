@@ -153,6 +153,11 @@ args: ["tsx", "src/mcp/server.ts"]
 `.env` resolution is anchored to the module's own file location, not `process.cwd()`, so the working
 directory the client launches this from doesn't actually matter.
 
+`.claude/skills/scrapforai/SKILL.md` is the agent-facing guide (T8.7): when to use each tool, the flow, the
+GeneXus/NPDev conventions, how to read evidence and how to turn a reproduced bug into a vault item. Keep it in
+sync when MCP tools or conventions change (`docs/genexus-routine-conventions.md` and `docs/npdev-testing-guide.md`
+remain the detailed sources).
+
 If your tool doesn't support MCP, call the REST API directly instead (see above) — the MCP server is
 just a thin proxy over it.
 
