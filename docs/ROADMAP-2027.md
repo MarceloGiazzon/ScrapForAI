@@ -764,6 +764,9 @@ Se não: investigar o motivo (atrito de uso? ninguém lembra de rodar?) antes de
 
 ### T3.1 — Contexto de build · M
 
+> **Implementada em 2026-11-03**, depois de o usuário autorizar seguir além do G1 (ver AGENTS.md, "Build context"). A sonda roda no fim
+> da execução, no mesmo contexto do navegador. Resultado e `runSummary` ganharam `buildId` e `buildIdSource` (`provided`/`probe`/`unknown`).
+
 **Por quê:** sem saber *qual build* foi testado, não há bisect, System Evolution nem relatório de
 homologação útil.
 

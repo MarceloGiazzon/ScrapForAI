@@ -1,5 +1,6 @@
 import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpander.js';
 import type { ExplorationRequest, ExplorationStep, RunnableStep } from '../schemas/explorationRequest.schema.js';
+import type { BuildInfo } from './buildProbe.js';
 import { RequestResolutionError } from './resolutionError.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -24,6 +25,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   routine?: { id: string; version: number; sha256: string };
   /** Set when the run is one variant of a suite (T1.6); recorded in the result and history. */
   suite?: { suiteRunId: string; variantKey: string };
+  /** T3.1: where the profile says the build id lives; probed after the run when the caller gave no `buildId`. */
+  buildProbe?: { info: BuildInfo; baseUrl: string };
 };
 
 /**
@@ -39,6 +42,7 @@ export async function resolveExplorationRequest(
 ): Promise<ResolvedExplorationRequest> {
   let targetUrl = request.targetUrl;
   let allowedSets: string[] | undefined;
+  let buildProbe: ResolvedExplorationRequest['buildProbe'];
 
   if (request.targetProfile !== undefined) {
     const profile = await getTarget(request.targetProfile);
@@ -48,6 +52,10 @@ export async function resolveExplorationRequest(
 
     targetUrl ??= validateTargetUrl(profile.baseUrl);
     allowedSets = profile.credentialSets;
+    // The caller's own buildId wins; "provided" means the profile expects the caller to say it, so nothing to probe.
+    if (profile.buildInfo && profile.buildInfo.kind !== 'provided' && request.buildId === undefined) {
+      buildProbe = { info: profile.buildInfo, baseUrl: profile.baseUrl };
+    }
   }
 
   if (targetUrl === undefined) {
@@ -65,6 +73,7 @@ export async function resolveExplorationRequest(
     ...rest,
     targetUrl,
     steps: expanded.steps,
+    ...(buildProbe ? { buildProbe } : {}),
     ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
     ...(expanded.includes.length > 0
       ? { includes: expanded.includes, unexpanded: { steps: request.steps, ...(request.teardown ? { teardown: request.teardown } : {}) } }

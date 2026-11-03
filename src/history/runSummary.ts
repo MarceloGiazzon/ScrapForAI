@@ -30,6 +30,10 @@ export const runSummarySchema = z.object({
   routineId: z.string().optional(),
   routineVersion: z.number().optional(),
 
+  /** Build of the application under test (T3.1), given by the caller or read by the profile's probe. */
+  buildId: z.string().optional(),
+  buildIdSource: z.enum(['provided', 'probe', 'unknown']).optional(),
+
   callerSource: z.string().optional(),
   callerCorrelationId: z.string().optional(),
 

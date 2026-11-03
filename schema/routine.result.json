@@ -99,6 +99,14 @@
     "buildId": {
       "type": "string"
     },
+    "buildIdSource": {
+      "type": "string",
+      "enum": [
+        "provided",
+        "probe",
+        "unknown"
+      ]
+    },
     "suite": {
       "type": "object",
       "properties": {

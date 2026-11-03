@@ -40,6 +40,8 @@ export function summarizeResult(result: ExplorationResult, retention: 'ephemeral
     variantKey: result.suite?.variantKey,
     routineId: result.routine?.id,
     routineVersion: result.routine?.version,
+    buildId: result.buildId,
+    buildIdSource: result.buildIdSource,
 
     callerSource: result.caller?.source,
     callerCorrelationId: result.caller?.correlationId,

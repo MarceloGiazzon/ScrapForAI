@@ -13,6 +13,7 @@ import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explor
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
+import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
@@ -253,6 +254,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   let tracePath: string | undefined;
   let domTextSnapshot: string | undefined;
   let finalUrl: string | undefined;
+  let probedBuildId: string | undefined;
 
   try {
     // FORCE_HEADLESS (set by the Light distribution, which bundles only the headless shell)
@@ -607,6 +609,11 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     for (const [index, step] of (request.teardown ?? []).entries()) {
       await runStep(step, index, 'teardown');
     }
+
+    // T3.1: the build the app reports (never fails the run, `unknown` when it cannot be read).
+    if (request.buildProbe) {
+      probedBuildId = await probeBuildId(request.buildProbe.info, request.buildProbe.baseUrl, playwright.context);
+    }
   } catch (error) {
     const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown runner error';
     resultError = {
@@ -644,7 +651,11 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       : {}),
     ...(request.routine ? { routine: request.routine } : {}),
     ...(request.suite ? { suite: request.suite } : {}),
-    ...(request.buildId ? { buildId: request.buildId } : {}),
+    ...(request.buildId
+      ? { buildId: request.buildId, buildIdSource: 'provided' as const }
+      : probedBuildId
+        ? { buildId: probedBuildId, buildIdSource: probedBuildId === UNKNOWN_BUILD ? ('unknown' as const) : ('probe' as const) }
+        : {}),
     finalUrl,
     failedStepIndex,
     error: resultError,

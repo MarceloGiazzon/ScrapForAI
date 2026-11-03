@@ -127,6 +127,14 @@ step limits, artifact retention, etc.).
   getting the page by URL anyway is red with `counts.unofferedAccess` and `expectedBy: 'menu'` on the cell. A written `expected` wins over
   the menu; a screen without `offeredTo` makes no claim. Catalogue URLs go through the same allowlist check. The catalogue is written by hand
   (`PUT /v1/targets/:id`) until T4.2's assisted discovery and T8.5's generation from the NPDev model exist.
+- **Build context** (`src/runner/buildProbe.ts`, T3.1): the target profile's `buildInfo` (`httpHeader` | `jsonEndpoint` | `selectorText` |
+  `provided`) says where the app reports its build. After the steps and teardown, when the caller gave no `buildId`, the runner reads it
+  in the run's own browser context (so a value behind the login answers), on a second page / the context's request client, so the run's
+  evidence is untouched. The URL is allowlist-checked, redirects are not followed, and any failure is `buildId: "unknown"`: a probe never
+  fails a run. The value is made safe for `buildIdSchema` (spaces -> `_`, other characters dropped, 100 chars). `result.buildId` +
+  `result.buildIdSource` (`provided` | `probe` | `unknown`) and the history summary carry it, and pinning records it in the manifest. A
+  `buildId` in the request always wins. `jsonPath` takes `a.b[0].c`, `$.a`, and keys with dots in their name (`npdev.builtAt`).
+  `wmsoffice-dev` uses `jsonEndpoint /actuator/info` + `npdev.builtAt`.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

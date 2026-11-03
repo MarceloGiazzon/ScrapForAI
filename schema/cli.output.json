@@ -615,6 +615,17 @@
                 "routineVersion": {
                   "type": "number"
                 },
+                "buildId": {
+                  "type": "string"
+                },
+                "buildIdSource": {
+                  "type": "string",
+                  "enum": [
+                    "provided",
+                    "probe",
+                    "unknown"
+                  ]
+                },
                 "callerSource": {
                   "type": "string"
                 },

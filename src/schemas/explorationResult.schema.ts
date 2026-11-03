@@ -83,6 +83,8 @@ export const explorationResultSchema = z.object({
   teardownStatus: z.enum(['passed', 'failed']).optional(),
   /** Build of the application under test, when the caller said (T2.1). */
   buildId: z.string().optional(),
+  /** Where `buildId` came from (T3.1): the caller, the profile's `buildInfo` probe, or `unknown` (the probe could not read it). */
+  buildIdSource: z.enum(['provided', 'probe', 'unknown']).optional(),
   /** Set when this run is one variant of a suite (T1.6). */
   suite: z.object({ suiteRunId: z.string(), variantKey: z.string() }).optional(),
   /** Set when the run came from a library routine (T1.3). */
