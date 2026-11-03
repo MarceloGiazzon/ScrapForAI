@@ -178,6 +178,12 @@ object on stdout (`cliSchema: 1`, schema in `schema/cli.output.json`); progress 
 key comes from `.env`, never from the command line. Fields are only ever added to the JSON; a breaking change bumps
 `cliSchema`.
 
+`scripts/ops/` has the habit-forming wrappers: `Invoke-VaultPreMerge.ps1` (vault by impact for an app repo's diff, build id `<branch>.<sha>`),
+`Invoke-VaultNightly.ps1` (dated JSON log, never starts the server) and `Register-VaultNightlyTask.ps1` (daily Windows task, `-WhatIf` supported).
+`templates/routines/` holds the login and smoke-page routine templates (checked by `test/routine-templates.test.ts`).
+**PowerShell gotcha:** do not pipe into `npm run cli -- ...` (npm drops the flags); write the list to a file, or splat as the scripts do.
+Put the command first and global options (`--json`, `--url`) after it.
+
 ## Tests
 
 - `npm test` — unit tests (`test/routine-v2.test.ts`): step validation, redaction, evaluate wrapping.
