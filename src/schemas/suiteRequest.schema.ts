@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { buildIdSchema, safeName } from './explorationRequest.schema.js';
 import { routineStatusSchema } from './libraryRoutine.schema.js';
+import { seedSchema } from './parameters.schema.js';
 import { itemStatusSchema, itemTypeSchema } from './regressionItem.schema.js';
 
 /**
@@ -68,6 +69,14 @@ export const suiteRequestSchema = z
     retention: z.enum(['ephemeral', 'standard']).optional(),
     /** T5.2: run every variant as `functional` (stand-ins for images/media/fonts, no screenshots, no trace). */
     profile: z.enum(['full', 'functional']).optional(),
+    /**
+     * T5.4: run every PARAMETRIC routine (one that declares `parameters` or uses a generator, also through an include) once per sample
+     * `0..samples-1`: edge values first, then random ones (T5.3). A routine without parameters runs once, since N copies would prove
+     * nothing. Absent = no expansion (each routine runs once, with a fresh seed as before).
+     */
+    samples: z.number().int().min(1).max(100).optional(),
+    /** The seed every sample draws from, so the whole table can be replayed. Absent with `samples`: a fresh one, recorded in the state. */
+    seed: seedSchema.optional(),
   })
   .strict();
 
@@ -97,6 +106,12 @@ export const variantStateSchema = z
     errorMessage: z.string().optional(),
     teardownStatus: z.enum(['passed', 'failed']).optional(),
     notRunReason: z.string().optional(),
+    /** T5.4: the sample index of a parametric variant, the values its parameters took and a bounded copy of what it extracted. */
+    sample: z.number().int().min(0).optional(),
+    parameters: z.record(z.string(), z.string()).optional(),
+    /** Parameters whose values are synthetic identity documents (T5.3): dev/QA only. */
+    synthetic: z.array(z.string()).optional(),
+    extracted: z.record(z.string(), z.string()).optional(),
   })
   .strict();
 
@@ -108,6 +123,8 @@ export const suiteStateSchema = z
     createdAt: z.string(),
     finishedAt: z.string().optional(),
     request: suiteRequestSchema,
+    /** T5.4: the seed shared by every sample of this suite (the caller's, or the one generated). Absent when the suite used no `samples`/`seed`. */
+    seed: z.string().optional(),
     total: z.number(),
     counts: z.object({ pending: z.number(), running: z.number(), passed: z.number(), failed: z.number(), error: z.number(), notRun: z.number() }).strict(),
     /**

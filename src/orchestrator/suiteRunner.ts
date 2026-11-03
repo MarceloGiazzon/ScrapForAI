@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -5,6 +6,7 @@ import { nanoid } from 'nanoid';
 
 import { env } from '../config/env.js';
 import { suitesDir } from '../config/paths.js';
+import { expandIncludes } from '../library/includeExpander.js';
 import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
@@ -33,6 +35,8 @@ interface PlannedVariant {
   /** What the run is started with. Absent fields mean "the routine's own". */
   credentialSet?: string;
   targetProfile?: string;
+  /** T5.4: which sample of its parameters this run takes (parametric routines only, and only when the suite asks for `samples`). */
+  sample?: number;
   /** Concurrency domain for the single-session rule: the credential set this variant will really use. */
   lockKey?: string;
   maxSessions: number;
@@ -136,6 +140,7 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
 
   const planned: PlannedVariant[] = [];
   const seenKeys = new Map<string, number>();
+  const parametricCache = new Map<string, boolean>();
 
   for (const source of sources) {
     const routine = await getRoutine(source.routineId, source.version);
@@ -147,45 +152,108 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
       );
     }
 
+    // T5.4: only a routine that draws values is multiplied by `samples`; the rest runs once.
+    const cacheKey = `${routine.id}@${routine.version}`;
+    if (request.samples !== undefined && !parametricCache.has(cacheKey)) {
+      parametricCache.set(cacheKey, await isParametric(routine));
+    }
+    const samples: Array<number | undefined> =
+      request.samples !== undefined && parametricCache.get(cacheKey) ? Array.from({ length: request.samples }, (_, index) => index) : [undefined];
+
     for (const credentialSet of credentialSets) {
       for (const targetProfile of targetProfiles) {
-        let key =
-          source.keyBase === undefined
-            ? variantKeyFor(routine.id, source.keyVersion, credentialSet, targetProfile)
-            : variantKeyFor(source.keyBase, undefined, credentialSet, targetProfile);
-        const seen = (seenKeys.get(key) ?? 0) + 1;
-        seenKeys.set(key, seen);
-        if (seen > 1) {
-          key = `${key}#${seen}`; // the same item listed twice
+        for (const sample of samples) {
+          let key =
+            source.keyBase === undefined
+              ? variantKeyFor(routine.id, source.keyVersion, credentialSet, targetProfile)
+              : variantKeyFor(source.keyBase, undefined, credentialSet, targetProfile);
+          if (sample !== undefined) {
+            key = `${key}/sample:${sample}`;
+          }
+          const seen = (seenKeys.get(key) ?? 0) + 1;
+          seenKeys.set(key, seen);
+          if (seen > 1) {
+            key = `${key}#${seen}`; // the same item listed twice
+          }
+
+          const effectiveCredential = credentialSet ?? routine.credentialSet;
+          const effectiveProfile = targetProfile ?? routine.targetProfile;
+          const skipped = !request.statuses.includes(routine.status);
+
+          planned.push({
+            // Pinned HERE: the version that is current now is the one every variant of this suite runs.
+            state: {
+              variantKey: key,
+              routineId: routine.id,
+              routineVersion: routine.version,
+              ...(source.vaultItemId ? { vaultItemId: source.vaultItemId } : {}),
+              ...(source.order ? { order: source.order } : {}),
+              ...(effectiveCredential === undefined ? {} : { credentialSet: effectiveCredential }),
+              targetProfile: effectiveProfile,
+              ...(sample === undefined ? {} : { sample }),
+              status: skipped ? 'notRun' : 'pending',
+              ...(skipped ? { notRunReason: `routine status is "${routine.status}"; this suite runs: ${request.statuses.join(', ')}` } : {}),
+            },
+            ...(credentialSet === undefined ? {} : { credentialSet }),
+            ...(targetProfile === undefined ? {} : { targetProfile }),
+            ...(sample === undefined ? {} : { sample }),
+            ...(effectiveCredential === undefined ? {} : { lockKey: effectiveCredential }),
+            maxSessions: await maxSessionsFor(effectiveProfile),
+          });
         }
-
-        const effectiveCredential = credentialSet ?? routine.credentialSet;
-        const effectiveProfile = targetProfile ?? routine.targetProfile;
-        const skipped = !request.statuses.includes(routine.status);
-
-        planned.push({
-          // Pinned HERE: the version that is current now is the one every variant of this suite runs.
-          state: {
-            variantKey: key,
-            routineId: routine.id,
-            routineVersion: routine.version,
-            ...(source.vaultItemId ? { vaultItemId: source.vaultItemId } : {}),
-            ...(source.order ? { order: source.order } : {}),
-            ...(effectiveCredential === undefined ? {} : { credentialSet: effectiveCredential }),
-            targetProfile: effectiveProfile,
-            status: skipped ? 'notRun' : 'pending',
-            ...(skipped ? { notRunReason: `routine status is "${routine.status}"; this suite runs: ${request.statuses.join(', ')}` } : {}),
-          },
-          ...(credentialSet === undefined ? {} : { credentialSet }),
-          ...(targetProfile === undefined ? {} : { targetProfile }),
-          ...(effectiveCredential === undefined ? {} : { lockKey: effectiveCredential }),
-          maxSessions: await maxSessionsFor(effectiveProfile),
-        });
       }
+    }
+
+    if (planned.length > MAX_VARIANTS) {
+      throw new SuiteError(400, 'SuiteTooLarge', `The suite expands to more than ${MAX_VARIANTS} runs (samples included); split it`);
     }
   }
 
   return planned;
+}
+
+type StepList = Array<Record<string, unknown>>;
+const drawsValues = (steps: StepList): boolean => steps.some((step) => step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined);
+
+/** Does running this routine draw any generated value (own parameters, inline generators, or those of an included routine)? */
+async function isParametric(routine: NonNullable<Awaited<ReturnType<typeof getRoutine>>>): Promise<boolean> {
+  if ((routine.parameters?.length ?? 0) > 0) {
+    return true;
+  }
+
+  const steps = routine.steps as unknown as StepList;
+  const teardown = (routine.teardown ?? []) as unknown as StepList;
+  if (drawsValues(steps) || drawsValues(teardown)) {
+    return true;
+  }
+  if (![...steps, ...teardown].some((step) => step.action === 'include')) {
+    return false;
+  }
+
+  try {
+    const expanded = await expandIncludes({ steps: routine.steps, teardown: routine.teardown }, { targetProfile: routine.targetProfile });
+    return expanded.parameters.length > 0 || drawsValues(expanded.steps as unknown as StepList) || drawsValues(expanded.teardown as unknown as StepList);
+  } catch {
+    return false; // the run itself will report why the includes cannot be expanded, once
+  }
+}
+
+const MAX_EXTRACTED_KEYS = 20;
+const MAX_EXTRACTED_CHARS = 200;
+
+/** A short, flat copy of what a run extracted, for the samples table: not the evidence (that is the run's own). */
+function compactExtracted(extracted: Record<string, unknown> | undefined): Record<string, string> | undefined {
+  const entries = Object.entries(extracted ?? {}).slice(0, MAX_EXTRACTED_KEYS);
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return Object.fromEntries(
+    entries.map(([name, value]) => {
+      const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value));
+      return [name, text.length > MAX_EXTRACTED_CHARS ? `${text.slice(0, MAX_EXTRACTED_CHARS)}…` : text];
+    }),
+  );
 }
 
 function suiteSlots(): number {
@@ -246,6 +314,8 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
               ...(request.retention === undefined ? {} : { retention: request.retention }),
               ...(request.profile === undefined ? {} : { profile: request.profile }),
               ...(request.buildId === undefined ? {} : { buildId: request.buildId }),
+              // T5.4: every sample draws from the suite's one seed, so any row of the table replays alone.
+              ...(entry.sample === undefined ? {} : { seed: state.seed, sample: entry.sample }),
               caller: { source: 'suite', correlationId: state.suiteRunId, metadata: { variantKey: variant.variantKey } },
             },
             { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey } },
@@ -257,6 +327,13 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
       variant.status = result.status === 'passed' ? 'passed' : 'failed';
       variant.durationMs = result.durationMs;
       variant.teardownStatus = result.teardownStatus;
+      if (result.parameters) {
+        variant.sample ??= result.parameters.sample;
+        variant.parameters = result.parameters.values;
+        if (result.parameters.synthetic) variant.synthetic = result.parameters.synthetic;
+        const extracted = compactExtracted(result.extracted);
+        if (extracted) variant.extracted = extracted;
+      }
       if (result.status !== 'passed') {
         variant.failedStepIndex = result.failedStepIndex;
         variant.errorType = result.error?.type;
@@ -333,6 +410,7 @@ export async function startSuite(request: SuiteRequest): Promise<SuiteState> {
     status: 'running',
     createdAt: new Date().toISOString(),
     request,
+    ...(request.samples !== undefined || request.seed !== undefined ? { seed: request.seed ?? randomBytes(6).toString('hex') } : {}),
     total: planned.length,
     counts: { pending: 0, running: 0, passed: 0, failed: 0, error: 0, notRun: 0 },
     variants: planned.map((entry) => entry.state),

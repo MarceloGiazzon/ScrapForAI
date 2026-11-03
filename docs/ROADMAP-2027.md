@@ -1014,6 +1014,10 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.4 — Execução paramétrica · M
 
+> **Implementada em 2026-11-03** (`src/orchestrator/suiteRunner.ts`, ver AGENTS.md, "Samples (T5.4)"). `samples` e `seed` na **suíte** (não em uma execução
+> avulsa: lá já existem `seed` + `sample` do T5.3). Só rotinas paramétricas se multiplicam; a tabela parâmetros → status → extraídos fica no estado de cada variante
+> e é impressa pelo CLI. Não feito: combinações cartesianas de vários parâmetros e a tabela no relatório.
+
 - `samples: N` e `seed` na execução ou na suíte. O orquestrador (T1.6) expande em N execuções:
   bordas primeiro, depois aleatórias.
 - Para velocidade, combina com o perfil funcional (T5.2).

@@ -74,6 +74,14 @@ step limits, artifact retention, etc.).
   priority interactive > suite > scheduled, and `INTERACTIVE_RESERVED_SLOTS` are never given to suites. **A credential
   set is never in two sessions at once** (limit `flags.maxSessionsPerCredential` of the profile, default 1): suite
   variants wait for the lock, and a synchronous run that needs a busy credential gets **409 `CredentialInUse`**.
+  **Samples (T5.4)**: `samples: N` (1-100) and `seed` on the suite request multiply every PARAMETRIC routine (own `parameters`, an inline
+  generator, or parameters/generators of an included routine) by sample `0..N-1`, with `/sample:<i>` in the `variantKey`, after credential sets and
+  target profiles; a routine that draws no value runs once. Samples count against the 500-run limit (`SuiteTooLarge`). All samples draw from ONE seed
+  (the caller's, or a fresh one in `state.seed`; absent when the suite has neither `samples` nor `seed`), so replaying the suite with it repeats every
+  row. Each parametric variant records `sample`, `parameters` (the values typed), `synthetic` and `extracted` (a flat copy, max 20 keys x 200 chars; the
+  evidence stays in the run) = the parameters -> status -> extracted table; `scrapforai suite` prints it under each line. Edge samples are out of range ON
+  PURPOSE: a routine that expects success for every sample turns red on them. Not done: cartesian combinations of several parameters (they still move
+  together, one sample index for all), a samples table in the report, and the functional profile is the caller's choice (`profile: 'functional'`).
 - **Signed evidence** (`src/evidence/signature.ts`, `chain.ts`, `verify.ts`, `export.ts`): every PINNED manifest is signed
   with the installation's Ed25519 key (`<dataDir>/signing/ed25519.key`, owner-only; `keyId` = sha256 of the public key) and
   carries `chain: { sequence, previousManifestSha256 }`, so removing or editing one manifest breaks the next link, a gap in

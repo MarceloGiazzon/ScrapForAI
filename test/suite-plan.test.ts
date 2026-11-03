@@ -31,6 +31,20 @@ before(async () => {
   await saveRoutine('crud', { title: 'crud', targetProfile: 'app-dev', steps });
   await saveRoutine('report', { title: 'report', targetProfile: 'app-dev', steps, credentialSet: 'own-cred' });
   await saveRoutine('flaky', { title: 'flaky', targetProfile: 'app-dev', steps, status: 'quarantined' });
+  // T5.4: one routine with its own parameter, one with an inline generator, one that only includes the first.
+  await saveRoutine('qty-form', {
+    title: 'qty form', targetProfile: 'app-dev',
+    parameters: [{ name: 'qty', generator: { type: 'int', min: 1, max: 99 } }] as never,
+    steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }, { id: 'type', action: 'fill', selector: '#qty', valueFromParameter: 'qty' }] as never,
+  });
+  await saveRoutine('inline-gen', {
+    title: 'inline gen', targetProfile: 'app-dev',
+    steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }, { id: 'type', action: 'fill', selector: '#q', valueFromGenerator: { type: 'int', min: 1, max: 9 } }] as never,
+  });
+  await saveRoutine('uses-qty', {
+    title: 'uses qty', targetProfile: 'app-dev',
+    steps: [{ id: 'form', action: 'include', routineId: 'qty-form' }] as never,
+  });
 });
 
 after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
@@ -113,7 +127,54 @@ test('a suite that expands past 500 runs is refused', async () => {
   );
 });
 
+test('T5.4: samples multiply only the routines that draw values (own parameter, inline generator, through an include)', async () => {
+  const planned = await planSuite(parse({
+    name: 's', samples: 3,
+    items: [{ routineId: 'crud' }, { routineId: 'qty-form' }, { routineId: 'inline-gen' }, { routineId: 'uses-qty' }],
+  }));
+
+  assert.deepEqual(keys(planned), [
+    'crud',
+    'qty-form/sample:0', 'qty-form/sample:1', 'qty-form/sample:2',
+    'inline-gen/sample:0', 'inline-gen/sample:1', 'inline-gen/sample:2',
+    'uses-qty/sample:0', 'uses-qty/sample:1', 'uses-qty/sample:2',
+  ]);
+  assert.deepEqual(planned.map((entry) => entry.sample), [undefined, 0, 1, 2, 0, 1, 2, 0, 1, 2]);
+  assert.equal(planned[0]!.state.sample, undefined, 'a routine with no parameters runs once, as before');
+  assert.equal(planned[2]!.state.sample, 1);
+});
+
+test('T5.4: samples compose with credential sets and target profiles, and without `samples` nothing changes', async () => {
+  const planned = await planSuite(parse({
+    name: 's', samples: 2, items: [{ routineId: 'qty-form' }],
+    variants: { credentialSets: ['a', 'b'], targetProfiles: ['app-dev'] },
+  }));
+  assert.deepEqual(keys(planned), ['qty-form/cred:a/target:app-dev/sample:0', 'qty-form/cred:a/target:app-dev/sample:1', 'qty-form/cred:b/target:app-dev/sample:0', 'qty-form/cred:b/target:app-dev/sample:1']);
+
+  const plain = await planSuite(parse({ name: 's', items: [{ routineId: 'qty-form' }, { routineId: 'uses-qty' }] }));
+  assert.deepEqual(keys(plain), ['qty-form', 'uses-qty']);
+  assert.ok(plain.every((entry) => entry.sample === undefined));
+});
+
+test('T5.4: the expansion counts against the 500-run limit', async () => {
+  await assert.rejects(
+    () => planSuite(parse({ name: 'big', samples: 100, items: [{ routineId: 'qty-form' }], variants: { credentialSets: ['a', 'b', 'c', 'd', 'e', 'f'] } })),
+    expectError('SuiteTooLarge'),
+  );
+});
+
+test('T5.4: a suite with samples records one seed, the caller\'s or a fresh one', async () => {
+  const mine = await startSuite(parse({ name: 'seeded', samples: 1, seed: 'my-seed', items: [{ routineId: 'flaky' }] }));
+  assert.equal(mine.seed, 'my-seed');
+  assert.equal((await startSuite(parse({ name: 'fresh', samples: 1, items: [{ routineId: 'flaky' }] }))).seed?.length, 12);
+  assert.equal((await startSuite(parse({ name: 'none', items: [{ routineId: 'flaky' }] }))).seed, undefined, 'no samples, no seed: the suite is what it was');
+});
+
 test('request validation: strict, bounded, sensible defaults', () => {
+  assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'crud' }], samples: 0 }).success, false);
+  assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'crud' }], samples: 101 }).success, false);
+  assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'crud' }], samples: 5, seed: 's' }).success, true);
+
   const ok = parse({ name: 'x', items: [{ routineId: 'crud' }] });
   assert.deepEqual([ok.mode, ok.failFast, ok.statuses], ['sequential', false, ['active']]);
 

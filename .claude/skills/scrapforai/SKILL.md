@@ -151,6 +151,12 @@ values just outside the range are deliberate: the page SHOULD reject them, so as
 coincide with a real person's, so use them only in dev/QA, and say so in what you report. A routine you `include` declares its own parameters; they
 appear in `result.parameters` as `<includeId>_<name>`.
 
+To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
+(edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
+`extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge
+samples are out of range ON PURPOSE: a routine that expects success for every sample will fail on them, so assert the rejection (or use
+`includeBoundaries: false` / `oneOf` when you want only valid input).
+
 ## Describing a system's screens (catalogue and evolution)
 
 - `propose_screen_catalog` (an MCP prompt, argument `targetProfile`) walks you through exploring a profile read-only and PROPOSING

@@ -175,11 +175,18 @@ function formatRun(result: Record<string, any>): { json: CliOutput & { command: 
 
 function formatSuite(state: Record<string, any>): string {
   const mark: Record<string, string> = { passed: 'PASS ', failed: 'FAIL ', error: 'ERROR', notRun: 'SKIP ', pending: '...  ', running: 'RUN  ' };
-  const lines = [`Suite "${state.name}" (${state.suiteRunId}): ${state.status}`];
+  const lines = [`Suite "${state.name}" (${state.suiteRunId}): ${state.status}${state.seed ? `  seed ${state.seed}` : ''}`];
 
   for (const variant of state.variants as Array<Record<string, any>>) {
     const detail = variant.errorType ? `  ${variant.errorType}: ${variant.errorMessage ?? ''}` : variant.notRunReason ? `  (${variant.notRunReason})` : '';
     lines.push(`  ${mark[variant.status] ?? variant.status}  ${variant.variantKey}${variant.jobId ? `  ${variant.jobId}` : ''}${detail}`);
+    // T5.4: the samples table: what each run was fed, and what it extracted.
+    const values = (record: unknown): string =>
+      Object.entries((record ?? {}) as Record<string, string>)
+        .map(([name, value]) => `${name}=${JSON.stringify(value)}`)
+        .join(' ');
+    if (variant.parameters && Object.keys(variant.parameters).length > 0) lines.push(`        params: ${values(variant.parameters)}`);
+    if (variant.extracted) lines.push(`        extracted: ${values(variant.extracted)}`);
   }
 
   const c = state.counts;
