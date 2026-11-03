@@ -82,6 +82,8 @@ export const explorationResultSchema = z.object({
   durationMs: z.number(),
   targetUrl: z.string(),
   caller: callerSchema.nullable(),
+  /** Present only for a `functional` run (T5.2): screenshots/trace were off and images, media and fonts were stand-ins. */
+  profile: z.literal('functional').optional(),
   /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */
   includes: z.array(z.object({ routineId: z.string(), version: z.number().int().positive(), sha256: z.string() })).optional(),
   /** Teardown step results (T1.4), apart from `steps`. Present only when the run had a teardown. */

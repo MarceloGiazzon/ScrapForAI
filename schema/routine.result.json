@@ -58,6 +58,10 @@
         }
       ]
     },
+    "profile": {
+      "type": "string",
+      "const": "functional"
+    },
     "includes": {
       "type": "array",
       "items": {

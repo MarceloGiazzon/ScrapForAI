@@ -55,7 +55,7 @@ test('no policy: nothing is installed at all, so a run is exactly what it was be
   const handle = await installRouting(context, []);
   assert.equal(state.installed.length, 0);
   assert.deepEqual([handle.active, handle.entries], [false, []]);
-  assert.equal(handle.isAborted({} as never), false);
+  assert.equal(handle.isHandled({} as never), false);
 });
 
 test('installed: abort is recorded with handledBy and remembered; an untouched request just continues and leaves no trace', async () => {
@@ -67,14 +67,14 @@ test('installed: abort is recorded with handledBy and remembered; an untouched r
   const blocked = fakeRoute(req('https://evil.example.org/track.png?secret=1'));
   await state.installed[0]!(blocked.route);
   assert.deepEqual(blocked.log, ['abort:blockedbyclient']);
-  assert.equal(handle.isAborted(blocked.request as never), true);
+  assert.equal(handle.isHandled(blocked.request as never), true);
   assert.deepEqual(handle.entries, [{ origin: 'https://evil.example.org', pathname: '/track.png', method: 'GET', resourceType: 'image', handledBy: ALLOWLIST_GUARD, action: 'abort' }]);
   assert.ok(!JSON.stringify(handle.entries).includes('secret=1'), 'the query string is not kept');
 
   const fine = fakeRoute(req('https://dev.example.com/app.js', { resourceType: 'script' }));
   await state.installed[0]!(fine.route);
   assert.deepEqual(fine.log, ['continue']);
-  assert.equal(handle.isAborted(fine.request as never), false);
+  assert.equal(handle.isHandled(fine.request as never), false);
   assert.equal(handle.entries.length, 1);
 });
 
@@ -88,7 +88,7 @@ test('a policy can answer instead of aborting; a policy that throws fails open; 
   const answered = fakeRoute(req('https://dev.example.com/slow'));
   await state.installed[0]!(answered.route);
   assert.deepEqual(answered.log, ['fulfill:503']);
-  assert.equal(handle.isAborted(answered.request as never), false, 'an answered request is not an aborted one');
+  assert.equal(handle.isHandled(answered.request as never), true, 'an answered request is handled too: a browser-side cancel of it is not an application failure');
 
   const broken = fakeRoute(req('https://dev.example.com/boom'));
   await state.installed[0]!(broken.route);

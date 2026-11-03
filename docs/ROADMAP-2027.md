@@ -968,6 +968,12 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.2 — Perfil funcional · P
 
+> **Implementada em 2026-11-03, com o benchmark pendente.** Código e testes prontos (ver AGENTS.md, "Functional profile"). **O critério
+> de aceite ainda não está cumprido:** falta rodar 3 rotinas reais × 10 execuções em cada perfil contra o WmsOffice e publicar os números
+> aqui. O script está pronto: `npm run bench:profile -- <rotina> <rotina> <rotina> --runs 10` (servidor no ar, rotinas salvas); ele sai
+> com 1 se algum resultado de step diferir entre os perfis e imprime a tabela para colar neste arquivo. O smoke com fixture local já
+> prova "nenhuma mudança de resultado nos steps" num caso controlado.
+
 **Especificação:**
 - `options.profile: 'full' | 'functional'` (default `full`), mais um `options.resourcePolicy`
   para ajuste fino.

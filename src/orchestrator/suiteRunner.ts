@@ -244,6 +244,7 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
               ...(entry.credentialSet === undefined ? {} : { credentialSet: entry.credentialSet }),
               ...(entry.targetProfile === undefined ? {} : { targetProfile: entry.targetProfile }),
               ...(request.retention === undefined ? {} : { retention: request.retention }),
+              ...(request.profile === undefined ? {} : { profile: request.profile }),
               ...(request.buildId === undefined ? {} : { buildId: request.buildId }),
               caller: { source: 'suite', correlationId: state.suiteRunId, metadata: { variantKey: variant.variantKey } },
             },

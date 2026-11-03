@@ -50,7 +50,7 @@ class CliError extends Error {
 const USAGE = `scrapforai <command> [options]
 
 Commands
-  run <routineId> [--version N] [--target id] [--credential set] [--var k=v]... [--retention ephemeral|standard]
+  run <routineId> [--version N] [--target id] [--credential set] [--var k=v]... [--retention ephemeral|standard] [--profile full|functional]
   suite <file.json|-> [--timeout-seconds N] [--no-wait]
   routines list
   runs show <jobId> [--full]
@@ -268,7 +268,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const { values, positionals } = parseArgs({
         args: rest,
         allowPositionals: true,
-        options: { ...common, version: { type: 'string' }, target: { type: 'string' }, credential: { type: 'string' }, var: { type: 'string', multiple: true }, retention: { type: 'string' } },
+        options: { ...common, version: { type: 'string' }, target: { type: 'string' }, credential: { type: 'string' }, var: { type: 'string', multiple: true }, retention: { type: 'string' }, profile: { type: 'string' } },
       });
       asJson = values.json === true;
       const config2 = values.url ? { ...config, baseUrl: values.url } : config;
@@ -278,6 +278,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       if (!routineId || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai run <routineId> [options]');
       if (values.version !== undefined && !/^[1-9]\d{0,8}$/.test(values.version)) throw new CliError('UsageError', '--version must be a positive integer');
       if (values.retention !== undefined && values.retention !== 'ephemeral' && values.retention !== 'standard') throw new CliError('UsageError', '--retention must be ephemeral or standard');
+      if (values.profile !== undefined && values.profile !== 'full' && values.profile !== 'functional') throw new CliError('UsageError', '--profile must be full or functional');
 
       const variables: Record<string, string> = {};
       for (const pair of values.var ?? []) {
@@ -291,6 +292,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
         ...(values.credential ? { credentialSet: values.credential } : {}),
         ...(values.target ? { targetProfile: values.target } : {}),
         ...(values.retention ? { retention: values.retention } : {}),
+        ...(values.profile ? { profile: values.profile } : {}),
       };
       const query = values.version ? `?version=${values.version}` : '';
       const response = await api('POST', `/v1/routines/${encodeURIComponent(routineId)}/run${query}`, body);

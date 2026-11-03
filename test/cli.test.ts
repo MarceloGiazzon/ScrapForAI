@@ -622,3 +622,16 @@ test('evolution expected: show, or declare from a file; usage errors never reach
   assert.equal((await cli(['evolution', 'expected', 'app', 'rev2', '--file', 'bad.json'], { readFile: async () => '{not json' })).code, 2);
   assert.equal(seen.length, 0);
 });
+
+// T5.2: `scrapforai run --profile`
+
+test('run --profile: sent to the API as is; anything but full/functional is a usage error that never reaches it', async () => {
+  handler = (_req, respond) => respond(200, { jobId: 'job_1', status: 'passed', durationMs: 1, steps: [], evidence: { screenshots: [], consoleErrors: [], networkFailures: [] } });
+  await cli(['run', 'login-flow', '--profile', 'functional', '--json']);
+  assert.deepEqual(seen[0]!.body, { profile: 'functional' });
+  await cli(['run', 'login-flow', '--json']);
+  assert.deepEqual(seen[0]!.body, {}, 'no flag, no field: the routine decides');
+
+  assert.equal((await cli(['run', 'login-flow', '--profile', 'turbo'])).code, 2);
+  assert.equal(seen.length, 0);
+});

@@ -1,7 +1,7 @@
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { env } from '../config/env.js';
-import { buildPolicies, installRouting, type RoutingHandle } from './routing.js';
+import { buildPolicies, installRouting, resourceStubPolicy, type RoutingHandle } from './routing.js';
 
 export interface PlaywrightJobContext {
   browser: Browser;
@@ -35,6 +35,8 @@ const CHROME_UA =
 export interface ContextOptions {
   /** Overrides BLOCK_UNEXPECTED_RESOURCES for this context. */
   blockUnexpected?: boolean;
+  /** T5.2: resource types answered with a stand-in (see resourceStubPolicy). */
+  stubResources?: readonly string[];
 }
 
 export async function createPlaywrightContext(
@@ -67,7 +69,10 @@ export async function createPlaywrightContext(
 Object.defineProperty(navigator, 'webdriver', { get: function () { return undefined; } });`,
   });
 
-  const routing = await installRouting(context, buildPolicies({ blockUnexpected: options.blockUnexpected ?? env.BLOCK_UNEXPECTED_RESOURCES }));
+  const routing = await installRouting(context, buildPolicies({
+      blockUnexpected: options.blockUnexpected ?? env.BLOCK_UNEXPECTED_RESOURCES,
+      ...(options.stubResources && options.stubResources.length > 0 ? { resources: [resourceStubPolicy(options.stubResources)] } : {}),
+    }));
 
   const page = await context.newPage();
 

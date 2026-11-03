@@ -315,6 +315,36 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   setViewportSizeStep,
 ]);
 
+/**
+ * T5.2: what `functional` stands in for. CSS is refused by name: Playwright decides visibility from computed style, so a run
+ * without stylesheets would answer assertVisible/assertHidden wrongly.
+ */
+const stubbableTypes: readonly string[] = ['image', 'media', 'font'];
+export const resourcePolicySchema = z
+  .object({
+    stub: z
+      .array(
+        z.string().superRefine((value, ctx) => {
+          if (value === 'stylesheet') {
+            ctx.addIssue({ code: 'custom', message: 'stylesheet can never be stubbed: element visibility in the browser depends on CSS' });
+          } else if (!stubbableTypes.includes(value)) {
+            ctx.addIssue({ code: 'custom', message: `cannot stub "${value}"; allowed: ${stubbableTypes.join(', ')}` });
+          }
+        }),
+      )
+      .max(3),
+  })
+  .strict();
+
+/**
+ * Resource types a run answers with a stand-in: an explicit `resourcePolicy.stub` wins (an empty list = none, even under
+ * `functional`), otherwise `functional` stubs image, media and font and `full` stubs nothing.
+ */
+export function stubbedResourceTypes(options: { profile: 'full' | 'functional'; resourcePolicy?: { stub: string[] } }): string[] {
+  if (options.resourcePolicy) return [...new Set(options.resourcePolicy.stub)];
+  return options.profile === 'functional' ? [...stubbableTypes] : [];
+}
+
 // The object BEFORE superRefine. Derived schemas (e.g. the MCP one, without `credentials`) must be
 // built from this, not from the refined schema, so no validation is lost or broken.
 export const explorationOptionsSchema = z
@@ -322,6 +352,10 @@ export const explorationOptionsSchema = z
     headless: z.boolean().default(true),
     trace: z.boolean().default(false),
     screenshots: z.enum(['off', 'onFailure', 'always']).default('onFailure'),
+    // T5.2: `functional` = stand-ins for images (1x1 PNG), media and fonts (204), and NO screenshots and NO trace, for fast
+    // logic/rules runs. `full` (default) is what every run has always been. CSS is never stubbed.
+    profile: z.enum(['full', 'functional']).default('full'),
+    resourcePolicy: resourcePolicySchema.optional(),
     collectDomOnFailure: z.boolean().default(false),
     viewport: z
       .object({
@@ -353,7 +387,7 @@ export const explorationRequestBaseSchema = z
     credentialSet: safeName.optional(),
     variables: z.record(safeName, z.string().max(5000)).optional(),
     caller: callerSchema.optional(),
-    options: explorationOptionsSchema.default({ headless: true, trace: false, screenshots: 'onFailure', collectDomOnFailure: false }),
+    options: explorationOptionsSchema.default({ headless: true, trace: false, screenshots: 'onFailure', profile: 'full', collectDomOnFailure: false }),
     steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
     // T1.4: always runs after the steps, pass or fail (like `finally`). Failures here are recorded
     // apart and never replace the failure of the steps. Steps + teardown share MAX_STEPS_PER_JOB.

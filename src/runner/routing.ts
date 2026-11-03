@@ -42,6 +42,31 @@ export const allowlistGuard: Policy = (request) => {
   return isAllowedResourceUrl(request.url.replace(/^ws/i, 'http')) ? undefined : { action: 'abort', handledBy: ALLOWLIST_GUARD };
 };
 
+/** Resource types a run may answer with a stand-in. CSS is NOT among them, ever: visibility in the browser depends on it. */
+export const STUBBABLE_RESOURCE_TYPES = ['image', 'media', 'font'] as const;
+export type StubbableResourceType = (typeof STUBBABLE_RESOURCE_TYPES)[number];
+
+/** 1x1 transparent PNG. An image gets a real, decodable picture (not an abort), so `onload` fires and clickable icons keep existing. */
+export const TRANSPARENT_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/**
+ * T5.2 resource policy: answers images with a 1x1 transparent PNG and media and fonts with 204, without touching the network.
+ * Only sub-resources; a navigation is never stubbed.
+ */
+export function resourceStubPolicy(types: readonly string[]): Policy {
+  const wanted = new Set(types);
+  return (request) => {
+    if (request.isNavigation || !wanted.has(request.resourceType)) return undefined;
+    const handledBy = `resource-policy:${request.resourceType}`;
+    if (request.resourceType === 'image') return { action: 'fulfill', handledBy, status: 200, contentType: 'image/png', body: TRANSPARENT_PNG };
+    if (request.resourceType === 'media' || request.resourceType === 'font') return { action: 'fulfill', handledBy, status: 204 };
+    return undefined;
+  };
+}
+
 export interface PolicyOptions {
   blockUnexpected: boolean;
   /** T7.2 */
@@ -76,8 +101,8 @@ export interface RoutingEvidence {
 export interface RoutingHandle {
   /** Requests a policy touched (capped). Empty when no policy is active. */
   entries: RoutingEvidence[];
-  /** True for a request a policy aborted on purpose. */
-  isAborted(request: Request): boolean;
+  /** True for a request a policy aborted or answered on purpose: its failure (if the browser reports one) is not the application's. */
+  isHandled(request: Request): boolean;
   active: boolean;
 }
 
@@ -98,10 +123,10 @@ function evidenceOf(request: RequestInfo, decision: Decision): RoutingEvidence {
 
 export async function installRouting(context: Pick<BrowserContext, 'route'>, policies: Policy[]): Promise<RoutingHandle> {
   const entries: RoutingEvidence[] = [];
-  const aborted = new WeakSet<Request>();
+  const handled = new WeakSet<Request>();
 
   if (policies.length === 0) {
-    return { entries, isAborted: () => false, active: false };
+    return { entries, isHandled: () => false, active: false };
   }
 
   await context.route('**/*', async (route: Route) => {
@@ -127,8 +152,9 @@ export async function installRouting(context: Pick<BrowserContext, 'route'>, pol
         return;
       }
       if (entries.length < MAX_ENTRIES) entries.push(evidenceOf(info, decision));
+      // Remembered BEFORE answering: the browser may report the cancel of a stand-in before the await below returns.
+      handled.add(request);
       if (decision.action === 'abort') {
-        aborted.add(request);
         await route.abort('blockedbyclient');
       } else {
         await route.fulfill({
@@ -143,5 +169,5 @@ export async function installRouting(context: Pick<BrowserContext, 'route'>, pol
     }
   });
 
-  return { entries, isAborted: (request) => aborted.has(request), active: true };
+  return { entries, isHandled: (request) => handled.has(request), active: true };
 }

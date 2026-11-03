@@ -165,7 +165,14 @@ export async function runLibraryRoutine(
     credentialSet: body.credentialSet ?? routine.credentialSet,
     variables: body.variables,
     caller: body.caller,
-    options: body.retention ? { ...(routine.options ?? explorationRequestSchema.shape.options.parse(undefined)), retention: body.retention } : routine.options,
+    options:
+      body.retention || body.profile
+        ? {
+            ...(routine.options ?? explorationRequestSchema.shape.options.parse(undefined)),
+            ...(body.retention ? { retention: body.retention } : {}),
+            ...(body.profile ? { profile: body.profile } : {}),
+          }
+        : routine.options,
     steps: routine.steps,
     teardown: routine.teardown,
   });

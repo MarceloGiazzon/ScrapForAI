@@ -262,6 +262,13 @@
                         "ephemeral",
                         "standard"
                       ]
+                    },
+                    "profile": {
+                      "type": "string",
+                      "enum": [
+                        "full",
+                        "functional"
+                      ]
                     }
                   },
                   "required": [

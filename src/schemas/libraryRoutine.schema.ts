@@ -91,6 +91,8 @@ export const routineRunBodySchema = z
     // Run the routine against another profile (e.g. the same flow on qa). Its credential sets still apply.
     targetProfile: safeName.optional(),
     retention: z.enum(['ephemeral', 'standard']).optional(),
+    // T5.2: `functional` = stand-ins for images/media/fonts, no screenshots, no trace. Default: what the routine says (full).
+    profile: z.enum(['full', 'functional']).optional(),
     buildId: buildIdSchema.optional(),
     caller: z
       .object({

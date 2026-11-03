@@ -79,8 +79,8 @@ function networkEvidenceFromResponse(response: Response): NetworkEvidence {
 export function registerEvidenceCollectors(
   page: Page,
   artifactStore: ArtifactStore,
-  // T5.1: a request a policy aborted on purpose is not a failure of the application.
-  isAbortedByPolicy: (request: Request) => boolean = () => false,
+  // T5.1: a request a policy aborted or answered on purpose is not a failure of the application (a stand-in 204 for media makes Chromium cancel the load, which would otherwise show up as ERR_ABORTED).
+  isHandledByPolicy: (request: Request) => boolean = () => false,
 ): EvidenceCollector {
   const screenshots: ScreenshotEvidence[] = [];
   const consoleEvents: ConsoleEvidence[] = [];
@@ -122,7 +122,7 @@ export function registerEvidenceCollectors(
   });
 
   page.on('requestfailed', (request) => {
-    if (isAbortedByPolicy(request)) {
+    if (isHandledByPolicy(request)) {
       return;
     }
     const item = sanitizeNetworkEvidence({

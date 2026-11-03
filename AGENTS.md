@@ -197,9 +197,17 @@ step limits, artifact retention, etc.).
   slots of `buildPolicies`, then the request continues. **With no active policy nothing is installed**, so a default run is byte-for-byte
   what it was. Main-frame navigations are NOT the guard's business (`validateTargetUrl` still owns them) and `data:`/`blob:`/`about:`
   never leave the browser. Every request a policy touched is recorded in `result.evidence.routing` (`origin`, `pathname` without the
-  query, `handledBy`, `action`; present only when non-empty, capped at 200); a request ABORTED by policy is still listed in
-  `unexpectedExternalRequests` (that is the evidence) but is not counted in `networkFailures`, because the application did not fail.
+  query, `handledBy`, `action`; present only when non-empty, capped at 200); a request ABORTED or ANSWERED by policy (a stand-in) is still listed in
+  `unexpectedExternalRequests` (that is the evidence) but a browser-side failure of it (an aborted block, or Chromium cancelling a media request answered with 204) is not counted in `networkFailures`, because the application did not fail.
   A policy that throws fails open for that request. Off by default: a page that depends on a CDN would break.
+- **Functional profile** (`options.profile: 'full' | 'functional'`, `options.resourcePolicy.stub`, T5.2): `functional` answers images with a 1x1
+  transparent PNG (a real picture, so `onload` fires and clickable icons still exist), media and fonts with 204, through the `resources` slot of the
+  routing layer (T5.1), and turns **screenshots and trace off** whatever the options say (`result.profile: 'functional'` records it; a `full` run has
+  no such field). **CSS is never stubbed** (the schema refuses `stylesheet` by name: visibility depends on it); fetch/xhr/script/document are not resources
+  and are untouched. An explicit `resourcePolicy.stub` (subset of image/media/font) wins over the profile, so `stub: []` under `functional` stubs nothing
+  (but screenshots/trace stay off). Available on a direct run, `POST /v1/routines/:id/run` / `run_routine` (`profile`), a suite (`profile`) and
+  `scrapforai run --profile`; deliberately NOT on regression-vault runs (proof needs full evidence). **The acceptance benchmark is still pending**
+  (3 real routines x 10 runs per profile on WmsOffice): `npm run bench:profile -- <routine>... --runs 10`. The speed-up is measured, not promised.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

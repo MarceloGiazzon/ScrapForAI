@@ -8,7 +8,7 @@ import { env } from '../config/env.js';
 import { buildManifest, writeManifest } from '../evidence/manifest.js';
 import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
-import type { FrameRef, RunnableStep, WaitCondition } from '../schemas/explorationRequest.schema.js';
+import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
@@ -244,6 +244,10 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   const startedAt = new Date();
   const normalizedTargetUrl = validateTargetUrl(request.targetUrl);
   const artifactStore = await createArtifactStore(jobId);
+  // T5.2: a functional run keeps no screenshots and no trace, whatever the options say.
+  const functional = request.options.profile === 'functional';
+  const screenshotMode = functional ? 'off' : request.options.screenshots;
+  const traceOn = functional ? false : request.options.trace;
   let playwright: PlaywrightJobContext | undefined;
   let evidence: EvidenceCollector | undefined;
   const extracted: Record<string, JsonValue> = {};
@@ -262,10 +266,10 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // overrides a headed request so it degrades to headless instead of failing to launch a
     // browser that was never bundled.
     const headless = env.FORCE_HEADLESS || request.options.headless;
-    playwright = await createPlaywrightContext(headless, request.options.viewport);
-    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isAborted);
+    playwright = await createPlaywrightContext(headless, request.options.viewport, { stubResources: stubbedResourceTypes(request.options) });
+    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
 
-    if (request.options.trace) {
+    if (traceOn) {
       await playwright.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
     }
 
@@ -444,7 +448,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             break;
           }
           case 'screenshot':
-            if (request.options.screenshots !== 'off') {
+            if (screenshotMode !== 'off') {
               await evidence.captureScreenshot(step.name);
             }
             break;
@@ -587,7 +591,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
 
       // Evidence of the failing state is taken BEFORE teardown runs and changes the page.
       if (stepFailed && phase === 'steps') {
-        if (request.options.screenshots === 'onFailure' || request.options.screenshots === 'always') {
+        if (screenshotMode === 'onFailure' || screenshotMode === 'always') {
           await evidence.captureScreenshot('failure');
         }
 
@@ -626,7 +630,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     };
   } finally {
     finalUrl = playwright?.page.url() ?? normalizedTargetUrl;
-    if (request.options.trace && playwright) {
+    if (traceOn && playwright) {
       const trace = artifactStore.tracePath();
       await playwright.context.tracing.stop({ path: trace.absolutePath }).catch(() => undefined);
       tracePath = trace.relativePath;
@@ -650,6 +654,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     targetUrl: normalizedTargetUrl,
     caller: request.caller ?? null,
+    ...(functional ? { profile: 'functional' as const } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
     ...(request.teardown
       ? { teardown: teardownSteps, teardownStatus: teardownSteps.length === request.teardown.length && teardownSteps.every((s) => s.status === 'passed') ? ('passed' as const) : ('failed' as const) }
@@ -709,7 +714,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   const retention = request.options.retention ?? 'ephemeral';
   await buildManifest(artifactStore.rootDir, jobId, retention)
     .then((manifest) => writeManifest(artifactStore.rootDir, manifest))
-    .catch(() => undefined);
+    // Never fails the run, but never silent either: a missing manifest later reads as "evidence not found".
+    .catch((error) => void process.stderr.write(`[evidence] manifest of ${jobId} could not be written: ${error instanceof Error ? error.message : String(error)}
+`));
 
   // Record in the durable index. appendRun() swallows its own errors by design: a history
   // write must never turn a successful exploration into a failed request.

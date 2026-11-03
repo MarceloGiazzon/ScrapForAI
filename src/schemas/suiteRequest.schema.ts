@@ -66,6 +66,8 @@ export const suiteRequestSchema = z
     /** Stop starting new variants at the first red one; the rest are listed as not run. */
     failFast: z.boolean().default(false),
     retention: z.enum(['ephemeral', 'standard']).optional(),
+    /** T5.2: run every variant as `functional` (stand-ins for images/media/fonts, no screenshots, no trace). */
+    profile: z.enum(['full', 'functional']).optional(),
   })
   .strict();
 
