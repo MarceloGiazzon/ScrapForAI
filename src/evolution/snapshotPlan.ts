@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import type { AccessibilityStandard } from '../schemas/accessibility.schema.js';
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
 import type { Screen, TargetProfile } from '../schemas/targetProfile.schema.js';
 
@@ -30,6 +31,8 @@ export const LOGIN_STEP_ID = 'login';
 /** Name under which a screen's structure is stored in `result.extracted`: neutral, so the redactor never masks the whole value. */
 export const inventoryName = (screenId: string): string => `inv_${createHash('sha256').update(screenId).digest('hex').slice(0, 12)}`;
 export const screenshotName = (screenId: string): string => `screen-${screenId}`;
+/** Name under which a screen's accessibility audit is stored in `result.extracted` (T7.5). */
+export const accessibilityName = (screenId: string): string => `a11y_${createHash('sha256').update(screenId).digest('hex').slice(0, 12)}`;
 const stepIdFor = (screenId: string, what: string): string => `snap-${screenId}-${what}`;
 
 export function resolveUrl(url: string, baseUrl: string): string {
@@ -51,7 +54,7 @@ export function screensToCapture(profile: Pick<TargetProfile, 'id' | 'screens'>,
 }
 
 /** Steps that read one screen: open it (or run the routine that reaches it), let it settle, capture, screenshot. */
-export function screenSteps(screen: Screen, options: { baseUrl: string; settleMs: number; screenshots: boolean }): ExplorationStep[] {
+export function screenSteps(screen: Screen, options: { baseUrl: string; settleMs: number; screenshots: boolean; accessibility?: AccessibilityStandard }): ExplorationStep[] {
   const open: ExplorationStep =
     'url' in screen.reach
       ? { id: stepIdFor(screen.id, 'open'), action: 'goto', url: resolveUrl(screen.reach.url, options.baseUrl) }
@@ -60,15 +63,20 @@ export function screenSteps(screen: Screen, options: { baseUrl: string; settleMs
     open,
     ...(options.settleMs > 0 ? [{ id: stepIdFor(screen.id, 'settle'), action: 'waitForTimeout' as const, timeoutMs: options.settleMs }] : []),
     { id: stepIdFor(screen.id, 'capture'), action: 'captureInventory', name: inventoryName(screen.id), includeHidden: true },
+    // Never fails on what it finds (failOn none): the snapshot records the violations, a person or the diff judges them.
+    ...(options.accessibility
+      ? [{ id: stepIdFor(screen.id, 'a11y'), action: 'auditAccessibility' as const, name: accessibilityName(screen.id), standard: options.accessibility, failOn: 'none' as const }]
+      : []),
     ...(options.screenshots ? [{ id: stepIdFor(screen.id, 'shot'), action: 'screenshot' as const, name: screenshotName(screen.id) }] : []),
   ];
 }
 
 /** How many URL screens fit in one session: bounded by MAX_STEPS_PER_JOB and, roughly, by JOB_TIMEOUT_MS. */
-export function screensPerSession(options: { loginStepCount: number; settleMs: number; screenshots: boolean; limits: PlanLimits }): number {
-  const stepsPerScreen = 2 + (options.settleMs > 0 ? 1 : 0) + (options.screenshots ? 1 : 0);
+export function screensPerSession(options: { loginStepCount: number; settleMs: number; screenshots: boolean; accessibility?: AccessibilityStandard; limits: PlanLimits }): number {
+  const stepsPerScreen = 2 + (options.settleMs > 0 ? 1 : 0) + (options.screenshots ? 1 : 0) + (options.accessibility ? 1 : 0);
   const bySteps = Math.floor((options.limits.maxStepsPerJob - options.loginStepCount) / stepsPerScreen);
-  const perScreenMs = Math.min(options.settleMs, options.limits.stepTimeoutMs) + 6000;
+  // An audit runs axe over the whole page: a few seconds on a big one.
+  const perScreenMs = Math.min(options.settleMs, options.limits.stepTimeoutMs) + 6000 + (options.accessibility ? 6000 : 0);
   const byTime = Math.floor((options.limits.jobTimeoutMs - 20_000) / perScreenMs);
   return Math.max(1, Math.min(bySteps, byTime));
 }
@@ -76,7 +84,7 @@ export function screensPerSession(options: { loginStepCount: number; settleMs: n
 export function planSnapshotSessions(
   profile: Pick<TargetProfile, 'id' | 'baseUrl' | 'credentialSets' | 'loginRoutine' | 'screens'>,
   screens: Screen[],
-  context: { loginStepCount: number; settleMs: number; screenshots: boolean; limits: PlanLimits },
+  context: { loginStepCount: number; settleMs: number; screenshots: boolean; accessibility?: AccessibilityStandard; limits: PlanLimits },
 ): PlannedScreenSession[] {
   const defaultSet = profile.credentialSets[0];
   const byCredential = new Map<string | undefined, Screen[]>();
@@ -90,7 +98,7 @@ export function planSnapshotSessions(
 
   const chunk = screensPerSession(context);
   const sessions: PlannedScreenSession[] = [];
-  const common = { baseUrl: profile.baseUrl, settleMs: context.settleMs, screenshots: context.screenshots };
+  const common = { baseUrl: profile.baseUrl, settleMs: context.settleMs, screenshots: context.screenshots, ...(context.accessibility ? { accessibility: context.accessibility } : {}) };
 
   for (const [credentialSet, group] of byCredential) {
     if (credentialSet !== undefined && !profile.loginRoutine) {

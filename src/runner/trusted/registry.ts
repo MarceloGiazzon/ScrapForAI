@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { axeAuditSource } from './scripts/axe.js';
 import { keyboardActiveSource, keyboardCandidatesSource, keyboardStyleSource } from './scripts/keyboard.js';
 
 /**
@@ -43,6 +44,8 @@ export const TRUSTED_SCRIPTS = [
   { id: 'keyboard-active', source: keyboardActiveSource, sha256: '643f7b6861fc4d42351463a014380c9f5331f028a32ea1969cfc45eb976dbd6b', timeoutMs: 3000, maxOutputChars: 4000 },
   { id: 'keyboard-style', source: keyboardStyleSource, sha256: '90bf8d9ed0884cd6d47c96e1e9fa1ea94202d0a9f26a515c1c7e946cad2fb376', timeoutMs: 3000, maxOutputChars: 4000 },
   { id: 'keyboard-candidates', source: keyboardCandidatesSource, sha256: '50f6c6984a475566d45ba19226a8b7c48239e430a7dd3dce89c8caa0b01e2433', timeoutMs: 5000, maxOutputChars: 150_000 },
+  // T7.4: axe-core (MPL-2.0, unmodified, read from node_modules) plus our runner. This hash moves with the axe-core version ON PURPOSE: review, then pin.
+  { id: 'a11y-axe', source: axeAuditSource, sha256: 'b48ec2d85edd794c0258305adebf0566dc2d9c0227745c7ec1df6a200463c807', timeoutMs: 30_000, maxOutputChars: 250_000 },
 ] as const satisfies readonly TrustedScriptDefinition[];
 
 export type TrustedScriptId = (typeof TRUSTED_SCRIPTS)[number]['id'];

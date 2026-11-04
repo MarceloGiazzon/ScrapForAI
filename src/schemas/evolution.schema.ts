@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
 import { buildIdSchema, safeName } from './explorationRequest.schema.js';
 
 /** T4.4: system-evolution snapshots (one folder per target and build). */
@@ -21,6 +22,9 @@ export const snapshotBodySchema = z
     allowPartial: z.boolean().default(false),
     // Wait after opening a screen before reading it (client-rendered apps).
     settleMs: z.number().int().min(0).max(30_000).default(500),
+    // T7.5: also audit every screen with axe-core and keep the result as that build's accessibility baseline (screens/<id>.a11y.json).
+    accessibility: z.boolean().default(false),
+    accessibilityStandard: z.enum(ACCESSIBILITY_STANDARDS).default('wcag2aa'),
   })
   .strict();
 export type SnapshotBody = z.infer<typeof snapshotBodySchema>;
@@ -35,6 +39,8 @@ export const snapshotScreenStateSchema = z
     errorMessage: z.string().optional(),
     counts: z.object({ fields: z.number(), actions: z.number(), grids: z.number(), unkeyed: z.number() }).optional(),
     screenshot: z.boolean().optional(),
+    // T7.5: violations found by the audit (absent when the snapshot did not audit, or this screen's audit is missing).
+    accessibility: z.object({ rules: z.number(), elements: z.number() }).optional(),
   })
   .strict();
 
@@ -72,6 +78,8 @@ export const snapshotManifestSchema = z
     createdAt: z.string(),
     screenshots: z.boolean(),
     complete: z.boolean(),
+    // T7.5: present when the snapshot audited accessibility; a screen whose audit is missing simply has no `accessibility` entry (the run state says why).
+    accessibility: z.object({ standard: z.enum(ACCESSIBILITY_STANDARDS), axeVersion: z.string() }).strict().optional(),
     screens: z.array(
       z
         .object({
@@ -81,6 +89,8 @@ export const snapshotManifestSchema = z
           inventorySha256: z.string(),
           screenshot: z.string().optional(),
           screenshotSha256: z.string().optional(),
+          accessibility: z.string().optional(),
+          accessibilitySha256: z.string().optional(),
           jobId: z.string(),
         })
         .strict(),

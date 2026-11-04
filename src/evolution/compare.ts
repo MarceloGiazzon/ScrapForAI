@@ -1,6 +1,9 @@
+import { compareAudits } from '../a11y/audit.js';
+import { guidanceFor } from '../a11y/platformGuidance.js';
 import type { ChangeSet } from '../diff/structuralDiff.js';
 import { globToRegExp } from '../diff/normalizers.js';
 import { diffInventories } from '../inventory/diffInventory.js';
+import type { AccessibilityAudit, AccessibilityDelta } from '../schemas/accessibility.schema.js';
 import type { DiffConfigInput } from '../schemas/diffConfig.schema.js';
 import type { ExpectedChanges, ExpectedEntry } from '../schemas/expectedChanges.schema.js';
 import type { ScreenInventory } from '../schemas/screenInventory.schema.js';
@@ -19,6 +22,8 @@ export interface SnapshotView {
   inventories: Map<string, ScreenInventory>;
   /** Screen id -> why it was not captured (partial snapshots). */
   notCaptured: Map<string, string>;
+  /** T7.5: screen id -> accessibility audit, for the screens the snapshot audited (absent when it audited none). */
+  accessibility?: Map<string, AccessibilityAudit>;
   /** Screen id -> display name. */
   names: Map<string, string>;
 }
@@ -47,6 +52,16 @@ export interface ScreenDiff {
   truncated: boolean;
   classification?: 'expected' | 'unexpected';
   coveredBy?: string;
+  /** T7.5: accessibility new/fixed since the earlier snapshot. Absent when neither snapshot audited this screen. */
+  accessibility?: ScreenAccessibility;
+}
+
+export interface ScreenAccessibility {
+  /** `compared`: both snapshots audited it with the same standard. `first-audit`: only the newer one did, so it is a baseline, not a change. */
+  status: 'compared' | 'first-audit' | 'not-comparable' | 'no-longer-audited';
+  reason?: string;
+  delta?: AccessibilityDelta;
+  standard?: string;
 }
 
 export interface EvolutionDiff {
@@ -56,6 +71,8 @@ export interface EvolutionDiff {
   counts: { screensChanged: number; screensAdded: number; screensRemoved: number; screensUnknown: number; changes: number; expected: number; unexpected: number };
   /** True when the `to` build declared its expected changes, so `unexpected` means something. */
   classified: boolean;
+  /** T7.5: present only when either snapshot audited accessibility. Kept apart from `counts`: a new violation is not a structural change and never moves the expected/unexpected verdict. */
+  accessibility?: { screensCompared: number; new: number; fixed: number; notComparable: number };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -157,8 +174,37 @@ export function diffSnapshots(before: SnapshotView, after: SnapshotView, options
     }
   }
 
+  const accessibility = attachAccessibility(screens, before, after);
   if (options.expected) classify(screens, options.expected.expected);
-  return { from: view(before), to: view(after), screens, counts: count(screens), classified: options.expected !== undefined };
+  return { from: view(before), to: view(after), screens, counts: count(screens), classified: options.expected !== undefined, ...(accessibility ? { accessibility } : {}) };
+}
+
+/** T7.5: for every screen audited in either snapshot, what is new and what was fixed. Returns the totals, or undefined when nobody audited. */
+function attachAccessibility(screens: ScreenDiff[], before: SnapshotView, after: SnapshotView): EvolutionDiff['accessibility'] {
+  if (!before.accessibility?.size && !after.accessibility?.size) return undefined;
+  const totals = { screensCompared: 0, new: 0, fixed: 0, notComparable: 0 };
+  for (const screen of screens) {
+    const was = before.accessibility?.get(screen.id);
+    const now = after.accessibility?.get(screen.id);
+    if (!was && !now) continue;
+    if (was && now) {
+      const comparison = compareAudits(was, now);
+      if (comparison.comparable) {
+        screen.accessibility = { status: 'compared', delta: comparison.delta, standard: now.standard };
+        totals.screensCompared += 1;
+        totals.new += comparison.delta.new.length;
+        totals.fixed += comparison.delta.fixed.length;
+      } else {
+        screen.accessibility = { status: 'not-comparable', reason: comparison.reason };
+        totals.notComparable += 1;
+      }
+    } else if (now) {
+      screen.accessibility = { status: 'first-audit', standard: now.standard };
+    } else {
+      screen.accessibility = { status: 'no-longer-audited', reason: `build ${after.buildId} has no accessibility audit of this screen` };
+    }
+  }
+  return totals;
 }
 
 const view = (snapshot: SnapshotView) => ({ buildId: snapshot.buildId, createdAt: snapshot.createdAt, complete: snapshot.complete });
@@ -214,6 +260,32 @@ function classify(screens: ScreenDiff[], expected: ExpectedEntry[]): void {
 // ---------------------------------------------------------------------------------------------------------------------
 // T4.5 CHANGES.md (deterministic section)
 
+const hasAccessibilityNews = (screen: ScreenDiff): boolean =>
+  screen.accessibility !== undefined && (screen.accessibility.status !== 'compared' || screen.accessibility.delta!.new.length + screen.accessibility.delta!.fixed.length > 0);
+
+const MAX_A11Y_LINES = 25;
+
+/** The accessibility part of a screen's section: what is new (with the platform note) and what was fixed. English, like the rest of CHANGES.md. */
+function accessibilityLines(screen: ScreenDiff): string[] {
+  const a11y = screen.accessibility;
+  if (!a11y) return [];
+  if (a11y.status === 'first-audit') return [`- Accessibility: first audit of this screen (${a11y.standard}); it is the baseline from now on.`];
+  if (a11y.status === 'not-comparable' || a11y.status === 'no-longer-audited') return [`- Accessibility: not compared (${a11y.reason ?? 'unknown'}).`];
+  const delta = a11y.delta!;
+  if (delta.new.length + delta.fixed.length === 0) return [];
+  const out = [`- Accessibility (${a11y.standard}): ${delta.new.length} new, ${delta.fixed.length} fixed, ${delta.unchanged} unchanged${delta.incomplete ? ' (a list was cut: counts may be incomplete)' : ''}.`];
+  if (delta.axeVersionChanged) out.push(`  - axe-core changed from ${delta.axeVersionChanged.before} to ${delta.axeVersionChanged.after}: a new finding may come from a changed rule.`);
+  for (const finding of delta.new.slice(0, MAX_A11Y_LINES)) {
+    out.push(`  - **NEW** [${finding.impact}] ${finding.ruleId} at \`${finding.targetKey}\`: ${finding.help}${finding.wcag.length ? ` (WCAG ${finding.wcag.join(', ')})` : ''}`);
+    const note = guidanceFor(finding.ruleId, 'en');
+    if (note) out.push(`    - ${note.platform}`);
+  }
+  if (delta.new.length > MAX_A11Y_LINES) out.push(`  - ... ${delta.new.length - MAX_A11Y_LINES} more new violation(s)`);
+  for (const finding of delta.fixed.slice(0, MAX_A11Y_LINES)) out.push(`  - fixed [${finding.impact}] ${finding.ruleId} at \`${finding.targetKey}\``);
+  if (delta.fixed.length > MAX_A11Y_LINES) out.push(`  - ... ${delta.fixed.length - MAX_A11Y_LINES} more fixed`);
+  return out;
+}
+
 const mark = (item: { classification?: 'expected' | 'unexpected'; coveredBy?: string }): string =>
   item.classification === 'unexpected' ? '  **UNEXPECTED**' : item.classification === 'expected' ? `  (expected: ${item.coveredBy})` : '';
 
@@ -230,9 +302,15 @@ export function renderChangesMarkdown(diff: EvolutionDiff, target: string): stri
   );
   lines.push('');
 
-  const interesting = diff.screens.filter((screen) => screen.status !== 'unchanged');
+  if (diff.accessibility) {
+    const a = diff.accessibility;
+    lines.push(`Accessibility: ${a.new} new violation(s), ${a.fixed} fixed, across ${a.screensCompared} screen(s) compared${a.notComparable ? `; ${a.notComparable} could not be compared` : ''}.`);
+    lines.push('');
+  }
+
+  const interesting = diff.screens.filter((screen) => screen.status !== 'unchanged' || hasAccessibilityNews(screen));
   if (interesting.length === 0) {
-    lines.push('No structural change between these two snapshots.');
+    lines.push(diff.accessibility ? 'No structural change between these two snapshots, and nothing new or fixed in accessibility.' : 'No structural change between these two snapshots.');
     lines.push('');
   }
   for (const screen of interesting) {
@@ -244,6 +322,7 @@ export function renderChangesMarkdown(diff: EvolutionDiff, target: string): stri
       for (const change of screen.changes) lines.push(`- ${change.text}${mark(change)}`);
       if (screen.truncated) lines.push('- ... more changes than are listed here');
     }
+    lines.push(...accessibilityLines(screen));
     lines.push('');
   }
   return lines.join('\n');

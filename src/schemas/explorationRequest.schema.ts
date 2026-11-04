@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { env } from '../config/env.js';
 import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
+import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -277,6 +278,38 @@ const keyboardWalkStep = z
     timeoutMs: stepTimeout,
   })
   .strict();
+// T7.4/T7.5: runs axe-core (a built-in trusted script, T7.1: the caller sends no code, so ALLOW_EVALUATE does not apply) over the page, or over `scope`, and
+// writes the normalized audit to extracted[name] (see src/a11y/audit.ts). It says which element breaks which rule, never what the element holds.
+// `standard` picks the WCAG level (default wcag2aa). `failOn`: none (default, the step only records), any, serious (serious or critical) or new
+// (a violation that the baseline does not have; needs `baseline`). `baseline` names a catalogue screen whose accessibility was captured by an evolution
+// snapshot taken with `accessibility: true` (the latest one that has it, or `build`); the result then carries what is new and what was fixed since.
+const auditAccessibilityStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('auditAccessibility'),
+    name: safeName,
+    scope: selector.optional(),
+    standard: z.enum(ACCESSIBILITY_STANDARDS).default('wcag2aa'),
+    /** Report only these axe rule ids (for example "color-contrast"). */
+    rules: z.array(z.string().regex(/^[a-z0-9-]{1,80}$/)).min(1).max(100).optional(),
+    failOn: z.enum(A11Y_FAIL_ON).default('none'),
+    baseline: z
+      .object({
+        screen: z.string().regex(/^[a-zA-Z0-9_-]{1,52}$/),
+        build: buildIdSchema.optional(),
+        /** Default: the run's own targetProfile. */
+        targetProfile: safeName.optional(),
+      })
+      .strict()
+      .optional(),
+    timeoutMs: stepTimeout,
+  })
+  .strict()
+  .superRefine((step, ctx) => {
+    if (step.failOn === 'new' && !step.baseline) {
+      ctx.addIssue({ code: 'custom', path: ['baseline'], message: 'failOn "new" needs a baseline: there is no "new" without something to compare with' });
+    }
+  });
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -365,6 +398,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   probePageStep,
   captureInventoryStep,
   keyboardWalkStep,
+  auditAccessibilityStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,

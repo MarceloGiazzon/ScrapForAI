@@ -82,7 +82,7 @@ Commands
   permissions run <matrixId> [--build-id b] [--retention ephemeral|standard] [--timeout-seconds N] [--no-wait]
                                     (role x probe permission matrix; exit 1 on an unmet expectation or an unexpected gain of access)
   permissions show <runId>
-  evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--settle-ms N] [--timeout-seconds N] [--no-wait]
+  evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--accessibility [--a11y-standard wcag2aa|wcag2a|wcag21aa|wcag22aa]] [--force] [--allow-partial] [--settle-ms N] [--timeout-seconds N] [--no-wait]
                                     (per catalogue screen: value-free inventory + screenshot into SYSTEM_EVOLUTION_DIR/<target>/<date>_<build>/,
                                      committed to git when that directory is a repository; exit 0 complete, 2 anything else)
   evolution list <target>           (the snapshots stored for a target, oldest first)
@@ -238,7 +238,8 @@ function formatSnapshot(state: Record<string, any>): string {
     const counts = screen.counts
       ? `  ${screen.counts.fields} field(s), ${screen.counts.actions} action(s), ${screen.counts.grids} grid(s)${screen.counts.unkeyed ? `, ${screen.counts.unkeyed} unkeyed` : ''}`
       : '';
-    const detail = screen.status === 'error' ? `  ${screen.errorType ?? ''}: ${screen.errorMessage ?? ''}` : counts;
+    const a11y = screen.accessibility ? `, accessibility: ${screen.accessibility.elements} violation(s)` : '';
+    const detail = screen.status === 'error' ? `  ${screen.errorType ?? ''}: ${screen.errorMessage ?? ''}` : `${counts}${counts ? a11y : ''}`;
     lines.push(`  ${screen.status === 'captured' ? 'OK   ' : screen.status === 'error' ? 'ERROR' : '...  '}  ${screen.screenId}${detail}`);
   }
   if (state.folder) lines.push(`  written to ${state.folder}`);
@@ -532,6 +533,8 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
           'build-id': { type: 'string' },
           screens: { type: 'string' },
           'no-screenshots': { type: 'boolean' },
+          accessibility: { type: 'boolean' },
+          'a11y-standard': { type: 'string' },
           force: { type: 'boolean' },
           'allow-partial': { type: 'boolean' },
           'settle-ms': { type: 'string' },
@@ -568,6 +571,8 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
         ...(values['build-id'] ? { buildId: values['build-id'] } : {}),
         ...(screens ? { screens } : {}),
         ...(values['no-screenshots'] ? { screenshots: false } : {}),
+        ...(values.accessibility ? { accessibility: true } : {}),
+        ...(values['a11y-standard'] ? { accessibilityStandard: values['a11y-standard'] } : {}),
         ...(values.force ? { force: true } : {}),
         ...(values['allow-partial'] ? { allowPartial: true } : {}),
         ...(settleMs !== undefined ? { settleMs } : {}),

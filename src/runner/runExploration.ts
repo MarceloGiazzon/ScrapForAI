@@ -3,17 +3,21 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { nanoid } from 'nanoid';
 import type { Frame, Page } from 'playwright';
 
+import { compareAudits, failureFor, normalizeAxeAnswer, type RawAxeAnswer } from '../a11y/audit.js';
 import { createArtifactStore, saveJsonFile } from '../artifacts/artifactStore.js';
 import { env } from '../config/env.js';
 import { buildManifest, writeManifest } from '../evidence/manifest.js';
+import { loadAccessibilityBaseline } from '../evolution/evolutionService.js';
 import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
 import { checkAssertEquals } from '../oracle/assertEquals.js';
+import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility.schema.js';
 import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
+import { getTarget } from '../targets/targetStore.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import { extractStructure } from './extractStructure.js';
@@ -568,6 +572,50 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               step.failOn.includes('invisibleFocus') && walk.invisibleFocus.length > 0 ? `${walk.invisibleFocus.length} element(s) show no outline, shadow or border change when focused` : undefined,
             ].filter((message): message is string => message !== undefined);
             if (failures.length > 0) throw new StepExecutionError(`keyboardWalk: ${failures.join('; ')}`);
+            break;
+          }
+          case 'auditAccessibility': {
+            // T7.4/T7.5, with the built-in trusted script (T7.1): axe-core runs in the page, the caller names no code, so ALLOW_EVALUATE does not apply.
+            const profile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
+            const raw = (await runTrustedScript(
+              frame,
+              'a11y-axe',
+              { tags: STANDARD_TAGS[step.standard], maxNodesPerRule: 50, maxFindings: 500, ...(step.scope === undefined ? {} : { scope: step.scope }) },
+              { knownSecrets },
+            )) as unknown as RawAxeAnswer;
+            if (!raw.scopeFound) throw new StepExecutionError('auditAccessibility: scope selector matched nothing');
+
+            const audit = normalizeAxeAnswer(raw, {
+              standard: step.standard,
+              ...(step.scope === undefined ? {} : { scope: step.scope }),
+              ...(step.rules ? { rules: step.rules } : {}),
+              ...(profile?.diff ? { diff: profile.diff } : {}),
+            });
+
+            let delta: AccessibilityDelta | undefined;
+            let baselineInfo: { screen: string; buildId: string; createdAt: string } | undefined;
+            if (step.baseline) {
+              const baselineTarget = step.baseline.targetProfile ?? request.targetProfile;
+              if (!baselineTarget) throw new StepExecutionError('auditAccessibility: baseline needs a target profile (set baseline.targetProfile or run with a targetProfile)');
+              let baseline: Awaited<ReturnType<typeof loadAccessibilityBaseline>>;
+              try {
+                baseline = await loadAccessibilityBaseline(baselineTarget, step.baseline.screen, step.baseline.build);
+              } catch (error) {
+                throw new StepExecutionError(`auditAccessibility: ${error instanceof Error ? error.message : 'the baseline could not be read'}`);
+              }
+              const comparison = compareAudits(baseline.audit, audit);
+              if (!comparison.comparable) throw new StepExecutionError(`auditAccessibility: the baseline of build ${baseline.buildId} cannot be compared: ${comparison.reason}`);
+              delta = comparison.delta;
+              baselineInfo = { screen: step.baseline.screen, buildId: baseline.buildId, createdAt: baseline.createdAt };
+            }
+
+            extracted[step.name] = redactSecrets(
+              { ...audit, ...(baselineInfo && delta ? { baseline: { ...baselineInfo, ...delta } } : {}) },
+              knownSecrets,
+            ) as unknown as JsonValue;
+
+            const failure = failureFor(step.failOn, audit, delta);
+            if (failure) throw new StepExecutionError(`auditAccessibility: ${failure}`);
             break;
           }
           case 'extractText':

@@ -1,3 +1,6 @@
+import { guidanceFor } from '../a11y/platformGuidance.js';
+import type { AccessibilityFinding, AccessibilityResult } from '../schemas/accessibility.schema.js';
+import { IMPACTS } from '../schemas/accessibility.schema.js';
 import { type ReportLang, STRINGS, type Strings } from './i18n.js';
 
 /**
@@ -60,6 +63,8 @@ export interface RunReportData {
   teardownStatus?: 'passed' | 'failed';
   /** T5.3: what the run's parameters took (only when it used any). */
   parameters?: { seed: string; sample: number; rows: Array<{ name: string; value: string; source: string; synthetic: boolean }> };
+  /** T7.4/T7.5: the accessibility audits the run made (one per `auditAccessibility` step), with what changed since their baseline when they had one. */
+  accessibility?: Array<{ name: string; result: AccessibilityResult }>;
   screenshots: Array<{ name: string; dataUri: string }>;
   consoleCount: number;
   consoleErrors: string[];
@@ -123,6 +128,9 @@ figure { margin: 8px 0; break-inside: avoid; } figure img { max-width: 100%; bor
 .footer { margin-top: 24px; border-top: 2px solid #1a1a1a; padding-top: 8px; break-inside: avoid; }
 small, .muted { color: #666; }
 tr { break-inside: avoid; }
+.imp { display: inline-block; padding: 1px 8px; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 700; }
+.imp-critical { background: #7a0f0a; } .imp-serious { background: #b3261e; } .imp-moderate { background: #8a5a00; } .imp-minor { background: #666; }
+.adjust { color: #333; } .adjust small { display: block; color: #666; margin-bottom: 2px; }
 `;
 
 function page(s: Strings, title: string, body: string): string {
@@ -197,6 +205,78 @@ function parametersBlock(s: Strings, parameters: NonNullable<RunReportData['para
 ${synthetic ? `<div class="warn">${esc(s.syntheticNote)}</div>` : ''}`;
 }
 
+const MAX_A11Y_ROWS = 40;
+const MAX_A11Y_ROWS_NO_BASELINE = 20;
+
+/** Rows of findings. `withGuidance`: the platform note (T7.7) for the rule, in the report's language. */
+function findingRows(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], withGuidance: boolean): string {
+  return findings
+    .map((finding) => {
+      const note = withGuidance ? guidanceFor(finding.ruleId, lang) : undefined;
+      return `<tr><td><span class="imp imp-${esc(finding.impact)}">${esc(finding.impact)}</span></td><td><b class="mono">${esc(finding.ruleId)}</b><br><small>${esc(clip(finding.help, 160))}${finding.wcag.length ? ` (WCAG ${esc(finding.wcag.join(', '))})` : ''}</small></td><td class="mono">${esc(clip(printable(finding.targetKey), 200))}</td>${withGuidance ? `<td class="adjust">${note ? `<small>${esc(note.title)}</small>${esc(note.platform)}` : '<span class="muted">-</span>'}</td>` : ''}</tr>`;
+    })
+    .join('');
+}
+
+function findingTable(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], limit: number, withGuidance: boolean): string {
+  const shown = findings.slice(0, limit);
+  return `<table><tr><th>${esc(s.a11yImpact)}</th><th>${esc(s.a11yRule)}</th><th>${esc(s.a11yElement)}</th>${withGuidance ? `<th>${esc(s.a11yAdjust)}</th>` : ''}</tr>${findingRows(s, lang, shown, withGuidance)}</table>${
+    findings.length > shown.length ? `<p class="muted">… ${findings.length - shown.length}</p>` : ''
+  }`;
+}
+
+/**
+ * T7.4/T7.5/T7.7. With a baseline the report shows what is NEW and what was FIXED, not the whole list: on a legacy application the whole list has hundreds of
+ * rows and nobody acts on it. Without one it says so and shows only the most serious findings. Every finding that has a platform note carries it.
+ */
+function accessibilityBlock(s: Strings, lang: ReportLang, items: NonNullable<RunReportData['accessibility']>): string {
+  return items
+    .map(({ result }) => {
+      const c = result.counts;
+      const baseline = result.baseline;
+      const meta = `<table class="meta">
+<tr><th>${esc(s.a11yStandard)}</th><td>${esc(result.standard)} · axe-core ${esc(result.axeVersion)}</td></tr>
+<tr><th>${esc(s.a11yTitle)}</th><td>${esc(c.elements)} ${esc(s.a11yCounts)} / ${esc(c.rules)} · ${IMPACTS.slice()
+        .reverse()
+        .map((impact) => `${esc(impact)} ${c[impact]}`)
+        .join(' · ')}</td></tr>
+${baseline ? `<tr><th>${esc(s.a11yBaseline)}</th><td>${esc(baseline.screen)} · ${esc(s.build)} ${esc(baseline.buildId)} (${esc(baseline.createdAt.slice(0, 10))})</td></tr>` : ''}
+</table>`;
+
+      const parts: string[] = [meta];
+      let guided = false;
+
+      if (baseline) {
+        if (baseline.axeVersionChanged) parts.push(`<div class="warn">${esc(s.a11yAxeChanged)} (${esc(baseline.axeVersionChanged.before)} → ${esc(baseline.axeVersionChanged.after)})</div>`);
+        if (baseline.new.length === 0 && baseline.fixed.length === 0) {
+          parts.push(`<div class="ok">${esc(s.a11yNothingNew)} (${esc(s.a11yUnchanged)}: ${baseline.unchanged})</div>`);
+        }
+        if (baseline.new.length > 0) {
+          guided = true;
+          parts.push(`<h3>${esc(s.a11yNew)} (${baseline.new.length})</h3>${findingTable(s, lang, baseline.new, MAX_A11Y_ROWS, true)}`);
+        }
+        if (baseline.fixed.length > 0) {
+          parts.push(`<h3>${esc(s.a11yFixed)} (${baseline.fixed.length})</h3>${findingTable(s, lang, baseline.fixed, MAX_A11Y_ROWS, false)}`);
+        }
+        if (baseline.new.length + baseline.fixed.length > 0) parts.push(`<p class="muted">${esc(s.a11yUnchanged)}: ${baseline.unchanged}</p>`);
+        if (baseline.incomplete) parts.push(`<div class="warn">${esc(s.a11yCut)}</div>`);
+      } else if (result.findings.length === 0) {
+        parts.push(`<div class="ok">${esc(s.a11yNone)}</div>`);
+      } else {
+        guided = true;
+        const severe = [...result.findings].sort((a, b) => IMPACTS.indexOf(b.impact) - IMPACTS.indexOf(a.impact));
+        parts.push(`<div class="warn">${esc(s.a11yNoBaseline)}</div><h3>${esc(s.a11yTopOnly)}</h3>${findingTable(s, lang, severe, MAX_A11Y_ROWS_NO_BASELINE, true)}`);
+        if (result.truncated) parts.push(`<div class="warn">${esc(s.a11yCut)}</div>`);
+      }
+
+      const review = result.needsReview.length;
+      if (review > 0) parts.push(`<p class="muted">${review} ${esc(s.a11yNeedsReview)}: ${esc(result.needsReview.slice(0, 8).map((rule) => rule.ruleId).join(', '))}</p>`);
+      if (guided) parts.push(`<p class="muted">${esc(s.a11yGuidanceNote)}</p>`);
+      return parts.join('\n');
+    })
+    .join('\n');
+}
+
 export function renderRunReport(data: RunReportData, lang: ReportLang): string {
   const s = STRINGS[lang];
   const failedStep = data.failedStepIndex === undefined ? undefined : data.steps[data.failedStepIndex];
@@ -229,6 +309,8 @@ ${data.parameters ? parametersBlock(s, data.parameters) : ''}
 <h2>${esc(s.steps)}</h2>
 <table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.steps)}</table>
 ${data.teardown?.length ? `<h2>${esc(s.teardown)}</h2><table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.teardown)}</table>` : ''}
+
+${data.accessibility?.length ? `<h2>${esc(s.a11yTitle)}</h2>${accessibilityBlock(s, lang, data.accessibility)}` : ''}
 
 ${failureShot ? `<h2>${esc(s.failureEvidence)}</h2><figure><img src="${esc(failureShot.dataUri)}" alt="failure"><figcaption>failure</figcaption></figure>` : ''}
 ${

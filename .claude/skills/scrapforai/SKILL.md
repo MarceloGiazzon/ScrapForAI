@@ -208,6 +208,9 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
   not fail the step by itself; list what must fail in `failOn` (`neverFocused`, `focusTrap`, `invisibleFocus`). `neverFocused` is only claimed when the walk reached the end of the page:
   with a trap or `endedBy: "max-tabs"` read the `notes`. With `startSelector` (e.g. inside a dialog) no control is judged unless you also give a `scope`. It reads no field value, and it
   needs no `ALLOW_EVALUATE`: it runs scripts that ship with the server, never code from you.
+- To check **accessibility** (WCAG, axe-core), add `auditAccessibility { name, standard?, scope?, rules?, failOn?, baseline? }` after `goto` (no `ALLOW_EVALUATE` either). `extracted[name].findings` = `{ ruleId, impact, targetKey, target, help, wcag }` per element (selectors only: no HTML, text or value). By default it only records.
+  On a legacy app the whole list has hundreds of rows and nobody acts on it, so judge the DIFFERENCE: ask a person to take a snapshot with `accessibility: true` (`scrapforai evolution snapshot <target> --accessibility`), then pass `baseline: { screen: '<catalogue screen id>' }`; the result gets `baseline.new` / `baseline.fixed`, and `failOn: 'new'` blocks only a regression.
+  Not comparable across WCAG levels. `needsReview` lists what the tool could not decide: a person must look; a page with no findings is not proven accessible. The run report (`GET /v1/runs/:jobId/report?lang=pt`) shows new/fixed with what to adjust in GeneXus/NPDev (`docs/a11y-platform-mapping.md`: orientation, not verified against a build).
 - A snapshot of the whole catalogue per build is a person/CI job (`scrapforai evolution snapshot <target>`, API key required):
   one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
   for a way to write a partial one unless the person asked for `allowPartial`.

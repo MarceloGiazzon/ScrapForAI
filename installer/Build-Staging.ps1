@@ -64,6 +64,8 @@ if ($Light) {
 $DocsDir = Join-Path $Staging "docs"
 New-Item -ItemType Directory -Path $DocsDir -Force | Out-Null
 Copy-Item (Join-Path $Root "_userManual") (Join-Path $DocsDir "_userManual") -Recurse
+# axe-core is MPL-2.0 (D7, T7.4): the notice travels with every package, next to the unmodified package in app\node_modules.
+Copy-Item (Join-Path $Root "THIRD-PARTY-NOTICES.md") (Join-Path $DocsDir "THIRD-PARTY-NOTICES.md")
 
 Write-Section "Installing production dependencies"
 Push-Location $AppDir

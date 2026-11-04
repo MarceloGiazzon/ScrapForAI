@@ -8,6 +8,7 @@ import { findJobDir, JOB_ID_PATTERN, resolveJobFile } from '../evidence/locate.j
 import { readManifest } from '../evidence/manifest.js';
 import { getSuite, SUITE_ID_PATTERN } from '../orchestrator/suiteRunner.js';
 import { createPlaywrightContext } from '../runner/playwrightContext.js';
+import { accessibilityResultSchema } from '../schemas/accessibility.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import { getTarget } from '../targets/targetStore.js';
 import type { ReportLang } from './i18n.js';
@@ -85,7 +86,13 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
     }
   }
 
-  const describeNetwork = (item: ExplorationResult['evidence']['networkFailures'][number]): string =>
+  // T7.4/T7.5: the audits are recognised by their shape (`kind: 'accessibility-audit'`), not by name; nothing else in `extracted` reaches the report.
+  const accessibility = Object.entries(result.extracted ?? {}).flatMap(([name, value]) => {
+    const parsed = accessibilityResultSchema.safeParse(value);
+    return parsed.success ? [{ name, result: parsed.data }] : [];
+  });
+
+  const describeNetwork =(item: ExplorationResult['evidence']['networkFailures'][number]): string =>
     `${item.method} ${item.origin}${item.pathname} ${item.failureText ?? item.status ?? ''}`.trim();
 
   return renderRunReport(
@@ -121,6 +128,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
             },
           }
         : {}),
+      ...(accessibility.length > 0 ? { accessibility } : {}),
       screenshots,
       consoleCount: result.evidence.console.length,
       consoleErrors: result.evidence.consoleErrors.map((entry) => entry.text),

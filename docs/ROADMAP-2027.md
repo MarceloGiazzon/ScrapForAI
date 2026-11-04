@@ -921,7 +921,7 @@ a deriva detecta, a pasta guarda e mostra.
 ### T4.4 — Snapshot de evolução versionado em git · M
 
 > **Implementada em 2026-11-03** (`src/evolution/`, ver AGENTS.md, "System evolution snapshots"). Inventário + screenshot por tela, `snapshot.json` com sha256, commit
-> em git via `child_process`, idempotente por build, tudo-ou-nada. **Não feito:** `perf.json` (T3.4), resumo de acessibilidade (T7.5) e a
+> em git via `child_process`, idempotente por build, tudo-ou-nada. A acessibilidade (T7.5) entrou em 2026-11-04, opt-in com `accessibility: true`. **Não feito:** `perf.json` (T3.4) e a
 > matriz de permissões dentro do snapshot: esses produtores não existem ou não estão ligados.
 
 **Especificação:**
@@ -1191,7 +1191,7 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 > **Implementada em 2026-11-04** (`src/runner/trusted/`, ver AGENTS.md, "Trusted scripts"). Registro fechado `{ id, source, sha256, timeoutMs, maxOutputChars }`; o hash é verificado no boot (primeira coisa de `start()`) e no primeiro uso, e
 > uma divergência impede o servidor de subir. O chamador só escolhe um `id` de step dedicado. Desvio do texto: os scripts ficam como **strings em módulos `.ts`**, não como arquivos `.js`, porque o `tsc` só copia `.ts` para `dist`; o hash
-> é do texto do script. Uma resposta acima do limite é **erro**, nunca cortada em silêncio. Hoje só a família do teclado (T7.6) o usa; os scripts de PII (T7.8) e de acessibilidade (T7.4) ainda não existem.
+> é do texto do script. Uma resposta acima do limite é **erro**, nunca cortada em silêncio. Hoje o usam a família do teclado (T7.6) e o `a11y-axe` (T7.4, o `axe-core` embutido inteiro: o hash cobre o pacote); o script de PII (T7.8) ainda não existe.
 
 **Usado por:** T7.4, T7.6, T7.8, T8.2, T9.2.
 
@@ -1223,6 +1223,11 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.4 — Auditoria de acessibilidade (axe) · M
 
+> **Implementada em 2026-11-04** (`src/a11y/audit.ts`, `src/runner/trusted/scripts/axe.ts`, ver AGENTS.md, "Accessibility audit"). D7 decidida pelo dono do projeto: o `axe-core` entra **sem modificação** (versão exata no `package.json`; aviso em
+> `THIRD-PARTY-NOTICES.md`, copiado para `docs` nos pacotes). Step `auditAccessibility { name, scope?, standard, rules?, failOn, baseline? }`. Desvios: (1) o axe é lido de `node_modules` e embutido **inteiro**, com o cabeçalho, num único script
+> confiável (T7.1) cujo sha256 fica no registro: trocar a versão do axe exige revisar e fixar o hash novo; (2) a saída é por **elemento** `{ ruleId, impact, targetKey, target, help, wcag }` e **nunca** traz HTML, texto, valor nem a mensagem de falha do axe;
+> (3) `rules` filtra o que é **reportado** (não o que roda); (4) só o frame auditado é verificado, não o conteúdo de iframes; (5) `failOn: 'new'` exige `baseline` (T7.5). Itens "precisa de uma pessoa" (`incomplete`) viram contagem por regra e não entram na comparação.
+
 - Dependência `axe-core`, mediante a decisão D7 (licença MPL-2.0; checar compatibilidade com a
   distribuição).
 - Step `auditAccessibility { scope?, standard: 'wcag2a' | 'wcag2aa' | 'wcag21aa' | 'wcag22aa', rules? , failOn: 'none' | 'new' | 'serious' | 'any' }`, com default `failOn: 'none'`.
@@ -1230,6 +1235,11 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
   (T4.1) para permitir comparação entre releases.
 
 ### T7.5 — Baseline e diff de acessibilidade · M
+
+> **Implementada em 2026-11-04** (`src/evolution/`, `src/reports/`). O snapshot de evolução aceita `accessibility: true` (`--accessibility` na CLI): cada tela ganha `screens/<id>.a11y.json`, com sha256 no `snapshot.json`. O step `auditAccessibility` com `baseline: { screen, build? }` compara
+> com o baseline mais recente que auditou aquela tela (ou o do build pedido) e devolve **novas** e **corrigidas**; `GET /v1/evolution/:target/diff` e `CHANGES.md` trazem o mesmo por tela; o relatório da execução mostra só novas/corrigidas.
+> Desvios: o resultado do diff fica **fora** de `counts` e da classificação esperado/inesperado (uma violação nova não é uma mudança estrutural); níveis WCAG ou escopos diferentes **não são comparáveis** (o nível maior chamaria tudo de "novo"); sem baseline o relatório diz isso e mostra só as 20 mais graves.
+> **Não feito:** `--fail-on-a11y-new` no `evolution diff`, o resumo de acessibilidade nos relatórios de suíte, e baseline por usuário/papel (um baseline por tela e build).
 
 - O baseline por tela fica no snapshot de evolução (T4.4).
 - O relatório mostra **novas** e **corrigidas** desde o baseline, não a lista completa. Num app
@@ -1256,6 +1266,9 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
     sem foco: `outline`, `box-shadow`, `border`).
 
 ### T7.7 — Tradução das violações para GeneXus/NPDev · P
+
+> **Implementada em 2026-11-04** (`src/a11y/platformGuidance.ts` → `docs/a11y-platform-mapping.md`, gerado por `npm run generate:a11y-doc`; um teste falha se o arquivo divergir da fonte). 19 grupos que cobrem **todas** as regras WCAG do axe, em en/pt/es, e o relatório da execução e o `CHANGES.md`
+> anexam a nota a cada violação nova. **Ressalva escrita no próprio documento:** é orientação, não receita; os nomes das propriedades do GeneXus variam com a versão e o template do NPDev, e nada foi conferido contra um build real. Quem conhece o NPDev deve revisar a tabela.
 
 - `docs/a11y-platform-mapping.md`: regra → o que ajustar na plataforma (por exemplo, "falta
   rótulo" → propriedade de rótulo/caption do controle; "contraste" → classe do tema).
@@ -1437,7 +1450,7 @@ quinzenais. Os aprendizados reordenam as fases.
 ### T10.4 — Modelo comercial e licenças · P
 
 O repositório está marcado como `UNLICENSED`. Decidir (D7): licença, preço e implicações das
-dependências (por exemplo, a MPL-2.0 do `axe-core`).
+dependências (por exemplo, a MPL-2.0 do `axe-core`). **Já decidido (2026-11-04):** o `axe-core` é usado sem modificação e o aviso viaja nos pacotes (`THIRD-PARTY-NOTICES.md`); alterar um arquivo do axe e distribuí-lo obrigaria a publicar esse arquivo sob a MPL-2.0.
 
 ---
 
@@ -1467,7 +1480,7 @@ dependências (por exemplo, a MPL-2.0 do `axe-core`).
 
 | Pacote | Uso | Alternativa sem dependência | Recomendação |
 |---|---|---|---|
-| `axe-core` | Acessibilidade (T7.4) | Nenhuma realista | **Adotar** após D7 (licença MPL-2.0) |
+| `axe-core` | Acessibilidade (T7.4) | Nenhuma realista | **Adotado em 2026-11-04** (D7), sem modificação, com aviso de licença (MPL-2.0) |
 | `croner` ou similar | Cron (T3.2) | Parser próprio de 5 campos (~150 linhas) | **Parser próprio** |
 | `pixelmatch` + `pngjs` | Diff visual (T6.3) | Hash perceptual simples | **Adiar** (diff semântico primeiro) |
 | `yaml` | Itens em YAML, como no ledger | JSON | **Não adotar**; o NPDev referencia por ID |
@@ -1543,7 +1556,7 @@ projeto possa parar em qualquer um deles **com valor entregue**.
 | D4 | Formato de itens e rotinas | JSON (recomendado) / YAML | T1.3 |
 | D5 | Onde roda o agendador | No processo / Agendador de Tarefas do Windows / Docker | T3.2 |
 | D6 | Diff visual | Não fazer / hash perceptual / `pixelmatch` | T6.3 |
-| D7 | Licença e modelo comercial | `UNLICENSED` / comercial / open-core; compatibilidade com MPL-2.0 | Antes da T7.4 e da F10 |
+| D7 | Licença e modelo comercial | `UNLICENSED` / comercial / open-core; compatibilidade com MPL-2.0 | **Parcial (2026-11-04):** `axe-core` adotado sem modificação, aviso em `THIRD-PARTY-NOTICES.md`. O modelo comercial segue para a T10.4 e a F10 |
 | D8 | Primeiro issue tracker | GitHub Issues (recomendado) / Azure DevOps / Jira | T9.1 |
 | D9 | NPDev emitir atributos estáveis (`data-npdev-key`) | Sim (recomendado) / não | T8.3, no repositório NPDev |
 | D10 | Manter o `evaluate` genérico | Manter atrás da flag / reduzir conforme os scripts confiáveis cobrem os casos | Após a T7.1 |

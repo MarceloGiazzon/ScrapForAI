@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { RequestResolutionError } from '../runner/resolutionError.js';
+import { type AccessibilityAudit, accessibilityAuditSchema } from '../schemas/accessibility.schema.js';
 import { type ExpectedChanges, expectedChangesSchema } from '../schemas/expectedChanges.schema.js';
 import { type ScreenInventory, screenInventorySchema } from '../schemas/screenInventory.schema.js';
 import { writeFileAtomic } from '../storage/atomicWrite.js';
@@ -20,11 +21,24 @@ export class EvolutionError extends RequestResolutionError {}
 export const CHANGES_FILE = 'CHANGES.md';
 export const MAX_NARRATIVE_CHARS = 20_000;
 
+/** Reads one screen's accessibility audit back and checks it against the manifest's sha256 (an edited baseline is refused, as an edited inventory is). */
+async function readAccessibility(target: string, name: string, entry: { id: string; accessibility?: string; accessibilitySha256?: string }): Promise<AccessibilityAudit | undefined> {
+  if (!entry.accessibility) return undefined;
+  const file = path.join(targetFolder(target), name, ...entry.accessibility.split('/'));
+  const text = await fs.readFile(file, 'utf8').catch(() => undefined);
+  if (text === undefined) throw new EvolutionError(409, 'SnapshotIncomplete', `Snapshot "${name}": ${entry.accessibility} is listed in the manifest but missing`);
+  if (sha256(text) !== entry.accessibilitySha256) {
+    throw new EvolutionError(409, 'SnapshotTampered', `Snapshot "${name}": ${entry.accessibility} does not match the sha256 in snapshot.json (edited after capture)`);
+  }
+  return accessibilityAuditSchema.parse(JSON.parse(text));
+}
+
 export async function loadSnapshotView(target: string, name: string): Promise<SnapshotView> {
   const manifest = await readManifest(target, name);
   if (!manifest) throw new EvolutionError(404, 'SnapshotNotFound', `Snapshot "${name}" of "${target}" does not exist`);
 
   const inventories = new Map<string, ScreenInventory>();
+  const accessibility = new Map<string, AccessibilityAudit>();
   const names = new Map<string, string>();
   for (const entry of manifest.screens) {
     names.set(entry.id, entry.name);
@@ -35,11 +49,45 @@ export async function loadSnapshotView(target: string, name: string): Promise<Sn
       throw new EvolutionError(409, 'SnapshotTampered', `Snapshot "${name}": ${entry.inventory} does not match the sha256 in snapshot.json (edited after capture)`);
     }
     inventories.set(entry.id, screenInventorySchema.parse(JSON.parse(text)));
+    const audit = await readAccessibility(target, name, entry);
+    if (audit) accessibility.set(entry.id, audit);
   }
   const notCaptured = new Map(manifest.notCaptured.map((item) => [item.id, item.reason]));
   for (const item of manifest.notCaptured) if (!names.has(item.id)) names.set(item.id, item.id);
 
-  return { buildId: manifest.buildId, createdAt: manifest.createdAt, complete: manifest.complete, inventories, notCaptured, names };
+  return { buildId: manifest.buildId, createdAt: manifest.createdAt, complete: manifest.complete, inventories, notCaptured, names, ...(accessibility.size > 0 ? { accessibility } : {}) };
+}
+
+export interface AccessibilityBaseline {
+  buildId: string;
+  createdAt: string;
+  audit: AccessibilityAudit;
+}
+
+/**
+ * T7.5: the accessibility baseline of one screen. Without `build`, the NEWEST snapshot that audited that screen; with it, that build's (and a
+ * snapshot of that build without an audit of the screen is an error, not a silent fall back to an older one: the caller asked for a specific baseline).
+ */
+export async function loadAccessibilityBaseline(target: string, screenId: string, build?: string): Promise<AccessibilityBaseline> {
+  const listing = (await listSnapshots(target)).reverse();
+  const candidates = build === undefined ? listing : listing.filter((item) => item.buildId === build);
+  if (build !== undefined && candidates.length === 0) {
+    throw new EvolutionError(404, 'SnapshotNotFound', `No snapshot of build "${build}" for "${target}" (have: ${listing.map((item) => item.buildId).join(', ') || 'none'})`);
+  }
+  for (const item of candidates) {
+    const manifest = await readManifest(target, item.name);
+    const entry = manifest?.screens.find((screen) => screen.id === screenId);
+    if (!entry?.accessibility) continue;
+    const audit = await readAccessibility(target, item.name, entry);
+    if (audit) return { buildId: item.buildId, createdAt: item.createdAt, audit };
+  }
+  throw new EvolutionError(
+    404,
+    'NoAccessibilityBaseline',
+    build === undefined
+      ? `No snapshot of "${target}" has an accessibility baseline for screen "${screenId}". Take one with: scrapforai evolution snapshot ${target} --accessibility`
+      : `The snapshot of build "${build}" has no accessibility baseline for screen "${screenId}"`,
+  );
 }
 
 /** `latest`, `previous`, a build id or a folder name -> a listed snapshot. */

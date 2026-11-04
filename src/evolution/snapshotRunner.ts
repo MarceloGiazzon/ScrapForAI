@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { nanoid } from 'nanoid';
 
+import { type AccessibilityAudit, accessibilityAuditSchema } from '../schemas/accessibility.schema.js';
+
 import { env } from '../config/env.js';
 import { evolutionRunsDir } from '../config/paths.js';
 import { resolveJobFile } from '../evidence/locate.js';
@@ -25,6 +27,7 @@ import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { getTarget } from '../targets/targetStore.js';
 import {
+  accessibilityName,
   inventoryName,
   LOGIN_STEP_ID,
   type PlannedScreenSession,
@@ -72,7 +75,7 @@ function suiteSlots(): number {
   return Math.max(1, env.MAX_PARALLEL_JOBS - reserved);
 }
 
-type Captured = { structure: StructureInput; jobId: string; screenshotPath?: string };
+type Captured = { structure: StructureInput; jobId: string; screenshotPath?: string; audit?: AccessibilityAudit };
 
 export async function startSnapshot(body: SnapshotBody): Promise<SnapshotRunState> {
   const profile = await getTarget(body.targetProfile);
@@ -99,6 +102,7 @@ export async function startSnapshot(body: SnapshotBody): Promise<SnapshotRunStat
       loginStepCount,
       settleMs: Math.min(body.settleMs, env.STEP_TIMEOUT_MS),
       screenshots: body.screenshots,
+      ...(body.accessibility ? { accessibility: body.accessibilityStandard } : {}),
       limits: { maxStepsPerJob: env.MAX_STEPS_PER_JOB, jobTimeoutMs: env.JOB_TIMEOUT_MS, stepTimeoutMs: env.STEP_TIMEOUT_MS },
     });
   } catch (error) {
@@ -206,10 +210,13 @@ async function execute(
           continue;
         }
         const shot = result.evidence.screenshots.find((entry) => entry.name === screenshotName(screen.id));
+        // T7.5: the audit is optional per screen. A missing or malformed one costs that screen its baseline (a warning at the end), never the capture.
+        const parsedAudit = body.accessibility ? accessibilityAuditSchema.safeParse(result.extracted[accessibilityName(screen.id)]) : undefined;
         captured.set(screen.id, {
           structure: structure as unknown as StructureInput,
           jobId: result.jobId,
           ...(shot ? { screenshotPath: shot.path } : {}),
+          ...(parsedAudit?.success ? { audit: parsedAudit.data } : {}),
         });
         const entry = state.screens.find((item) => item.screenId === screen.id);
         if (entry) Object.assign(entry, { status: 'captured', jobId: result.jobId });
@@ -278,6 +285,7 @@ async function finalize(
   const name = snapshotFolderName(state.createdAt, known ? buildId : `unknown-${state.createdAt.slice(11, 19).replaceAll(':', '')}`);
   const files: SnapshotFile[] = [];
   const manifestScreens: SnapshotManifest['screens'] = [];
+  const audited: AccessibilityAudit[] = [];
 
   for (const screen of state.screens.filter((item) => item.status === 'captured')) {
     const data = captured.get(screen.screenId)!;
@@ -293,6 +301,20 @@ async function finalize(
         jobId: data.jobId,
       };
       Object.assign(screen, { counts: { fields: inventory.fields.length, actions: inventory.actions.length, grids: inventory.grids.length, unkeyed: inventory.unkeyed } });
+
+      if (body.accessibility) {
+        if (data.audit) {
+          const auditText = `${JSON.stringify(data.audit, null, 2)}
+`;
+          files.push({ relative: `screens/${screen.screenId}.a11y.json`, data: auditText });
+          entry.accessibility = `screens/${screen.screenId}.a11y.json`;
+          entry.accessibilitySha256 = sha256(auditText);
+          screen.accessibility = { rules: data.audit.counts.rules, elements: data.audit.counts.elements };
+          audited.push(data.audit);
+        } else {
+          state.warnings.push(`screen "${screen.screenId}": no accessibility audit was kept (it did not run or its answer was not usable); it has no baseline in this build`);
+        }
+      }
 
       if (body.screenshots) {
         const absolute = data.screenshotPath ? resolveJobFile(data.jobId, `screenshots/${path.basename(data.screenshotPath)}`) : undefined;
@@ -344,6 +366,7 @@ async function finalize(
     createdAt: state.createdAt,
     screenshots: body.screenshots,
     complete: stillFailed.length === 0,
+    ...(audited.length > 0 ? { accessibility: { standard: audited[0]!.standard, axeVersion: audited[0]!.axeVersion } } : {}),
     screens: manifestScreens.sort((a, b) => (a.id < b.id ? -1 : 1)),
     notCaptured: stillFailed.map((item) => ({ id: item.screenId, reason: `${item.errorType ?? 'NotCaptured'}: ${item.errorMessage ?? ''}`.trim().slice(0, 300) })),
   };

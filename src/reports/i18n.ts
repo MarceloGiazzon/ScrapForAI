@@ -68,6 +68,25 @@ export interface Strings {
   passedOnRetryTag: string;
   passedOnRetryNote: string;
   attempt: string;
+  a11yTitle: string;
+  a11yStandard: string;
+  a11yBaseline: string;
+  a11yNew: string;
+  a11yFixed: string;
+  a11yUnchanged: string;
+  a11yNoBaseline: string;
+  a11yTopOnly: string;
+  a11yImpact: string;
+  a11yRule: string;
+  a11yElement: string;
+  a11yAdjust: string;
+  a11yNeedsReview: string;
+  a11yCut: string;
+  a11yAxeChanged: string;
+  a11yGuidanceNote: string;
+  a11yNone: string;
+  a11yCounts: string;
+  a11yNothingNew: string;
 }
 
 const en: Strings = {
@@ -137,6 +156,25 @@ const en: Strings = {
   passedOnRetryTag: 'passed on a new attempt',
   passedOnRetryNote: 'These runs failed once and passed when tried again automatically. They count as passed, and the failed attempt is kept: it is listed below with its own run id.',
   attempt: 'Attempt',
+  a11yTitle: "Accessibility",
+  a11yStandard: "Standard",
+  a11yBaseline: "Baseline",
+  a11yNew: "New since the baseline",
+  a11yFixed: "Fixed since the baseline",
+  a11yUnchanged: "Unchanged",
+  a11yNoBaseline: "No baseline was given, so this is not a comparison. Take an evolution snapshot with accessibility and name its screen in the step to see only what changed.",
+  a11yTopOnly: "Showing the most serious findings only",
+  a11yImpact: "Impact",
+  a11yRule: "Rule",
+  a11yElement: "Element",
+  a11yAdjust: "What to adjust",
+  a11yNeedsReview: "rule(s) the tool could not decide: a person has to look",
+  a11yCut: "The list was cut: the totals are complete, the rows are not.",
+  a11yAxeChanged: "The audit tool changed version between the baseline and this run; a new finding may come from a changed rule, not from the application.",
+  a11yGuidanceNote: "The platform notes are orientation for a GeneXus/NPDev model; property names vary with the version. Confirm before applying.",
+  a11yNone: "No violations found by the automated rules (this does not prove the page is accessible: most criteria need a person).",
+  a11yCounts: "violation(s)",
+  a11yNothingNew: "Nothing new and nothing fixed.",
 };
 
 const pt: Strings = {
@@ -206,6 +244,25 @@ const pt: Strings = {
   passedOnRetryTag: 'passou em nova tentativa',
   passedOnRetryNote: 'Estas execuções falharam uma vez e passaram quando foram repetidas automaticamente. Contam como aprovadas, e a tentativa que falhou foi mantida: aparece abaixo com o seu próprio id de execução.',
   attempt: 'Tentativa',
+  a11yTitle: "Acessibilidade",
+  a11yStandard: "Padrão",
+  a11yBaseline: "Linha de base",
+  a11yNew: "Novas desde a linha de base",
+  a11yFixed: "Corrigidas desde a linha de base",
+  a11yUnchanged: "Inalteradas",
+  a11yNoBaseline: "Nenhuma linha de base foi informada, então isto não é uma comparação. Faça um snapshot de evolução com acessibilidade e indique a tela no step para ver só o que mudou.",
+  a11yTopOnly: "Mostrando apenas as ocorrências mais graves",
+  a11yImpact: "Impacto",
+  a11yRule: "Regra",
+  a11yElement: "Elemento",
+  a11yAdjust: "O que ajustar",
+  a11yNeedsReview: "regra(s) que a ferramenta não conseguiu decidir: uma pessoa precisa olhar",
+  a11yCut: "A lista foi cortada: os totais estão completos, as linhas não.",
+  a11yAxeChanged: "A ferramenta de auditoria mudou de versão entre a linha de base e esta execução; uma ocorrência nova pode vir de uma regra alterada, e não da aplicação.",
+  a11yGuidanceNote: "As notas de plataforma são orientação para um modelo GeneXus/NPDev; os nomes das propriedades variam com a versão. Confirme antes de aplicar.",
+  a11yNone: "Nenhuma violação encontrada pelas regras automáticas (isso não prova que a página é acessível: a maioria dos critérios exige uma pessoa).",
+  a11yCounts: "violação(ões)",
+  a11yNothingNew: "Nada novo e nada corrigido.",
 };
 
 const es: Strings = {
@@ -275,6 +332,25 @@ const es: Strings = {
   passedOnRetryTag: 'pasó en un nuevo intento',
   passedOnRetryNote: 'Estas ejecuciones fallaron una vez y pasaron al repetirse automáticamente. Cuentan como aprobadas, y el intento que falló se conserva: aparece abajo con su propio id de ejecución.',
   attempt: 'Intento',
+  a11yTitle: "Accesibilidad",
+  a11yStandard: "Estándar",
+  a11yBaseline: "Línea base",
+  a11yNew: "Nuevas desde la línea base",
+  a11yFixed: "Corregidas desde la línea base",
+  a11yUnchanged: "Sin cambios",
+  a11yNoBaseline: "No se indicó una línea base, así que esto no es una comparación. Haga un snapshot de evolución con accesibilidad e indique la pantalla en el step para ver solo lo que cambió.",
+  a11yTopOnly: "Se muestran solo los hallazgos más graves",
+  a11yImpact: "Impacto",
+  a11yRule: "Regla",
+  a11yElement: "Elemento",
+  a11yAdjust: "Qué ajustar",
+  a11yNeedsReview: "regla(s) que la herramienta no pudo decidir: una persona debe revisar",
+  a11yCut: "La lista se cortó: los totales están completos, las filas no.",
+  a11yAxeChanged: "La herramienta de auditoría cambió de versión entre la línea base y esta ejecución; un hallazgo nuevo puede venir de una regla modificada, no de la aplicación.",
+  a11yGuidanceNote: "Las notas de plataforma son orientación para un modelo GeneXus/NPDev; los nombres de las propiedades varían con la versión. Confirme antes de aplicar.",
+  a11yNone: "Ninguna violación encontrada por las reglas automáticas (esto no prueba que la página sea accesible: la mayoría de los criterios requiere una persona).",
+  a11yCounts: "violación(es)",
+  a11yNothingNew: "Nada nuevo y nada corregido.",
 };
 
 export const STRINGS: Record<ReportLang, Strings> = { en, pt, es };

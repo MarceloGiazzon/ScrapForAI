@@ -14,6 +14,7 @@ process.env.ALLOWED_TARGET_ORIGINS = 'https://dev.example.com';
 
 const { TRUSTED_SCRIPTS, TrustedScriptIntegrityError, sha256Of, verifyTrustedScripts } = await import('../src/runner/trusted/registry.js');
 const { runTrustedScript, TrustedScriptError } = await import('../src/runner/trusted/runTrusted.js');
+const { axeBundle } = await import('../src/runner/trusted/scripts/axe.js');
 
 after(() => fs.rmSync(dataDir, { recursive: true, force: true }));
 
@@ -50,12 +51,14 @@ test('the boot check runs before anything else in start(), so a bad build never 
   assert.ok(start.indexOf('verifyTrustedScripts()') < start.indexOf('app.listen'));
 });
 
-test('the sources are plain data to the runner: no template syntax that could be confused with injection, and only the keyboard family exists', () => {
+test('the sources are plain data to the runner: no template syntax that could be confused with injection, and only the known families exist', () => {
   for (const script of TRUSTED_SCRIPTS) {
-    assert.ok(!script.source.includes('${'), `${script.id} must not contain template placeholders`);
-    assert.ok(!/\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/.test(script.source), `${script.id} reads and writes nothing it should not`);
+    // The vendored axe-core bundle (T7.4) is third-party code pinned by hash as a whole; the rule applies to OUR part of that script.
+    const own = script.id === 'a11y-axe' ? script.source.replace(axeBundle, '') : script.source;
+    assert.ok(!own.includes('${'), `${script.id} must not contain template placeholders`);
+    assert.ok(!/\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/.test(own), `${script.id} reads and writes nothing it should not`);
   }
-  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['keyboard-active', 'keyboard-candidates', 'keyboard-style']);
+  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style']);
 });
 
 /** A frame whose evaluate records the expression and answers with `answer`. */

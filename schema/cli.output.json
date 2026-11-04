@@ -1499,6 +1499,22 @@
                       },
                       "screenshot": {
                         "type": "boolean"
+                      },
+                      "accessibility": {
+                        "type": "object",
+                        "properties": {
+                          "rules": {
+                            "type": "number"
+                          },
+                          "elements": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "rules",
+                          "elements"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
