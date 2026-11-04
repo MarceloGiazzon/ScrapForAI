@@ -314,7 +314,7 @@ step limits, artifact retention, etc.).
   leaves), checked at save and again at every send; no user:password, no fragment; redirects are never followed (a 3xx is a failure); `NOTIFY_TIMEOUT_MS`; one retry only for
   a network error, timeout, 429 or 5xx; the response body is never read or kept; errors name a code, never the URL. **Before anything leaves** (`scrub.ts`, `notifier.ts`): every
   string is cleaned (vault values, including every webhook URL, and the secret shapes of the routine lint become `[REDACTED]`; control and right-to-left characters are removed; length is bounded),
-  the rendered payload is checked once more, and if a secret is still in it nothing is sent and the delivery is `blocked`. The T7.8 PII detector does not exist yet: `scrubText` is where it plugs in.
+  the rendered payload is checked once more, and if a secret is still in it nothing is sent and the delivery is `blocked`. Personal data (T7.8) is masked there too: `scrubText` calls the PII detectors, so a CPF or e-mail in a message keeps its shape and loses its value.
   Presets (`presets.ts`, pure) escape for their markup so a page cannot write a mention: `generic` (JSON with `fields`), `slack` and `googlechat` (`{ text }`), `teams` (a Workflows webhook:
   message with an Adaptive Card). **Daily summary**: at `dailySummary.at` in its time zone, one message with the state of every schedule that notifies the webhook and its outcomes of the last
   24 h; at most one per day, nothing "made up" for the time before the webhook (or the time) was saved, a failed send is retried after 10 minutes, driven by the scheduler tick (so it needs
@@ -322,7 +322,7 @@ step limits, artifact retention, etc.).
   `DELETE` (409 `WebhookInUse` while a schedule notifies it; it removes the vault set), CLI `scrapforai webhooks list|show|test` (the URL is never an argument: it would end up in shell history),
   MCP `list_webhooks` (read-only). Delivery never touches a run: a webhook failure is only in the webhook's own log. Notification work runs apart from the schedule (a slow endpoint does not delay
   the next occurrence). Only **scheduled** runs notify: a run started by hand, a suite started by `POST /v1/suites` or the nightly wrapper do not (use a schedule, or `run-now`). Not done: Teams
-  `@mentions`, links back to the report/UI (there is no configured public base URL), retries beyond one, the PII detector (T7.8), editing webhooks in the web UI. `test/notify.test.ts` (pure parts + notifier + engine
+  `@mentions`, links back to the report/UI (there is no configured public base URL), retries beyond one, editing webhooks in the web UI. `test/notify.test.ts` (pure parts + notifier + engine
   against a local receiver, including the sentinel test), `test/scheduler.smoke.ts` (Chromium, HTTP).
 - **Performance series** (`src/metrics/`, T3.4): every run of a LIBRARY routine appends one line to `<dataDir>/metrics/<routineId>.jsonl`
   (`perfRecorder.ts`, called by `runLibraryRoutine`, so direct, suite, scheduled and vault runs all count): `{ jobId, at, version, profile, env, buildId?, status, durationMs,
@@ -379,7 +379,7 @@ step limits, artifact retention, etc.).
   on purpose: edit it, `npx tsx scripts/trusted-hashes.ts`, paste the hash into the registry (so any change to what runs in a page is a reviewed change of that file; it does not protect against someone who can edit both).
   `runTrustedScript(frame, id, args)` sends the registered source plus `args` as one JSON literal (data only), abandons it after `timeoutMs`, REFUSES an answer over `maxOutputChars` (never cuts silently) and redacts
   the answer with the run's known secrets. Sources use no backtick and no `${`, and `test/trusted-scripts.test.ts` rejects `eval`, `fetch`, storage and cookie access in them. Today: `keyboard-active`,
-  `keyboard-style`, `keyboard-candidates`, and `a11y-axe` (T7.4, below: the whole axe-core bundle is part of its source, so its pin moves with the axe-core version). Not done: the PII script (T7.8).
+  `keyboard-style`, `keyboard-candidates`, and `a11y-axe` (T7.4, below: the whole axe-core bundle is part of its source, so its pin moves with the axe-core version). And `pii-surfaces` (T7.8: reads storage and hidden inputs; the one script allowed to touch `localStorage`/`sessionStorage`, and only to read, which `test/trusted-scripts.test.ts` enforces).
 - **Keyboard walk** (`keyboardWalk` step, `src/runner/keyboardWalk.ts` pure + trusted scripts, T7.6): `{ name, maxTabs (1-500, default 200), startSelector?, scope?, failOn?: ['neverFocused'|'focusTrap'|'invisibleFocus'][] }`
   presses Tab and writes `extracted[name]` = `{ order: [{ key, role, name?, focusVisible? }], tabs, completed, endedBy: 'wrap'|'left-document'|'trap'|'max-tabs'|'time-limit', trap?, neverFocused?, invisibleFocus, notes }`.
   `key` is `#id` or a structural path (`body>div:nth-of-type(2)>input`); `name` comes from label, aria, placeholder, title or the caption of a button/link, **never the value of a field**. **Never focused** = a control of the
@@ -431,6 +431,25 @@ step limits, artifact retention, etc.).
   The `serverClock` hook of the roadmap needs an endpoint in the NPDev application (`[cross-repo]`): only a proposal exists, `docs/T7.3-NPDEV-SERVER-CLOCK-PROPOSAL.md`. `waitForTimeout`/`delayMs` are real time
   (Playwright side), not the fake clock. Not done: `runFor`/`pauseAt` (stepping a paused clock), a clock per suite variant, a time zone other than the machine's for the page's `Intl` (only the instant is set).
   `test/clock.test.ts` (accepted forms, zone, year range), `test/clock.smoke.ts` (Chromium), `test/reports.test.ts` (the section, three languages, escaped).
+- **PII hunter** (`src/security/piiDetectors.ts`, `piiFindings.ts`, `piiSalt.ts`, `src/runner/piiScanner.ts`, T7.8): `options.piiScan: true` (whole run) and/or a step
+  `scanForPii { name, surfaces?, failOn?: 'none'(default)|'high'|'medium'|'low'|'any' }` look for personal data and secrets where they should not be. It only READS (listeners on the page; no route,
+  so a hunting run behaves like any other) and is attached only when the run asks. **Surfaces**: `url` (every request, plus the address bar with the fragment: query values, `#access_token=`, `;jsessionid=` in the
+  path), `console` (log lines and page errors), `response-body` (JSON/HTML up to 256 KB of requests that carried NO Authorization and NO Cookie: what the app hands to anyone; a body fetched with the session
+  is the user's own and is skipped), `storage` (local + session, through the trusted script `pii-surfaces`), `cookie` (only those WITHOUT HttpOnly: a script could take them) and `hidden-input`. Storage, cookies and
+  hidden inputs are read once, at the end of the steps (before the teardown), or when a `scanForPii` step runs. **Detectors** (ours, bounded, never a caller regex): CPF, CNPJ, CI-UY (formatted, number < 7,000,000),
+  RUT-UY (12 digits, department 01-22, series 001) all with correct check digits; card (Luhn, first digit 2-6); e-mail (not `logo@2x.png`); UY phone (with +598/00598 or the 09x mobile form; a bare 8-digit number is
+  NOT matched); JWT, `Bearer`, API-key shapes (the routine lint's); `secret-named` (a value under a name like `token`, `password`, `api_key`, `jsessionid`; anti-forgery names such as `csrf`/`__RequestVerificationToken` are
+  expected in a page and ignored); `known-secret` (the run's vault values, found anywhere); `cookie-no-httponly` (session/token cookie readable by scripts). **A finding never holds the value**:
+  `{ detector, surface, location, maskedSample, fingerprint, severity, count }`; `location` is origin + path with matched values masked + parameter NAMES; `fingerprint` is HMAC-SHA256 under
+  `<dataDir>/pii-fingerprint.key` (departure from the roadmap's plain sha256: an 11-digit CPF hashed plainly can be reversed by trying them all), so one value gives one fingerprint inside an installation.
+  **Severity** (`defaultSeverity`): secrets in url/console/body = high, in storage/cookie/hidden = medium; identity documents in url/body/cookie = high, console/storage/hidden = medium; card = high; e-mail/phone: url medium,
+  console/body/cookie low, storage/hidden info. `failOn` fails the step at that level or above (default: only records). `result.pii` (with `options.piiScan`) and `extracted[name]` (a step) hold the report:
+  `{ kind: 'pii-scan', findings, counts, scanned, truncated, notes }`; `scanned` says what was looked at, so an empty list is never read as "checked everywhere". **A hunting run also masks what it keeps**: console text,
+  page errors, the URL of a console line, the failure DOM text and `finalUrl` pass through `maskText`/`maskUrl`, otherwise the run would store the very value it reports (not done for `extracted` values the
+  caller asked for, nor for `pathname` in the network evidence). `redactSecrets` blanks values by KEY NAME (`cookie`, `secret`...), which is why the counts are lists, not maps keyed by detector. The run report
+  (en/pt/es) has a "Privacy scan" section; webhook messages mask personal data via `scrubText`. Not done: suppressions and per-profile severity (T7.9), the PII summary in suite reports and in the history, iframes, ci-uy
+  without separators, names and addresses (no detector can tell them from text).
+  `test/pii.test.ts` (detectors, masking, fingerprints, collector, schema), `test/pii.smoke.ts` (Chromium: a page that leaks through every surface; nothing raw on disk), `test/reports.test.ts`, `test/notify.test.ts`.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

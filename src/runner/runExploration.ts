@@ -15,6 +15,9 @@ import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility
 import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ClockEvidence, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
+import { maskText, maskUrl, PII_SURFACES } from '../security/piiDetectors.js';
+import { meetsFailLevel, SEVERITY_RANK } from '../security/piiFindings.js';
+import { getPiiFingerprintKey } from '../security/piiSalt.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -24,6 +27,7 @@ import { extractStructure } from './extractStructure.js';
 import { createFaultController, type FaultController, usesFaults } from './faults.js';
 import { type ActiveElement, type Candidate, type StyleSignature, walkKeyboard } from './keyboardWalk.js';
 import { ALL_LEAK_KINDS, findLeaks } from './leakPatterns.js';
+import { PiiScanner, usesPiiScan } from './piiScanner.js';
 import { runTrustedScript } from './trusted/runTrusted.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
@@ -280,6 +284,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   // T7.3: what setClock did to the browser's clock, and whether the clock was installed (it can be, once).
   const clockEvents: ClockEvidence[] = [];
   let clockInstalled = false;
+  // T7.8: the PII hunt of this run, only for a run that asks for it (options.piiScan or a scanForPii step).
+  let piiScanner: PiiScanner | undefined;
+  let piiReport: ExplorationResult['pii'];
 
   try {
     // FORCE_HEADLESS (set by the Light distribution, which bundles only the headless shell)
@@ -294,6 +301,15 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     });
     evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
 
+    if (usesPiiScan(request)) {
+      piiScanner = new PiiScanner(playwright.page, playwright.context, {
+        // The vault values of this run, plus the API key: any of them showing up on a page is a leak.
+        knownSecrets,
+        key: await getPiiFingerprintKey(),
+      });
+      piiScanner.attach();
+    }
+
     if (traceOn) {
       await playwright.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
     }
@@ -304,6 +320,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     const activePlaywright = playwright;
     const activeEvidence = evidence;
     const activeFaults = faults;
+    const activePii = piiScanner;
     const runStep = async (step: RunnableStep, index: number, phase: 'steps' | 'teardown'): Promise<boolean> => {
       const playwright = activePlaywright;
       const evidence = activeEvidence;
@@ -650,6 +667,22 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             }
             break;
           }
+          case 'scanForPii': {
+            // T7.8: reads only. The report keeps masked samples and fingerprints; the raw text was scanned in memory and dropped.
+            if (!activePii) throw new StepExecutionError('scanForPii: the PII hunt is not active for this run');
+            const surfaces = step.surfaces ?? PII_SURFACES;
+            await activePii.scan(frame, surfaces);
+            const report = activePii.report(surfaces);
+            extracted[step.name] = redactSecrets(report, knownSecrets) as unknown as JsonValue;
+            const failing = report.findings.filter((finding) => meetsFailLevel(finding.severity, step.failOn));
+            if (failing.length > 0) {
+              const worst = failing.reduce((a, b) => (SEVERITY_RANK[b.severity] > SEVERITY_RANK[a.severity] ? b : a));
+              throw new StepExecutionError(
+                `scanForPii: ${failing.length} finding(s) at "${step.failOn}" or above, e.g. ${worst.detector} (${worst.severity}) in ${worst.surface}: ${worst.location} = ${worst.maskedSample}`,
+              );
+            }
+            break;
+          }
           case 'setClock': {
             // T7.3: the browser's clock only (context-wide: every page and frame). The server's clock is the real one.
             const clock = playwright.context.clock;
@@ -789,12 +822,23 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       }
     }
 
+    // T7.8: storage, cookies and hidden inputs are read once, here: after the steps (logged in, on the last page) and before a teardown that may log out.
+    if (piiScanner && request.options.piiScan) {
+      await piiScanner.scan(playwright.page.mainFrame()).catch(() => undefined);
+    }
+
     // Always runs once a browser exists, whether the steps passed or failed. Each teardown step is
     // attempted even if an earlier one failed: cleanup is best-effort and independent.
     // T7.2: faults of the steps end here, so the cleanup talks to the application as it really is (a teardown may inject its own).
     faults?.clear();
     for (const [index, step] of (request.teardown ?? []).entries()) {
       await runStep(step, index, 'teardown');
+    }
+
+    if (piiScanner && request.options.piiScan) {
+      // The bodies still being read when the last step ended (teardown included) are waited for, bounded.
+      await piiScanner.settle();
+      piiReport = piiScanner.report();
     }
 
     // T3.1: the build the app reports (never fails the run, `unknown` when it cannot be read).
@@ -819,10 +863,23 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
 
   const finishedAt = new Date();
   const status = failedStepIndex === undefined && !resultError ? 'passed' : 'failed';
-  const consoleEvidence = evidence?.console ?? [];
+  // T7.8: what a hunting run keeps as evidence must not hold the values it reports: console text, page errors, the URL a console line came from, the DOM text of a failure.
+  const hunting = piiScanner !== undefined;
+  const maskOptions = { knownSecrets };
+  const consoleEvidence = hunting
+    ? (evidence?.console ?? []).map((item) => ({
+        ...item,
+        text: maskText(item.text, maskOptions),
+        ...(item.location ? { location: { ...item.location, ...(item.location.url ? { url: maskUrl(item.location.url, maskOptions) } : {}) } } : {}),
+      }))
+    : (evidence?.console ?? []);
+  const pageErrorEvidence = hunting ? (evidence?.pageErrors ?? []).map((message) => maskText(message, maskOptions)) : (evidence?.pageErrors ?? []);
+  const domTextEvidence = hunting && domTextSnapshot ? maskText(domTextSnapshot, maskOptions) : domTextSnapshot;
   const networkEvidence = evidence?.network ?? [];
   const consoleErrors = consoleEvidence.filter((item) => item.type === 'error');
   const routingEntries = playwright?.routing.entries ?? [];
+  // T7.8: a run that hunts for secrets in URLs must not write the one it found into its own result (finalUrl keeps the query and the fragment).
+  const recordedUrl = piiScanner && finalUrl ? maskUrl(finalUrl, { knownSecrets }) : finalUrl;
   const networkFailures = networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400));
   const rawResult: ExplorationResult = {
     jobId,
@@ -835,6 +892,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     caller: request.caller ?? null,
     ...(functional ? { profile: 'functional' as const } : {}),
     ...(clockEvents.length > 0 ? { clock: clockEvents } : {}),
+    ...(piiReport ? { pii: piiReport } : {}),
     ...(request.parameterRecord ? { parameters: request.parameterRecord } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
     ...(request.teardown
@@ -847,7 +905,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       : probedBuildId
         ? { buildId: probedBuildId, buildIdSource: probedBuildId === UNKNOWN_BUILD ? ('unknown' as const) : ('probe' as const) }
         : {}),
-    finalUrl,
+    finalUrl: recordedUrl,
     failedStepIndex,
     error: resultError,
     steps,
@@ -857,13 +915,13 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       tracePath,
       console: consoleEvidence,
       consoleErrors,
-      pageErrors: evidence?.pageErrors ?? [],
+      pageErrors: pageErrorEvidence,
       network: networkEvidence,
       networkFailures,
       unexpectedExternalRequests: evidence?.unexpectedExternalRequests ?? [],
       ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
-      domTextSnapshot,
-      finalUrl,
+      domTextSnapshot: domTextEvidence,
+      finalUrl: recordedUrl,
     },
   };
 

@@ -521,3 +521,10 @@ test('sendTest: reports a destination that is no longer allowed without sending 
   }
   assert.equal(await sendTest('missing', FAST), undefined);
 });
+
+test('T7.8: scrubText masks personal data (document, e-mail) so a message says something was there without carrying it', () => {
+  const scrubbed = scrubText('save failed for 529.982.247-25 (maria.perez@example.com.uy), build rev4519', []);
+  assert.equal(scrubbed.text, 'save failed for ***.***.***-25 (m***@e***.uy), build rev4519');
+  assert.equal(scrubbed.redactions, 2);
+  assert.equal(scrubText('nothing personal in rev4519', []).redactions, 0);
+});

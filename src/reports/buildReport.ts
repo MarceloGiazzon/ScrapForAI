@@ -10,6 +10,7 @@ import { getSuite, SUITE_ID_PATTERN } from '../orchestrator/suiteRunner.js';
 import { createPlaywrightContext } from '../runner/playwrightContext.js';
 import { accessibilityResultSchema } from '../schemas/accessibility.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { piiReportSchema } from '../schemas/pii.schema.js';
 import { getTarget } from '../targets/targetStore.js';
 import type { ReportLang } from './i18n.js';
 import { type IntegrityInfo, renderRunReport, renderSuiteReport, type ReportStep } from './render.js';
@@ -92,6 +93,15 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
     return parsed.success ? [{ name, result: parsed.data }] : [];
   });
 
+  // T7.8: the run's own scan (options.piiScan) and every scanForPii step, recognised by shape (`kind: 'pii-scan'`).
+  const privacy = [
+    ...(result.pii ? [{ name: 'run', report: result.pii }] : []),
+    ...Object.entries(result.extracted ?? {}).flatMap(([name, value]) => {
+      const parsed = piiReportSchema.safeParse(value);
+      return parsed.success ? [{ name, report: parsed.data }] : [];
+    }),
+  ];
+
   // T7.2/T7.3: what the run changed on purpose, so a report never passes a simulated condition off as the real one. Faults are grouped (same request, same effect).
   const faultGroups = new Map<string, { method: string; pathname: string; detail: string; count: number }>();
   for (const entry of result.evidence.routing ?? []) {
@@ -143,6 +153,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
         : {}),
       ...(simulated ? { simulated } : {}),
       ...(accessibility.length > 0 ? { accessibility } : {}),
+      ...(privacy.length > 0 ? { privacy } : {}),
       screenshots,
       consoleCount: result.evidence.console.length,
       consoleErrors: result.evidence.consoleErrors.map((entry) => entry.text),

@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
 import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
+import { PII_SURFACES } from '../security/piiDetectors.js';
+import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -391,6 +393,19 @@ const assertNoTextMatchesStep = z
     timeoutMs: stepTimeout,
   })
   .strict();
+// T7.8: looks for personal data and secrets where they should not be: in URLs (query and fragment), the console, storage, cookies without HttpOnly,
+// hidden inputs and the body of requests that carried no credentials. Reads only: it changes no request. A finding holds a masked sample, a keyed
+// fingerprint and a location, never the value. `failOn` is the severity at which the step fails (default: it only records); `extracted[name]` is the report.
+const scanForPiiStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('scanForPii'),
+    name: safeName,
+    surfaces: z.array(z.enum(PII_SURFACES)).min(1).max(PII_SURFACES.length).optional(),
+    failOn: z.enum(PII_FAIL_LEVELS).default('none'),
+    timeoutMs: stepTimeout,
+  })
+  .strict();
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -482,6 +497,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   auditAccessibilityStep,
   injectFaultStep,
   assertNoTextMatchesStep,
+  scanForPiiStep,
   setClockStep,
   extractTextStep,
   extractAttributeStep,
@@ -532,6 +548,9 @@ export const explorationOptionsSchema = z
     // logic/rules runs. `full` (default) is what every run has always been. CSS is never stubbed.
     profile: z.enum(['full', 'functional']).default('full'),
     resourcePolicy: resourcePolicySchema.optional(),
+    // T7.8: hunt for personal data and secrets during the whole run (URLs, console, bodies without credentials) and, at the end of the steps, in
+    // storage, cookies and hidden inputs. The result carries `pii`. Optional with no default, so a saved routine keeps its digest.
+    piiScan: z.boolean().optional(),
     collectDomOnFailure: z.boolean().default(false),
     viewport: z
       .object({

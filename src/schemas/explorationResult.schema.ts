@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { parameterRecordSchema } from './parameters.schema.js';
+import { piiReportSchema } from './pii.schema.js';
 
 import { callerSchema } from './explorationRequest.schema.js';
 
@@ -101,6 +102,8 @@ export const explorationResultSchema = z.object({
   profile: z.literal('functional').optional(),
   /** Present only when a `setClock` step ran (T7.3): the run saw a simulated BROWSER clock; the server's clock was the real one. */
   clock: z.array(clockEvidenceSchema).optional(),
+  /** Present only when the run asked for `options.piiScan` (T7.8): personal data and secrets seen where they should not be. Never holds a raw value. */
+  pii: piiReportSchema.optional(),
   /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */
   includes: z.array(z.object({ routineId: z.string(), version: z.number().int().positive(), sha256: z.string() })).optional(),
   /** Teardown step results (T1.4), apart from `steps`. Present only when the run had a teardown. */

@@ -96,6 +96,20 @@ export interface Strings {
   a11yNone: string;
   a11yCounts: string;
   a11yNothingNew: string;
+  piiTitle: string;
+  piiNone: string;
+  piiNote: string;
+  piiSeverity: string;
+  piiDetector: string;
+  piiSurface: string;
+  piiLocation: string;
+  piiSample: string;
+  piiTimes: string;
+  piiLooked: string;
+  piiCut: string;
+  piiSuppressed: string;
+  piiUntil: string;
+  piiReason: string;
 }
 
 const en: Strings = {
@@ -193,6 +207,20 @@ const en: Strings = {
   a11yNone: "No violations found by the automated rules (this does not prove the page is accessible: most criteria need a person).",
   a11yCounts: "violation(s)",
   a11yNothingNew: "Nothing new and nothing fixed.",
+  piiTitle: 'Privacy scan',
+  piiNone: 'No personal data or secrets were found in the places that were looked at (listed below). This does not prove there are none elsewhere.',
+  piiNote: 'The values are not stored: each finding shows a masked sample and says where it was seen. The result also keeps a fingerprint, so the same value can be recognised elsewhere without being stored.',
+  piiSeverity: 'Severity',
+  piiDetector: 'What',
+  piiSurface: 'Where',
+  piiLocation: 'Location',
+  piiSample: 'Sample',
+  piiTimes: 'Times',
+  piiLooked: 'Looked at',
+  piiCut: 'The list was cut at its limit: more findings exist than are shown.',
+  piiSuppressed: 'Suppressed by the profile (still listed, not counted)',
+  piiUntil: 'Until',
+  piiReason: 'Reason',
 };
 
 const pt: Strings = {
@@ -290,6 +318,20 @@ const pt: Strings = {
   a11yNone: "Nenhuma violação encontrada pelas regras automáticas (isso não prova que a página é acessível: a maioria dos critérios exige uma pessoa).",
   a11yCounts: "violação(ões)",
   a11yNothingNew: "Nada novo e nada corrigido.",
+  piiTitle: 'Varredura de privacidade',
+  piiNone: 'Nenhum dado pessoal nem segredo foi encontrado nos lugares examinados (listados abaixo). Isso não prova que não existam em outros lugares.',
+  piiNote: 'Os valores não são guardados: cada achado mostra uma amostra mascarada e diz onde foi visto. O resultado também guarda uma impressão digital, para reconhecer o mesmo valor em outro lugar sem guardá-lo.',
+  piiSeverity: 'Severidade',
+  piiDetector: 'O quê',
+  piiSurface: 'Onde',
+  piiLocation: 'Local',
+  piiSample: 'Amostra',
+  piiTimes: 'Vezes',
+  piiLooked: 'Examinado',
+  piiCut: 'A lista foi cortada no limite: existem mais achados do que os mostrados.',
+  piiSuppressed: 'Suprimidos pelo perfil (continuam listados, não contam)',
+  piiUntil: 'Até',
+  piiReason: 'Motivo',
 };
 
 const es: Strings = {
@@ -387,6 +429,20 @@ const es: Strings = {
   a11yNone: "Ninguna violación encontrada por las reglas automáticas (esto no prueba que la página sea accesible: la mayoría de los criterios requiere una persona).",
   a11yCounts: "violación(es)",
   a11yNothingNew: "Nada nuevo y nada corregido.",
+  piiTitle: 'Escaneo de privacidad',
+  piiNone: 'No se encontraron datos personales ni secretos en los lugares examinados (listados abajo). Eso no prueba que no existan en otros lugares.',
+  piiNote: 'Los valores no se guardan: cada hallazgo muestra una muestra enmascarada y dice dónde se vio. El resultado también guarda una huella, para reconocer el mismo valor en otro lugar sin guardarlo.',
+  piiSeverity: 'Severidad',
+  piiDetector: 'Qué',
+  piiSurface: 'Dónde',
+  piiLocation: 'Lugar',
+  piiSample: 'Muestra',
+  piiTimes: 'Veces',
+  piiLooked: 'Examinado',
+  piiCut: 'La lista se cortó en su límite: hay más hallazgos que los mostrados.',
+  piiSuppressed: 'Suprimidos por el perfil (siguen listados, no cuentan)',
+  piiUntil: 'Hasta',
+  piiReason: 'Motivo',
 };
 
 export const STRINGS: Record<ReportLang, Strings> = { en, pt, es };

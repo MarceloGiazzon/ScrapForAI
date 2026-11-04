@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { axeAuditSource } from './scripts/axe.js';
+import { piiSurfacesSource } from './scripts/pii.js';
 import { keyboardActiveSource, keyboardCandidatesSource, keyboardStyleSource } from './scripts/keyboard.js';
 
 /**
@@ -46,6 +47,8 @@ export const TRUSTED_SCRIPTS = [
   { id: 'keyboard-candidates', source: keyboardCandidatesSource, sha256: '50f6c6984a475566d45ba19226a8b7c48239e430a7dd3dce89c8caa0b01e2433', timeoutMs: 5000, maxOutputChars: 150_000 },
   // T7.4: axe-core (MPL-2.0, unmodified, read from node_modules) plus our runner. This hash moves with the axe-core version ON PURPOSE: review, then pin.
   { id: 'a11y-axe', source: axeAuditSource, sha256: 'b48ec2d85edd794c0258305adebf0566dc2d9c0227745c7ec1df6a200463c807', timeoutMs: 30_000, maxOutputChars: 250_000 },
+  // T7.8: reads localStorage/sessionStorage and hidden inputs for the PII hunt; the server scans the text and keeps none of it.
+  { id: 'pii-surfaces', source: piiSurfacesSource, sha256: 'f4723e225ca9d8c24165c375a521a730a7f3a5fdb9e5a4ead00778d6b15c635f', timeoutMs: 5000, maxOutputChars: 1_000_000 },
 ] as const satisfies readonly TrustedScriptDefinition[];
 
 export type TrustedScriptId = (typeof TRUSTED_SCRIPTS)[number]['id'];

@@ -274,3 +274,30 @@ test('T7.2/T7.3: a run with a simulated clock or broken answers says so, in ever
   const normal = (await get('/v1/runs/job_rep1/report?lang=en')).text;
   assert.ok(!normal.includes('Simulated conditions'));
 });
+
+test('T7.8: a run that hunted for personal data shows the scan in every language: severity, masked sample, where it looked; escaped; no raw value; a normal run has no section', async () => {
+  const fingerprint = 'a'.repeat(64);
+  const scan = {
+    kind: 'pii-scan',
+    findings: [
+      { detector: 'jwt', surface: 'url', location: 'GET https://dev.example.com/cb?token,x <script>alert(1)</script> [fragment:id_token]', maskedSample: 'eyJ*** (143 chars)', fingerprint, severity: 'high', count: 2 },
+      { detector: 'email', surface: 'hidden-input', location: 'hidden input "customer_email"', maskedSample: 'm***@e***.uy', fingerprint: 'b'.repeat(64), severity: 'info', count: 1 },
+    ],
+    counts: { total: 2, bySeverity: { high: 1, medium: 0, low: 0, info: 1 }, byDetector: [{ detector: 'jwt', count: 1 }, { detector: 'email', count: 1 }], bySurface: [{ surface: 'url', count: 1 }, { surface: 'hidden-input', count: 1 }] },
+    scanned: { urls: 12, console: 3, responseBodies: 4, responseBodiesSkipped: 1, storageEntries: 5, jarEntries: 2, hiddenInputs: 1 },
+    truncated: true,
+    notes: ['cookies could not be read (Error)'],
+  };
+  await makeJob('job_rep_pii', { pii: scan, extracted: { sweep: { ...scan, findings: [], counts: { total: 0, bySeverity: { high: 0, medium: 0, low: 0, info: 0 }, byDetector: [], bySurface: [] }, truncated: false, notes: [] } } });
+
+  const en = (await get('/v1/runs/job_rep_pii/report?lang=en')).text;
+  for (const expected of ['Privacy scan', 'sev-high', 'eyJ*** (143 chars)', 'm***@e***.uy', 'hidden input &quot;customer_email&quot;', 'URLs 12 · console 3 · bodies 4 (+1 skipped) · storage 5 · cookies 2 · hidden inputs 1', 'The list was cut at its limit', 'cookies could not be read', 'No personal data or secrets were found in the places that were looked at', 'The values are not stored']) {
+    assert.ok(en.includes(expected), `missing: ${expected}`);
+  }
+  assert.ok(!en.includes('<script>alert(1)</script>'), 'a location comes from a page: it is text');
+  assert.ok(en.indexOf('eyJ***') < en.indexOf('m***@e***.uy'), 'most severe first');
+  assert.ok(!en.includes(fingerprint), 'the fingerprint is for correlation, not for the page of a person');
+  assert.ok((await get('/v1/runs/job_rep_pii/report?lang=pt')).text.includes('Varredura de privacidade'));
+  assert.ok((await get('/v1/runs/job_rep_pii/report?lang=es')).text.includes('Escaneo de privacidad'));
+  assert.ok(!(await get('/v1/runs/job_rep1/report?lang=en')).text.includes('Privacy scan'));
+});

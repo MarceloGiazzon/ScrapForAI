@@ -56,9 +56,14 @@ test('the sources are plain data to the runner: no template syntax that could be
     // The vendored axe-core bundle (T7.4) is third-party code pinned by hash as a whole; the rule applies to OUR part of that script.
     const own = script.id === 'a11y-axe' ? script.source.replace(axeBundle, '') : script.source;
     assert.ok(!own.includes('${'), `${script.id} must not contain template placeholders`);
-    assert.ok(!/\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/.test(own), `${script.id} reads and writes nothing it should not`);
+    // pii-surfaces (T7.8) is the ONE script that reads storage, by design (the PII hunt). It is still checked for everything else and for any WRITE to storage.
+    const forbidden =
+      script.id === 'pii-surfaces'
+        ? /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|document\.cookie|setItem|removeItem|\.clear\s*\(/
+        : /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/;
+    assert.ok(!forbidden.test(own), `${script.id} reads and writes nothing it should not`);
   }
-  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style']);
+  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style', 'pii-surfaces']);
 });
 
 /** A frame whose evaluate records the expression and answers with `answer`. */

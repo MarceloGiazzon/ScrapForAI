@@ -45,7 +45,7 @@
       "$ref": "#/$defs/__schema30"
     },
     "teardown": {
-      "$ref": "#/$defs/__schema75"
+      "$ref": "#/$defs/__schema76"
     }
   },
   "required": [
@@ -458,6 +458,9 @@
             "stub"
           ],
           "additionalProperties": false
+        },
+        "piiScan": {
+          "type": "boolean"
         },
         "collectDomOnFailure": {
           "default": false,
@@ -2253,16 +2256,76 @@
               "$ref": "#/$defs/__schema46"
             },
             "action": {
-              "$ref": "#/$defs/__schema70"
+              "type": "string",
+              "const": "scanForPii"
             },
-            "fixedTime": {
+            "name": {
+              "$ref": "#/$defs/__schema5"
+            },
+            "surfaces": {
+              "minItems": 1,
+              "maxItems": 6,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema70"
+              }
+            },
+            "failOn": {
+              "default": "none",
+              "type": "string",
+              "enum": [
+                "none",
+                "high",
+                "medium",
+                "low",
+                "any"
+              ]
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema47"
+            }
+          },
+          "required": [
+            "action",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema38"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "action": {
               "$ref": "#/$defs/__schema71"
             },
+            "fixedTime": {
+              "$ref": "#/$defs/__schema72"
+            },
             "installAt": {
-              "$ref": "#/$defs/__schema73"
+              "$ref": "#/$defs/__schema74"
             },
             "fastForwardMs": {
-              "$ref": "#/$defs/__schema74"
+              "$ref": "#/$defs/__schema75"
             }
           },
           "required": [
@@ -2849,25 +2912,36 @@
     },
     "__schema70": {
       "type": "string",
-      "const": "setClock"
+      "enum": [
+        "url",
+        "console",
+        "storage",
+        "cookie",
+        "response-body",
+        "hidden-input"
+      ]
     },
     "__schema71": {
-      "$ref": "#/$defs/__schema72"
+      "type": "string",
+      "const": "setClock"
     },
     "__schema72": {
+      "$ref": "#/$defs/__schema73"
+    },
+    "__schema73": {
       "type": "string",
       "format": "date-time",
       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
     },
-    "__schema73": {
-      "$ref": "#/$defs/__schema72"
-    },
     "__schema74": {
+      "$ref": "#/$defs/__schema73"
+    },
+    "__schema75": {
       "type": "integer",
       "minimum": 1,
       "maximum": 315360000000
     },
-    "__schema75": {
+    "__schema76": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",

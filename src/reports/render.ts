@@ -1,6 +1,7 @@
 import { guidanceFor } from '../a11y/platformGuidance.js';
 import type { AccessibilityFinding, AccessibilityResult } from '../schemas/accessibility.schema.js';
 import { IMPACTS } from '../schemas/accessibility.schema.js';
+import type { PiiReport } from '../schemas/pii.schema.js';
 import { type ReportLang, STRINGS, type Strings } from './i18n.js';
 
 /**
@@ -70,6 +71,8 @@ export interface RunReportData {
   };
   /** T7.4/T7.5: the accessibility audits the run made (one per `auditAccessibility` step), with what changed since their baseline when they had one. */
   accessibility?: Array<{ name: string; result: AccessibilityResult }>;
+  /** T7.8: the privacy scans of the run (`options.piiScan` and every `scanForPii` step). A finding never carries the value. */
+  privacy?: Array<{ name: string; report: PiiReport }>;
   screenshots: Array<{ name: string; dataUri: string }>;
   consoleCount: number;
   consoleErrors: string[];
@@ -135,6 +138,7 @@ small, .muted { color: #666; }
 tr { break-inside: avoid; }
 .imp { display: inline-block; padding: 1px 8px; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 700; }
 .imp-critical { background: #7a0f0a; } .imp-serious { background: #b3261e; } .imp-moderate { background: #8a5a00; } .imp-minor { background: #666; }
+.sev-high { background: #b3261e; } .sev-medium { background: #8a5a00; } .sev-low { background: #5b6b7a; } .sev-info { background: #888; }
 .adjust { color: #333; } .adjust small { display: block; color: #666; margin-bottom: 2px; }
 `;
 
@@ -313,6 +317,43 @@ ${baseline ? `<tr><th>${esc(s.a11yBaseline)}</th><td>${esc(baseline.screen)} · 
     .join('\n');
 }
 
+const MAX_PII_ROWS = 60;
+
+/**
+ * T7.8. What a scan found, most severe first, with the masked sample and the place; and what it LOOKED at, so an empty list is never read as "checked
+ * everywhere". Everything is escaped; a location comes from a page and may hold anything, so it is clipped and printable-ised.
+ */
+function privacyBlock(s: Strings, items: NonNullable<RunReportData['privacy']>): string {
+  return items
+    .map(({ name, report }) => {
+      const c = report.counts;
+      const rows = report.findings
+        .slice(0, MAX_PII_ROWS)
+        .map(
+          (f) =>
+            `<tr><td><span class="imp sev-${esc(f.severity)}">${esc(f.severity)}</span></td><td><b class="mono">${esc(f.detector)}</b><br><small>${esc(f.surface)}</small></td><td class="mono">${esc(clip(printable(f.location), 220))}</td><td class="mono">${esc(clip(printable(f.maskedSample), 60))}</td><td>${esc(f.count)}</td></tr>`,
+        )
+        .join('');
+      const looked = report.scanned;
+      const lookedText = `URLs ${looked.urls} · console ${looked.console} · bodies ${looked.responseBodies}${looked.responseBodiesSkipped ? ` (+${looked.responseBodiesSkipped} skipped)` : ''} · storage ${looked.storageEntries} · cookies ${looked.jarEntries} · hidden inputs ${looked.hiddenInputs}`;
+      const suppressed = (report.suppressed ?? [])
+        .map((x) => `<tr><td class="mono">${esc(x.detector)} / ${esc(x.surface)}</td><td class="mono">${esc(clip(printable(x.location), 160))}</td><td>${esc(x.reason)}</td><td>${esc(x.until)}</td></tr>`)
+        .join('');
+      return [
+        `<p class="muted">${esc(name)} · ${esc(c.total)} · ${(['high', 'medium', 'low', 'info'] as const).map((level) => `${esc(level)} ${c.bySeverity[level]}`).join(' · ')}</p>`,
+        c.total === 0 ? `<div class="ok">${esc(s.piiNone)}</div>` : `<table><tr><th>${esc(s.piiSeverity)}</th><th>${esc(s.piiDetector)} / ${esc(s.piiSurface)}</th><th>${esc(s.piiLocation)}</th><th>${esc(s.piiSample)}</th><th>${esc(s.piiTimes)}</th></tr>${rows}</table>`,
+        report.findings.length > MAX_PII_ROWS ? `<p class="muted">… ${report.findings.length - MAX_PII_ROWS}</p>` : '',
+        report.truncated ? `<div class="warn">${esc(s.piiCut)}</div>` : '',
+        ...report.notes.map((note) => `<div class="warn">${esc(clip(printable(note), 200))}</div>`),
+        suppressed ? `<h3>${esc(s.piiSuppressed)}</h3><table><tr><th>${esc(s.piiDetector)} / ${esc(s.piiSurface)}</th><th>${esc(s.piiLocation)}</th><th>${esc(s.piiReason)}</th><th>${esc(s.piiUntil)}</th></tr>${suppressed}</table>` : '',
+        `<p class="muted">${esc(s.piiLooked)}: ${esc(lookedText)}</p>`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n');
+}
+
 export function renderRunReport(data: RunReportData, lang: ReportLang): string {
   const s = STRINGS[lang];
   const failedStep = data.failedStepIndex === undefined ? undefined : data.steps[data.failedStepIndex];
@@ -349,6 +390,8 @@ ${data.simulated ? simulatedBlock(s, data.simulated) : ''}
 ${data.teardown?.length ? `<h2>${esc(s.teardown)}</h2><table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.teardown)}</table>` : ''}
 
 ${data.accessibility?.length ? `<h2>${esc(s.a11yTitle)}</h2>${accessibilityBlock(s, lang, data.accessibility)}` : ''}
+
+${data.privacy?.length ? `<h2>${esc(s.piiTitle)}</h2><p class="muted">${esc(s.piiNote)}</p>${privacyBlock(s, data.privacy)}` : ''}
 
 ${failureShot ? `<h2>${esc(s.failureEvidence)}</h2><figure><img src="${esc(failureShot.dataUri)}" alt="failure"><figcaption>failure</figcaption></figure>` : ''}
 ${

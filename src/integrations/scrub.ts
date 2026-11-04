@@ -1,4 +1,5 @@
 import { SECRET_PATTERNS } from '../library/routineLint.js';
+import { scanText, maskSpans } from '../security/piiDetectors.js';
 
 /**
  * T3.3: what goes out through a webhook is built from facts of a run (names, ids, counts, an error message), and an error message
@@ -6,7 +7,8 @@ import { SECRET_PATTERNS } from '../library/routineLint.js';
  * checked once more; if that check still finds a secret, nothing is sent (the delivery is recorded as `blocked`).
  *
  * "Secret" here = a value in the credential vault (this includes every webhook URL) or text shaped like a well-known secret (the same
- * shapes the routine lint refuses). The PII detector of T7.8 does not exist yet; `scrubText` is where it will plug in.
+ * shapes the routine lint refuses). Personal data (T7.8: CPF, CNPJ, CI/RUT of Uruguay, cards, e-mails, phones) is MASKED the same way the PII scan masks it,
+ * so a message tells that something was there without carrying it.
  */
 
 export const REDACTED = '[REDACTED]';
@@ -46,6 +48,13 @@ export function scrubText(text: string, vaultValues: string[], maxLength = 500):
       redactions += 1;
       return REDACTED;
     });
+  }
+
+  // T7.8: personal data that is not a secret (secrets were replaced above) keeps its shape but loses its value.
+  const personal = scanText(out);
+  if (personal.length > 0) {
+    out = maskSpans(out, personal);
+    redactions += personal.length;
   }
 
   if (out.length > maxLength) out = `${out.slice(0, maxLength - 1)}…`;

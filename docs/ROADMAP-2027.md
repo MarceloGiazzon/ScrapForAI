@@ -1286,6 +1286,12 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.8 — Caçador de PII · G
 
+> **Implementada em 2026-11-04** (`src/security/piiDetectors.ts`, `piiFindings.ts`, `piiSalt.ts`, `src/runner/piiScanner.ts`, script confiável `pii-surfaces`; ver AGENTS.md, "PII hunter"). `options.piiScan: true` e o step `scanForPii`.
+> Desvios: (1) o achado traz `fingerprint`, um **HMAC-SHA256** com chave da instalação, e não o sha256 puro do roadmap: o sha256 de um CPF de 11 dígitos se reverte testando todos; (2) a execução que caça **também mascara o que guarda**
+> (console, erros de página, `finalUrl`, DOM da falha), senão gravaria o valor que acabou de achar; (3) CI-UY só com separador e RUT só com a estrutura (departamento 01-22, série 001): número solto de 8 dígitos passa no dígito verificador 1 vez em 10;
+> (4) telefone UY só com +598/00598 ou o formato 09x; (5) cookies: só os sem HttpOnly; corpos: só de requisições sem Authorization nem Cookie, JSON/HTML até 256 KB; (6) os contadores são listas, porque o `redactSecrets` apaga valores por NOME de chave (`cookie`, `secret`).
+> O webhook (T3.3) passou a mascarar dados pessoais (`scrubText`). **Não feito:** resumo de PII nos relatórios de suíte e no histórico, iframes, nomes e endereços (nenhum detector os distingue de texto comum).
+
 **Especificação:**
 - `src/security/piiDetectors.ts`, reaproveitando a infraestrutura de redação: CI-UY, RUT-UY, CPF,
   CNPJ (com dígito verificador), cartão (Luhn), e-mail, telefone UY, JWT, bearer, formatos de chave

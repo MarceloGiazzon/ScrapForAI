@@ -217,6 +217,10 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
   state) and add `assertNoTextMatches { selector?, kinds?, contains? }`: it fails if a stack trace, exception class, SQL error or server path is on screen (it does not accept your regular expression). Faults only
   touch allowlisted origins, are listed in `evidence.routing` with `handledBy: 'fault'`, and end before the `teardown`. A `staging` profile refuses them unless a person set `flags.allowFaults`. Starting points:
   `templates/routines/chaos-*.routine.json`.
+- To check that the app **leaks no personal data or secrets**, set `options.piiScan: true` on a normal run, or add `scanForPii { name, surfaces?, failOn? }` at the point you want to look (after login, on the page).
+  It reads the URLs (query and `#fragment`), console, storage, cookies without HttpOnly, hidden inputs and the bodies of requests sent without credentials, and finds documents (CPF, CNPJ, CI/RUT of Uruguay), cards, e-mails,
+  UY phones, JWT/bearer/API keys and values of the vault. A finding gives `detector`, `surface`, `location`, `maskedSample`, `fingerprint` and `severity`, never the value: do not try to recover it. Read `scanned` to know what
+  was looked at. `failOn: 'high'` makes the step fail on a token in a URL or a document in a public response; the default only records. An e-mail on a screen is informative on purpose.
 - To test **what the page does on another date** (an expired offer, month end, a session that times out), add `setClock { fixedTime }` or `setClock { installAt, fastForwardMs? }` BEFORE the `goto` (times are ISO 8601 with a zone,
   e.g. `2030-01-31T23:59:50-03:00`). `fixedTime` freezes `Date`; `installAt` starts the page's clock there and lets it run, `fastForwardMs` jumps ahead (one `installAt` per run). **It only moves the BROWSER's clock**: a rule that
   runs on the server (most GeneXus date rules) still sees the real date, so do not conclude anything about it from that run; the report says so. `waitForTimeout` stays real time.

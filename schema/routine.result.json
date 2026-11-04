@@ -156,6 +156,320 @@
         "additionalProperties": false
       }
     },
+    "pii": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "pii-scan"
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "detector": {
+                "type": "string",
+                "enum": [
+                  "cpf",
+                  "cnpj",
+                  "ci-uy",
+                  "rut-uy",
+                  "card",
+                  "email",
+                  "phone-uy",
+                  "jwt",
+                  "bearer",
+                  "api-key",
+                  "secret-named",
+                  "known-secret",
+                  "cookie-no-httponly"
+                ]
+              },
+              "surface": {
+                "type": "string",
+                "enum": [
+                  "url",
+                  "console",
+                  "storage",
+                  "cookie",
+                  "response-body",
+                  "hidden-input"
+                ]
+              },
+              "location": {
+                "type": "string"
+              },
+              "maskedSample": {
+                "type": "string"
+              },
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low",
+                  "info"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "severityReason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "detector",
+              "surface",
+              "location",
+              "maskedSample",
+              "fingerprint",
+              "severity",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "bySeverity": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "medium",
+                  "low",
+                  "info"
+                ]
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "required": [
+                "high",
+                "medium",
+                "low",
+                "info"
+              ]
+            },
+            "byDetector": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "detector": {
+                    "type": "string",
+                    "enum": [
+                      "cpf",
+                      "cnpj",
+                      "ci-uy",
+                      "rut-uy",
+                      "card",
+                      "email",
+                      "phone-uy",
+                      "jwt",
+                      "bearer",
+                      "api-key",
+                      "secret-named",
+                      "known-secret",
+                      "cookie-no-httponly"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "detector",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "bySurface": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "surface": {
+                    "type": "string",
+                    "enum": [
+                      "url",
+                      "console",
+                      "storage",
+                      "cookie",
+                      "response-body",
+                      "hidden-input"
+                    ]
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "surface",
+                  "count"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "total",
+            "bySeverity",
+            "byDetector",
+            "bySurface"
+          ],
+          "additionalProperties": false
+        },
+        "scanned": {
+          "type": "object",
+          "properties": {
+            "urls": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "console": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "responseBodies": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "responseBodiesSkipped": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "storageEntries": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "jarEntries": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "hiddenInputs": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "urls",
+            "console",
+            "responseBodies",
+            "responseBodiesSkipped",
+            "storageEntries",
+            "jarEntries",
+            "hiddenInputs"
+          ],
+          "additionalProperties": false
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suppressed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "detector": {
+                "type": "string",
+                "enum": [
+                  "cpf",
+                  "cnpj",
+                  "ci-uy",
+                  "rut-uy",
+                  "card",
+                  "email",
+                  "phone-uy",
+                  "jwt",
+                  "bearer",
+                  "api-key",
+                  "secret-named",
+                  "known-secret",
+                  "cookie-no-httponly"
+                ]
+              },
+              "surface": {
+                "type": "string",
+                "enum": [
+                  "url",
+                  "console",
+                  "storage",
+                  "cookie",
+                  "response-body",
+                  "hidden-input"
+                ]
+              },
+              "location": {
+                "type": "string"
+              },
+              "suppression": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "detector",
+              "surface",
+              "location",
+              "suppression",
+              "reason",
+              "until"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "findings",
+        "counts",
+        "scanned",
+        "truncated",
+        "notes"
+      ],
+      "additionalProperties": false
+    },
     "includes": {
       "type": "array",
       "items": {
