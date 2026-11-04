@@ -373,6 +373,24 @@ step limits, artifact retention, etc.).
   MCP `get_health`. Not done: editing schedules, webhooks or statuses from the screen (it only reads; T3.7 asked for the panel, not for write paths), links from a row to the run/report/evidence, a history of
   the target's status over time (each read is the state NOW), per-target thresholds, a webhook for "target turned red". `test/health.test.ts` (rules), `test/health-service.test.ts` (real stores + route),
   `test/ui-health.test.ts` (CSP guards), `test/health.smoke.ts` (Chromium under the CSP).
+- **Trusted scripts** (`src/runner/trusted/`, T7.1): the scripts THIS project injects into target pages, as a closed list `{ id, source, sha256, timeoutMs, maxOutputChars }` (`registry.ts`; the sources are
+  in `scripts/*.ts` as strings so they ship with `tsc`). A dedicated step names an `id`; the caller never sends code, so they do **not** go through `ALLOW_EVALUATE` (which stays for caller code: `evaluate`/`watch`).
+  `verifyTrustedScripts()` compares every source with its pinned sha256 **when the server boots** (first thing in `start()`): a mismatch throws and the server does not start; it also runs on first use. To change a script
+  on purpose: edit it, `npx tsx scripts/trusted-hashes.ts`, paste the hash into the registry (so any change to what runs in a page is a reviewed change of that file; it does not protect against someone who can edit both).
+  `runTrustedScript(frame, id, args)` sends the registered source plus `args` as one JSON literal (data only), abandons it after `timeoutMs`, REFUSES an answer over `maxOutputChars` (never cuts silently) and redacts
+  the answer with the run's known secrets. Sources use no backtick and no `${`, and `test/trusted-scripts.test.ts` rejects `eval`, `fetch`, storage and cookie access in them. Today: `keyboard-active`,
+  `keyboard-style`, `keyboard-candidates`. Not done: the PII and a11y scripts that were meant to use it (T7.8, T7.4).
+- **Keyboard walk** (`keyboardWalk` step, `src/runner/keyboardWalk.ts` pure + trusted scripts, T7.6): `{ name, maxTabs (1-500, default 200), startSelector?, scope?, failOn?: ['neverFocused'|'focusTrap'|'invisibleFocus'][] }`
+  presses Tab and writes `extracted[name]` = `{ order: [{ key, role, name?, focusVisible? }], tabs, completed, endedBy: 'wrap'|'left-document'|'trap'|'max-tabs'|'time-limit', trap?, neverFocused?, invisibleFocus, notes }`.
+  `key` is `#id` or a structural path (`body>div:nth-of-type(2)>input`); `name` comes from label, aria, placeholder, title or the caption of a button/link, **never the value of a field**. **Never focused** = a control of the
+  inventory families (T4.3: fields and actions) that is visible, not disabled, not inert and not `tabindex="-1"`, and that no Tab reached (a `div role="button"` without `tabindex` IS reported; the radios of one group count
+  as one, reached through any member). It is only decided when the walk completed (the page wrapped to the first element or focus left the document): after a trap or a cut-off walk nothing is claimed and `notes` says why.
+  **Trap** = the sequence came back to an element that is not where it started (a loop that never exits); a Tab that does not move focus counts (length 1). **Invisible focus** (heuristic) = outline, box-shadow and border are the
+  same with and without focus; "without focus" is read right after Tab moved away, so the page gets no extra blur/focus event. An always-on indicator counts as invisible, one made of background or text colour is not seen.
+  With `startSelector` the element is stop 0 and returning to it is a normal wrap (a dialog that keeps focus inside); no control is judged then unless `scope` is given. The step never fails on a finding unless `failOn`
+  lists it (default `[]`: information first, like `probePage`); the walk is kept in `extracted` even when the step fails. Uses `page.keyboard.press('Tab')`, so in an iframe the walk goes through the frame that has focus
+  but names only elements of the frame the step targets. Not done: Shift+Tab, Enter/Space/Escape behaviour, shadow DOM and iframe contents, the normalizers of T4.1 on `key`, and the report section (T7.5/T7.7 are waiting on D7).
+  `test/keyboard-walk.test.ts` (rules with a scripted browser), `test/trusted-scripts.test.ts`, `test/keyboard-walk.smoke.ts` (Chromium: good page, unreachable div, invisible focus, trap, radios, no value leak, `ALLOW_EVALUATE` off).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

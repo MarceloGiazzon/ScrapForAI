@@ -260,6 +260,23 @@ const probePageStep = z
 const captureInventoryStep = z
   .object({ ...baseStep, action: z.literal('captureInventory'), name: safeName, includeHidden: z.boolean().default(true) })
   .strict();
+// T7.6: presses Tab up to `maxTabs` times and records the focus order `[{ key, role, name, focusVisible }]` in extracted[name], with the controls
+// that never got focus, a focus trap, and the stops whose focus is not visible (see src/runner/keyboardWalk.ts). Read-only apart from the Tab
+// key itself and, with `startSelector`, one focus() call. It uses the built-in trusted scripts (T7.1), never caller code, so it does not need
+// ALLOW_EVALUATE. It never fails on what it finds unless `failOn` lists the findings that must fail the step.
+const keyboardWalkStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('keyboardWalk'),
+    name: safeName,
+    startSelector: selector.optional(),
+    /** Limits the controls expected to be reached (default: the whole page; with startSelector and no scope, none is judged). */
+    scope: selector.optional(),
+    maxTabs: z.number().int().min(1).max(500).default(200),
+    failOn: z.array(z.enum(['neverFocused', 'focusTrap', 'invisibleFocus'])).max(3).default([]),
+    timeoutMs: stepTimeout,
+  })
+  .strict();
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -347,6 +364,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   collectStep,
   probePageStep,
   captureInventoryStep,
+  keyboardWalkStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,

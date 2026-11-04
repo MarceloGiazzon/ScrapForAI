@@ -9,6 +9,7 @@ import { env, getLiveAllowedOrigins } from './config/env.js';
 import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
 import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
+import { verifyTrustedScripts } from './runner/trusted/registry.js';
 import { recoverSuites } from './orchestrator/suiteRunner.js';
 import { recoverShrinks } from './shrink/shrinkService.js';
 import { recoverMatrixRuns } from './permissions/matrixRunner.js';
@@ -191,6 +192,8 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 async function start(): Promise<void> {
+  // T7.1: the scripts this project injects into target pages must be exactly the reviewed ones. A mismatch throws, and the server does not start.
+  verifyTrustedScripts();
   await initRunHistory();
   const pruned = await pruneHistory();
   if (pruned.removed > 0) {

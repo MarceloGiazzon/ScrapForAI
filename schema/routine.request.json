@@ -45,7 +45,7 @@
       "$ref": "#/$defs/__schema29"
     },
     "teardown": {
-      "$ref": "#/$defs/__schema59"
+      "$ref": "#/$defs/__schema60"
     }
   },
   "required": [
@@ -1947,6 +1947,67 @@
             },
             "action": {
               "type": "string",
+              "const": "keyboardWalk"
+            },
+            "name": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "startSelector": {
+              "$ref": "#/$defs/__schema49"
+            },
+            "scope": {
+              "$ref": "#/$defs/__schema49"
+            },
+            "maxTabs": {
+              "default": 200,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            },
+            "failOn": {
+              "default": [],
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema59"
+              }
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema46"
+            }
+          },
+          "required": [
+            "action",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema32"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema45"
+            },
+            "action": {
+              "type": "string",
               "const": "extractText"
             },
             "selector": {
@@ -2419,6 +2480,14 @@
       "maxLength": 500
     },
     "__schema59": {
+      "type": "string",
+      "enum": [
+        "neverFocused",
+        "focusTrap",
+        "invisibleFocus"
+      ]
+    },
+    "__schema60": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",

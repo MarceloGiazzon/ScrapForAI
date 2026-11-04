@@ -1189,6 +1189,10 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.1 — Scripts confiáveis embutidos · M · `[compartilhado]`
 
+> **Implementada em 2026-11-04** (`src/runner/trusted/`, ver AGENTS.md, "Trusted scripts"). Registro fechado `{ id, source, sha256, timeoutMs, maxOutputChars }`; o hash é verificado no boot (primeira coisa de `start()`) e no primeiro uso, e
+> uma divergência impede o servidor de subir. O chamador só escolhe um `id` de step dedicado. Desvio do texto: os scripts ficam como **strings em módulos `.ts`**, não como arquivos `.js`, porque o `tsc` só copia `.ts` para `dist`; o hash
+> é do texto do script. Uma resposta acima do limite é **erro**, nunca cortada em silêncio. Hoje só a família do teclado (T7.6) o usa; os scripts de PII (T7.8) e de acessibilidade (T7.4) ainda não existem.
+
 **Usado por:** T7.4, T7.6, T7.8, T8.2, T9.2.
 
 **Especificação:**
@@ -1233,6 +1237,12 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 - `failOn: 'new'` permite bloquear só a regressão.
 
 ### T7.6 — Navegação por teclado · M
+
+> **Implementada em 2026-11-04** (`src/runner/keyboardWalk.ts` + scripts confiáveis, ver AGENTS.md, "Keyboard walk"). Step `keyboardWalk { name, maxTabs, startSelector?, scope?, failOn? }`. Desvios: (1) **não falha por padrão**
+> (`failOn: []`), como `probePage`; o chamador lista o que deve falhar; (2) "nunca recebe foco" só é afirmado quando a caminhada **terminou** (voltou ao primeiro elemento ou o foco saiu do documento): depois de uma armadilha ou de
+> `maxTabs` o relatório não lista nada e explica por quê; (3) os candidatos usam as mesmas famílias do inventário (T4.3), calculadas por um script confiável, e um grupo de radios conta como um controle; (4) com `startSelector` (por exemplo,
+> um diálogo) nenhum controle é julgado sem `scope`; (5) "foco invisível" lê o estilo **depois** que o Tab tirou o foco do elemento, em vez de fazer blur/focus (que dispararia eventos da página). **Não feito:** Shift+Tab, Enter/Espaço/Escape,
+> shadow DOM e conteúdo de iframes, seção no relatório (depende da T7.5/T7.7).
 
 **Por quê:** o axe não testa teclado.
 

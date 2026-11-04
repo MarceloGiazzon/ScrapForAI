@@ -17,6 +17,8 @@ import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import { extractStructure } from './extractStructure.js';
+import { type ActiveElement, type Candidate, type StyleSignature, walkKeyboard } from './keyboardWalk.js';
+import { runTrustedScript } from './trusted/runTrusted.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
 
@@ -528,6 +530,46 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           case 'captureInventory':
             extracted[step.name] = (await extractStructure(frame, { includeHiddenControls: step.includeHidden })) as unknown as JsonValue;
             break;
+          case 'keyboardWalk': {
+            // T7.6, with the built-in trusted scripts (T7.1): the caller names no code, so ALLOW_EVALUATE does not apply.
+            const secrets = { knownSecrets };
+            if (step.startSelector !== undefined) await frame.locator(step.startSelector).first().focus({ timeout });
+            // A start element inside a dialog says nothing about the rest of the page: judge controls only when a scope is given.
+            let candidates: Candidate[] | undefined;
+            if (step.startSelector === undefined || step.scope !== undefined) {
+              const answer = (await runTrustedScript(frame, 'keyboard-candidates', step.scope === undefined ? {} : { scope: step.scope }, secrets)) as unknown as {
+                candidates: Candidate[];
+                scopeFound: boolean;
+              };
+              if (!answer.scopeFound) throw new StepExecutionError('keyboardWalk: scope selector matched nothing');
+              candidates = answer.candidates;
+            }
+            const walk = await walkKeyboard(
+              {
+                active: async () => (await runTrustedScript(frame, 'keyboard-active', {}, secrets)) as ActiveElement,
+                press: () => page.keyboard.press('Tab'),
+                styleOf: async (key) => {
+                  const answer = (await runTrustedScript(frame, 'keyboard-style', { path: key }, secrets)) as { found?: boolean; signature?: StyleSignature };
+                  return answer.found ? answer.signature : undefined;
+                },
+              },
+              {
+                maxTabs: step.maxTabs,
+                startFocused: step.startSelector !== undefined,
+                ...(candidates ? { candidates } : {}),
+                deadline: Date.now() + Math.max(timeout * 3, 30000),
+              },
+            );
+            extracted[step.name] = redactSecrets(walk, knownSecrets) as unknown as JsonValue;
+
+            const failures = [
+              step.failOn.includes('neverFocused') && (walk.neverFocused?.length ?? 0) > 0 ? `${walk.neverFocused!.length} control(s) never received keyboard focus` : undefined,
+              step.failOn.includes('focusTrap') && walk.trap ? `focus trap: Tab loops over ${walk.trap.length} element(s) and never gets out` : undefined,
+              step.failOn.includes('invisibleFocus') && walk.invisibleFocus.length > 0 ? `${walk.invisibleFocus.length} element(s) show no outline, shadow or border change when focused` : undefined,
+            ].filter((message): message is string => message !== undefined);
+            if (failures.length > 0) throw new StepExecutionError(`keyboardWalk: ${failures.join('; ')}`);
+            break;
+          }
           case 'extractText':
             extracted[step.name] = await frame.locator(step.selector).innerText({ timeout });
             break;

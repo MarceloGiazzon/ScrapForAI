@@ -202,6 +202,12 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
 - To read what a screen IS without reading what it HOLDS: `inspect_dom` with `includeStructure: true`, or, behind a login, the
   `captureInventory { name }` step in `run_exploration` (`extracted[name]` = fields, actions, grids; no value, no typed text, no
   cell text; a select with over 100 options is left out as data). Safe to look at and to put in a report.
+- To check that a screen works **without a mouse**, add a `keyboardWalk { name, maxTabs?, startSelector?, scope?, failOn? }` step after `goto`: it presses Tab and writes
+  `extracted[name]` = `order` (`key`, `role`, `name`, `focusVisible`), `neverFocused` (controls a keyboard user should reach but Tab never did, e.g. a `div role="button"` with no
+  `tabindex`), `trap` (Tab loops and never gets out) and `invisibleFocus` (no outline, shadow or border change when focused: a heuristic, so look before calling it a bug). It does
+  not fail the step by itself; list what must fail in `failOn` (`neverFocused`, `focusTrap`, `invisibleFocus`). `neverFocused` is only claimed when the walk reached the end of the page:
+  with a trap or `endedBy: "max-tabs"` read the `notes`. With `startSelector` (e.g. inside a dialog) no control is judged unless you also give a `scope`. It reads no field value, and it
+  needs no `ALLOW_EVALUATE`: it runs scripts that ship with the server, never code from you.
 - A snapshot of the whole catalogue per build is a person/CI job (`scrapforai evolution snapshot <target>`, API key required):
   one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
   for a way to write a partial one unless the person asked for `allowPartial`.
