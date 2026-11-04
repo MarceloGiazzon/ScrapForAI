@@ -1,8 +1,10 @@
 import type { BrowserContext, Frame, Page, Response } from 'playwright';
 
 import type { PiiReport } from '../schemas/pii.schema.js';
+import type { PiiPolicy } from '../schemas/piiPolicy.schema.js';
 import { isSecretName, isSessionCookieName, PII_SURFACES, type PiiSurface, scanText, scanUrl } from '../security/piiDetectors.js';
 import { countFindings, FindingCollector } from '../security/piiFindings.js';
+import { applyPiiPolicy } from '../security/piiPolicy.js';
 import { isAllowedResourceUrl } from '../security/validateTargetUrl.js';
 import { runTrustedScript } from './trusted/runTrusted.js';
 
@@ -30,6 +32,10 @@ export interface PiiScannerOptions {
   /** Secret of the installation that keys the fingerprints (src/security/piiSalt.ts). */
   key: Buffer | string;
   maxFindings?: number;
+  /** T7.9: the target profile's severity rules and suppressions. Applied when the report is built, so a finding is always collected. */
+  policy?: PiiPolicy;
+  /** For tests: the date suppressions are judged against. */
+  now?: () => Date;
 }
 
 export class PiiScanner {
@@ -200,14 +206,20 @@ export class PiiScanner {
   /** The findings so far, optionally only those of some surfaces. */
   report(surfaces: readonly PiiSurface[] = PII_SURFACES): PiiReport {
     const wanted = new Set(surfaces);
-    const findings = this.collector.findings().filter((finding) => wanted.has(finding.surface));
+    const applied = applyPiiPolicy(
+      this.collector.findings().filter((finding) => wanted.has(finding.surface)),
+      this.options.policy,
+      this.options.now?.(),
+    );
+    const notes = [...this.notes, ...applied.expired.map((x) => `suppression "${x.id}" expired on ${x.until}: what it covered counts again`)];
     return {
       kind: 'pii-scan',
-      findings,
-      counts: countFindings(findings),
+      findings: applied.findings,
+      counts: countFindings(applied.findings),
       scanned: { ...this.scanned },
       truncated: this.collector.truncated,
-      notes: [...this.notes],
+      notes,
+      ...(applied.suppressed.length > 0 ? { suppressed: applied.suppressed } : {}),
     };
   }
 }

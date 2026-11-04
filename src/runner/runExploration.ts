@@ -302,10 +302,13 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
 
     if (usesPiiScan(request)) {
+      // T7.9: what this application's profile says is expected, and how serious each kind of finding is here.
+      const piiProfile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
       piiScanner = new PiiScanner(playwright.page, playwright.context, {
         // The vault values of this run, plus the API key: any of them showing up on a page is a leak.
         knownSecrets,
         key: await getPiiFingerprintKey(),
+        ...(piiProfile?.pii ? { policy: piiProfile.pii } : {}),
       });
       piiScanner.attach();
     }

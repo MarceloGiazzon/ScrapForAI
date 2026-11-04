@@ -1309,6 +1309,8 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.9 — Supressões e severidade · P
 
+> **Implementada em 2026-11-04** (`src/schemas/piiPolicy.schema.ts`, `src/security/piiPolicy.ts`, campo `pii` do perfil de alvo; ver AGENTS.md, "PII hunter"). Desvios: (1) `detector` é obrigatório na supressão (não existe "suprimir tudo"); (2) `known-secret` não pode ser suprimido nem reclassificado; (3) o `until` no passado ou a mais de 366 dias é recusado **ao salvar**, e não no schema, para um perfil já gravado continuar carregando depois que a supressão vence; (4) o achado suprimido continua listado no relatório, com motivo e validade. **Não feito:** editar a política na UI web.
+
 - Supressões por perfil (por exemplo, "o e-mail do usuário logado na tela de perfil é esperado"),
   com motivo e **data de expiração** obrigatórios.
 - Política de severidade por detector e superfície (token em URL = alta; e-mail em tela autenticada

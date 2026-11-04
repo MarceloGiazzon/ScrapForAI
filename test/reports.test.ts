@@ -287,11 +287,12 @@ test('T7.8: a run that hunted for personal data shows the scan in every language
     scanned: { urls: 12, console: 3, responseBodies: 4, responseBodiesSkipped: 1, storageEntries: 5, jarEntries: 2, hiddenInputs: 1 },
     truncated: true,
     notes: ['cookies could not be read (Error)'],
+    suppressed: [{ detector: 'email', surface: 'response-body', location: 'GET https://dev.example.com/perfil', suppression: 'profile-email', reason: 'the user sees their own <b>e-mail</b>', until: '2026-12-31' }],
   };
   await makeJob('job_rep_pii', { pii: scan, extracted: { sweep: { ...scan, findings: [], counts: { total: 0, bySeverity: { high: 0, medium: 0, low: 0, info: 0 }, byDetector: [], bySurface: [] }, truncated: false, notes: [] } } });
 
   const en = (await get('/v1/runs/job_rep_pii/report?lang=en')).text;
-  for (const expected of ['Privacy scan', 'sev-high', 'eyJ*** (143 chars)', 'm***@e***.uy', 'hidden input &quot;customer_email&quot;', 'URLs 12 · console 3 · bodies 4 (+1 skipped) · storage 5 · cookies 2 · hidden inputs 1', 'The list was cut at its limit', 'cookies could not be read', 'No personal data or secrets were found in the places that were looked at', 'The values are not stored']) {
+  for (const expected of ['Privacy scan', 'sev-high', 'eyJ*** (143 chars)', 'm***@e***.uy', 'hidden input &quot;customer_email&quot;', 'URLs 12 · console 3 · bodies 4 (+1 skipped) · storage 5 · cookies 2 · hidden inputs 1', 'The list was cut at its limit', 'cookies could not be read', 'No personal data or secrets were found in the places that were looked at', 'The values are not stored', 'Suppressed by the profile', '2026-12-31', 'the user sees their own &lt;b&gt;e-mail&lt;/b&gt;']) {
     assert.ok(en.includes(expected), `missing: ${expected}`);
   }
   assert.ok(!en.includes('<script>alert(1)</script>'), 'a location comes from a page: it is text');

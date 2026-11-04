@@ -204,3 +204,56 @@ test('a clean page has no findings, and the report says what was looked at', asy
   assert.ok((result.pii?.scanned.urls ?? 0) > 0, 'it looked at the URLs');
   assert.ok((result.pii?.scanned.responseBodies ?? 0) >= 1, 'it read the page it was served');
 });
+
+test('T7.9: the profile re-rates and suppresses; the suppressed finding stays visible with its reason and does not fail a step; known-secret cannot be hidden', async () => {
+  const { saveTarget } = await import('../src/targets/targetStore.js');
+  const { targetProfileSchema } = await import('../src/schemas/targetProfile.schema.js');
+  const until = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  await saveTarget(
+    targetProfileSchema.parse({
+      id: 'leaky',
+      name: 'Leaky',
+      environment: 'qa',
+      baseUrl: `${site.origin}/`,
+      pii: {
+        severity: [{ detector: 'secret-named', surface: 'storage', severity: 'low', note: 'this app keeps its API token in storage by design' }],
+        suppressions: [
+          { id: 'hidden-email', detector: 'email', surface: 'hidden-input', locationContains: 'customer_email', reason: 'the form carries the signed-in user e-mail on purpose', until },
+          { id: 'api-cpf', detector: 'cpf', surface: 'response-body', locationContains: '/public/customers.json', reason: 'fixture endpoint returns test documents', until },
+        ],
+      },
+    }),
+  );
+
+  const request = explorationRequestSchema.parse({
+    targetUrl: `${site.origin}/`,
+    targetProfile: 'leaky',
+    credentials: { password: PASSWORD },
+    options: { piiScan: true },
+    steps: [{ id: 'open', action: 'goto', url: leakyUrl() }, ...leakySteps, { id: 'hunt', action: 'scanForPii', name: 'pii', surfaces: ['hidden-input', 'storage', 'response-body'], failOn: 'medium' }],
+  });
+  const result = await runExploration(await resolveExplorationRequest(request));
+  const pii = result.pii!;
+  assert.ok(pii);
+
+  // The e-mail in the hidden input and the CPF of the public endpoint are expected: out of the list, in `suppressed`, with the why.
+  assert.ok(!pii.findings.some((f) => f.detector === 'email' && f.surface === 'hidden-input'));
+  assert.ok(!pii.findings.some((f) => f.detector === 'cpf' && f.surface === 'response-body'));
+  assert.deepEqual(pii.suppressed?.map((x) => x.suppression).sort(), ['api-cpf', 'hidden-email']);
+  assert.ok(pii.suppressed?.every((x) => x.reason.length > 10 && x.until === until));
+  assert.equal(pii.counts.total, pii.findings.length, 'suppressed findings are not counted');
+
+  // The storage token was medium; the profile says low, and the finding says why.
+  const token = pii.findings.find((f) => f.detector === 'secret-named' && f.surface === 'storage')!;
+  assert.equal(token.severity, 'low');
+  assert.match(token.severityReason ?? '', /^profile policy: medium -> low \(this app keeps its API token in storage by design\)/);
+
+  // What the profile did not cover still counts, including the vault value on the console, which no policy can touch.
+  assert.ok(pii.findings.some((f) => f.detector === 'known-secret' && f.surface === 'console' && f.severity === 'high'));
+  assert.ok(pii.findings.some((f) => f.detector === 'jwt' && f.surface === 'url'));
+
+  // The step looked at three surfaces with failOn "medium": the hidden api key and the JWT in storage (both medium) fail it; the suppressed items did not count.
+  const hunt = result.steps.find((step) => step.id === 'hunt');
+  assert.equal(hunt?.status, 'failed');
+  assert.match(hunt?.error?.message ?? '', /scanForPii: 2 finding\(s\) at "medium" or above, e\.g\. secret-named \(medium\) in hidden-input: hidden input "api_key"/);
+});

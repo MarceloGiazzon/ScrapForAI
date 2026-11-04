@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { diffConfigSchema } from './diffConfig.schema.js';
 import { safeName } from './explorationRequest.schema.js';
+import { piiPolicySchema } from './piiPolicy.schema.js';
 
 /**
  * One entry of the screen catalogue (T4.2, minimal shape, enough for T6.2 direct-URL probing).
@@ -67,6 +68,8 @@ export const targetProfileSchema = z
     screens: z.array(screenSchema).max(500).default([]),
     // What counts as noise when two renders of this app are compared (T4.1).
     diff: diffConfigSchema.optional(),
+    // What counts as expected when the PII hunt (T7.8) finds something in this application, and how serious each kind is here (T7.9).
+    pii: piiPolicySchema.optional(),
     flags: z
       .object({
         allowDestructive: z.boolean().default(false),

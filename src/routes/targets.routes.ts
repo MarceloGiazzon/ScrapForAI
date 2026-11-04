@@ -4,7 +4,7 @@ import { safeName } from '../schemas/explorationRequest.schema.js';
 import { targetProfileSchema } from '../schemas/targetProfile.schema.js';
 import { requireBearer } from '../security/apiAuth.js';
 import { TargetUrlNotAllowedError } from '../security/validateTargetUrl.js';
-import { getTarget, listTargets, saveTarget } from '../targets/targetStore.js';
+import { getTarget, listTargets, PiiPolicyError, saveTarget } from '../targets/targetStore.js';
 
 export const targetsRouter = Router();
 
@@ -58,6 +58,10 @@ targetsRouter.put('/:id', requireBearer, async (req, res) => {
   try {
     res.json(await saveTarget(parsed.data));
   } catch (error) {
+    if (error instanceof PiiPolicyError) {
+      res.status(400).json({ error: { type: 'ValidationError', message: 'Invalid PII policy', details: error.details } });
+      return;
+    }
     if (error instanceof TargetUrlNotAllowedError) {
       res.status(400).json({ error: { type: error.name, message: `baseUrl is outside the allowlist: ${error.message}` } });
       return;
