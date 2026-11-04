@@ -16,3 +16,6 @@ npm-debug.log*
 release/
 installer/output/
 installer/staging/
+
+# session handoff (working state, see scripts/ai/Close-Session.ps1)
+/.claude/session-state/
