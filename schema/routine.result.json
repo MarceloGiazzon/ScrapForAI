@@ -603,7 +603,7 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema3"
+        "$ref": "#/$defs/__schema7"
       }
     },
     "actors": {
@@ -626,7 +626,7 @@
             "maximum": 9007199254740991
           },
           "evidence": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema8"
           }
         },
         "required": [
@@ -637,7 +637,7 @@
       }
     },
     "evidence": {
-      "$ref": "#/$defs/__schema4"
+      "$ref": "#/$defs/__schema8"
     }
   },
   "required": [
@@ -719,6 +719,34 @@
             ],
             "additionalProperties": false
           }
+        },
+        "doc": {
+          "type": "object",
+          "properties": {
+            "caption": {
+              "type": "object",
+              "properties": {
+                "pt": {
+                  "$ref": "#/$defs/__schema3"
+                },
+                "es": {
+                  "$ref": "#/$defs/__schema5"
+                },
+                "en": {
+                  "$ref": "#/$defs/__schema6"
+                }
+              },
+              "additionalProperties": false
+            },
+            "figure": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "caption",
+            "figure"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -756,6 +784,20 @@
       "additionalProperties": false
     },
     "__schema3": {
+      "$ref": "#/$defs/__schema4"
+    },
+    "__schema4": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "__schema5": {
+      "$ref": "#/$defs/__schema4"
+    },
+    "__schema6": {
+      "$ref": "#/$defs/__schema4"
+    },
+    "__schema7": {
       "anyOf": [
         {
           "type": "string"
@@ -772,7 +814,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema3"
+            "$ref": "#/$defs/__schema7"
           }
         },
         {
@@ -781,12 +823,12 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema3"
+            "$ref": "#/$defs/__schema7"
           }
         }
       ]
     },
-    "__schema4": {
+    "__schema8": {
       "type": "object",
       "properties": {
         "screenshots": {
@@ -817,13 +859,13 @@
         "console": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema5"
+            "$ref": "#/$defs/__schema9"
           }
         },
         "consoleErrors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema5"
+            "$ref": "#/$defs/__schema9"
           }
         },
         "pageErrors": {
@@ -835,13 +877,13 @@
         "network": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema10"
           }
         },
         "networkFailures": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema10"
           }
         },
         "traffic": {
@@ -850,28 +892,28 @@
             "type": "object",
             "properties": {
               "origin": {
-                "$ref": "#/$defs/__schema7"
-              },
-              "pathname": {
-                "$ref": "#/$defs/__schema8"
-              },
-              "method": {
-                "$ref": "#/$defs/__schema9"
-              },
-              "resourceType": {
-                "$ref": "#/$defs/__schema10"
-              },
-              "status": {
                 "$ref": "#/$defs/__schema11"
               },
-              "failureText": {
+              "pathname": {
                 "$ref": "#/$defs/__schema12"
               },
-              "unexpectedExternalOrigin": {
+              "method": {
                 "$ref": "#/$defs/__schema13"
               },
-              "actor": {
+              "resourceType": {
                 "$ref": "#/$defs/__schema14"
+              },
+              "status": {
+                "$ref": "#/$defs/__schema15"
+              },
+              "failureText": {
+                "$ref": "#/$defs/__schema16"
+              },
+              "unexpectedExternalOrigin": {
+                "$ref": "#/$defs/__schema17"
+              },
+              "actor": {
+                "$ref": "#/$defs/__schema18"
               },
               "count": {
                 "type": "integer",
@@ -915,7 +957,7 @@
         "unexpectedExternalRequests": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema10"
           }
         },
         "routing": {
@@ -981,7 +1023,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema5": {
+    "__schema9": {
       "type": "object",
       "properties": {
         "type": {
@@ -1015,32 +1057,32 @@
       ],
       "additionalProperties": false
     },
-    "__schema6": {
+    "__schema10": {
       "type": "object",
       "properties": {
         "origin": {
-          "$ref": "#/$defs/__schema7"
-        },
-        "pathname": {
-          "$ref": "#/$defs/__schema8"
-        },
-        "method": {
-          "$ref": "#/$defs/__schema9"
-        },
-        "resourceType": {
-          "$ref": "#/$defs/__schema10"
-        },
-        "status": {
           "$ref": "#/$defs/__schema11"
         },
-        "failureText": {
+        "pathname": {
           "$ref": "#/$defs/__schema12"
         },
-        "unexpectedExternalOrigin": {
+        "method": {
           "$ref": "#/$defs/__schema13"
         },
-        "actor": {
+        "resourceType": {
           "$ref": "#/$defs/__schema14"
+        },
+        "status": {
+          "$ref": "#/$defs/__schema15"
+        },
+        "failureText": {
+          "$ref": "#/$defs/__schema16"
+        },
+        "unexpectedExternalOrigin": {
+          "$ref": "#/$defs/__schema17"
+        },
+        "actor": {
+          "$ref": "#/$defs/__schema18"
         }
       },
       "required": [
@@ -1050,28 +1092,28 @@
       ],
       "additionalProperties": false
     },
-    "__schema7": {
-      "type": "string"
-    },
-    "__schema8": {
-      "type": "string"
-    },
-    "__schema9": {
-      "type": "string"
-    },
-    "__schema10": {
-      "type": "string"
-    },
     "__schema11": {
-      "type": "number"
+      "type": "string"
     },
     "__schema12": {
       "type": "string"
     },
     "__schema13": {
-      "type": "boolean"
+      "type": "string"
     },
     "__schema14": {
+      "type": "string"
+    },
+    "__schema15": {
+      "type": "number"
+    },
+    "__schema16": {
+      "type": "string"
+    },
+    "__schema17": {
+      "type": "boolean"
+    },
+    "__schema18": {
       "type": "string"
     }
   }

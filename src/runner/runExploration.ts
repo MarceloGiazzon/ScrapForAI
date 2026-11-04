@@ -10,8 +10,10 @@ import { buildManifest, writeManifest } from '../evidence/manifest.js';
 import { loadAccessibilityBaseline } from '../evolution/evolutionService.js';
 import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
+import { captureDocFigure } from '../manual/figureCapture.js';
 import { checkAssertEquals } from '../oracle/assertEquals.js';
 import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility.schema.js';
+import { type DocStep, docWhenOf } from '../schemas/docStep.schema.js';
 import { type FrameRef, type RunnableLeaf, type RunnableParallel, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ClockEvidence, EvidenceBlock, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import type { PiiReport } from '../schemas/pii.schema.js';
@@ -453,6 +455,15 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           responseWaiter = waitForResponseCondition(page, step.afterWaitFor);
         }
 
+        // T9.2: the figure of a documentation step. Only a run that asks (options.docFigures) takes it, so any other run is untouched.
+        const docStep: DocStep | undefined = request.options.docFigures === true && phase === 'steps' ? step.doc : undefined;
+        const takeDocFigure = async (doc: DocStep): Promise<void> => {
+          if (step.id === undefined) throw new StepExecutionError('a step with doc needs an id');
+          const { figure } = await captureDocFigure({ page, frame, evidence, stepId: step.id, doc, knownSecrets, timeoutMs: timeout });
+          stepResult.doc = { caption: doc.caption, figure };
+        };
+        if (docStep && docWhenOf(step) === 'before') await takeDocFigure(docStep);
+
         switch (step.action) {
           case 'goto': {
             const url = step.url === '$targetUrl' ? normalizedTargetUrl : validateTargetUrl(step.url);
@@ -890,6 +901,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             throw new StepExecutionError(other === session || !multiActor ? disallowedNavigationError : `[actor ${other.name}] ${disallowedNavigationError}`);
           }
         }
+
+        if (docStep && docWhenOf(step) === 'after') await takeDocFigure(docStep);
       } catch (error) {
         responseWaiter?.catch(() => undefined);
         stepFailed = true;

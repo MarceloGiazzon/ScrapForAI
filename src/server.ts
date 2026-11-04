@@ -12,6 +12,7 @@ import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
 import { verifyTrustedScripts } from './runner/trusted/registry.js';
 import { recoverSuites } from './orchestrator/suiteRunner.js';
 import { recoverDifferentials } from './differential/differentialService.js';
+import { recoverManualBuilds } from './manual/manualService.js';
 import { recoverShrinks } from './shrink/shrinkService.js';
 import { recoverMatrixRuns } from './permissions/matrixRunner.js';
 import { authRouter } from './routes/auth.routes.js';
@@ -34,6 +35,7 @@ import { suitesRouter } from './routes/suites.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
 import { metricsRouter } from './routes/metrics.routes.js';
 import { executiveRouter } from './routes/executive.routes.js';
+import { manualRouter } from './routes/manual.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { summaryRouter } from './routes/summary.routes.js';
 import { vaultRouter } from './routes/vault.routes.js';
@@ -149,6 +151,8 @@ app.post('/v1/shrinks', explorationLimiter); // a shrink drives browsers, like a
 app.use('/v1/shrinks', shrinksRouter);
 app.post('/v1/differentials', explorationLimiter); // a differential run drives browsers, twice per routine
 app.use('/v1/differentials', differentialsRouter);
+app.post('/v1/manual/builds', explorationLimiter); // a manual build drives browsers, one run per documented routine
+app.use('/v1/manual', manualRouter);
 app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/webhooks', webhooksRouter);
 app.use('/v1/metrics', metricsRouter);
@@ -221,6 +225,11 @@ async function start(): Promise<void> {
   const recoveredDifferentials = await recoverDifferentials();
   if (recoveredDifferentials.interrupted > 0 || recoveredDifferentials.pruned > 0) {
     logger.info(recoveredDifferentials, 'Recovered differential run states');
+  }
+
+  const recoveredManual = await recoverManualBuilds();
+  if (recoveredManual.interrupted > 0 || recoveredManual.pruned > 0) {
+    logger.info(recoveredManual, 'Recovered manual build states');
   }
 
   const recoveredSnapshots = await recoverSnapshotRuns();

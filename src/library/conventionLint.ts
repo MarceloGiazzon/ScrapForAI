@@ -1,3 +1,4 @@
+import { DOC_TAG } from '../schemas/docStep.schema.js';
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
 import { isParallelStep, walkWithPath } from '../schemas/stepTree.js';
 
@@ -10,7 +11,9 @@ import { isParallelStep, walkWithPath } from '../schemas/stepTree.js';
  *   GX001 (error, genexus)   a login submit with no login gate after it
  *   GX002 (warning, genexus) a routine that logs in and has no teardown to log out (one active session per user)
  *   WT001 (warning)          a fixed waitForTimeout
- *   SEL001 (warning)         a positional selector (nth-child, nth-of-type, :first, :last, nth=)
+ *   SEL001 (warning)         a positional selector (nth-child, nth-of-type, :first, :last, nth=), also in a step's doc.highlight
+ *   DOC001 (warning)         a step carries `doc` but the routine is not tagged `doc`: `manual build` would not pick it up
+ *   DOC002 (warning)         the routine is tagged `doc` but no step carries `doc`: its chapter would be empty
  *
  * Departure from the roadmap: SEL001 says "when a semantic selector exists"; the lint reads the routine, not the page, so it cannot know that. It
  * warns on every positional selector and the suggestion names what to look for.
@@ -88,7 +91,7 @@ function where(entry: Located): Pick<ConventionFinding, 'path' | 'stepId'> {
 }
 
 export function lintConventions(
-  input: { steps: readonly ExplorationStep[]; teardown?: readonly ExplorationStep[]; lintSuppress?: readonly LintSuppression[] },
+  input: { steps: readonly ExplorationStep[]; teardown?: readonly ExplorationStep[]; lintSuppress?: readonly LintSuppression[]; tags?: readonly string[] },
   context: ConventionContext,
 ): ConventionLintResult {
   const steps = locate('steps', input.steps as readonly Loose[]);
@@ -138,6 +141,30 @@ export function lintConventions(
     }
   }
 
+  // DOC001 / DOC002 (T9.2): only when the tags are known (a lint of bare steps says nothing about them).
+  if (input.tags !== undefined) {
+    const tagged = input.tags.includes(DOC_TAG);
+    const withDoc = steps.filter(({ step }) => step.doc !== undefined);
+    if (withDoc.length > 0 && !tagged) {
+      found.push({
+        rule: 'DOC001',
+        severity: 'warning',
+        ...where(withDoc[0]!),
+        message: `${withDoc.length} step(s) carry doc but the routine is not tagged "${DOC_TAG}": scrapforai manual build only picks up routines with that tag.`,
+        suggestion: `Add the tag "${DOC_TAG}" to the routine.`,
+      });
+    }
+    if (tagged && withDoc.length === 0 && !steps.some(({ step }) => step.action === 'include')) {
+      found.push({
+        rule: 'DOC002',
+        severity: 'warning',
+        path: 'steps',
+        message: `The routine is tagged "${DOC_TAG}" but no step carries doc: its chapter in the manual would be empty.`,
+        suggestion: 'Add doc { caption: { en, pt, es }, highlight? } to the steps that should become a figure.',
+      });
+    }
+  }
+
   const eachStep = (items: readonly Located[]) =>
     items.forEach((entry) => {
       const { step } = entry;
@@ -150,8 +177,9 @@ export function lintConventions(
           suggestion: 'Use waitForQuiet (no XHR/fetch pending), or wait for the element or response you actually need.',
         });
       }
-      for (const property of SELECTOR_PROPERTIES) {
-        const selector = step[property];
+      const highlight = (step.doc as { highlight?: unknown } | undefined)?.highlight;
+      const selectors: Array<[string, unknown]> = [...SELECTOR_PROPERTIES.map((property): [string, unknown] => [property, step[property]]), ['doc.highlight', highlight]];
+      for (const [property, selector] of selectors) {
         if (typeof selector === 'string' && POSITIONAL_SELECTOR.test(selector)) {
           found.push({
             rule: 'SEL001',

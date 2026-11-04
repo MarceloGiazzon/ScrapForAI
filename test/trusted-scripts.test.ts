@@ -66,7 +66,7 @@ test('the sources are plain data to the runner: no template syntax that could be
         : /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/;
     assert.ok(!forbidden.test(own), `${script.id} reads and writes nothing it should not`);
   }
-  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style', 'net-state', 'net-tracker', 'pii-surfaces']);
+  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'doc-highlight', 'keyboard-active', 'keyboard-candidates', 'keyboard-style', 'net-state', 'net-tracker', 'pii-surfaces']);
 });
 
 /** A frame whose evaluate records the expression and answers with `answer`. */

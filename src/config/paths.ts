@@ -88,6 +88,20 @@ export function summariesDir(): string {
   return override ? path.resolve(override) : path.join(dataDir(), 'summaries');
 }
 
+/**
+ * The living manual (T9.2): `<dir>/<targetProfile>/` = `manual.json`, `figures/`, and a folder per language. MANUAL_OUTPUT_DIR may point into a git repository
+ * (or the docs folder of the application) so the generated manual is reviewed like code.
+ */
+export function manualDir(): string {
+  const override = process.env.MANUAL_OUTPUT_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'manual');
+}
+
+/** Manual build run states (T9.2): <dataDir>/manual-builds/<id>.json. Kept out of the manual dir (which may be a git repo). */
+export function manualBuildsDir(): string {
+  return path.join(dataDir(), 'manual-builds');
+}
+
 /** Suite run states (T1.6): <dataDir>/suites/<suiteRunId>.json. */
 export function suitesDir(): string {
   return path.join(dataDir(), 'suites');

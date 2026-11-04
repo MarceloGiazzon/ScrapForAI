@@ -1,0 +1,109 @@
+{
+  "title": "Signing in to the console",
+  "description": "The first client of the living manual: how to sign in to the ScrapForAI web console.",
+  "tags": [
+    "doc"
+  ],
+  "surface": "sign-in",
+  "status": "active",
+  "targetProfile": "scrapforai-console",
+  "credentialSet": "scrapforai-console",
+  "doc": {
+    "title": {
+      "en": "Signing in",
+      "pt": "Entrando no console",
+      "es": "Ingresar a la consola"
+    },
+    "intro": {
+      "en": "The console signs you in with your API key. The key is exchanged for a session cookie that scripts in the page cannot read.",
+      "pt": "O console entra com a sua chave de API. A chave é trocada por um cookie de sessão que os scripts da página não conseguem ler.",
+      "es": "La consola ingresa con su clave de API. La clave se cambia por una cookie de sesión que los scripts de la página no pueden leer."
+    }
+  },
+  "steps": [
+    {
+      "id": "size",
+      "action": "setViewport",
+      "width": 1100,
+      "height": 700
+    },
+    {
+      "id": "open-login",
+      "action": "goto",
+      "url": "$targetUrl"
+    },
+    {
+      "id": "see-login",
+      "label": "The sign-in page",
+      "action": "waitForSelector",
+      "selector": "#api-key",
+      "state": "visible",
+      "doc": {
+        "caption": {
+          "en": "Open the console. The sign-in page asks for your API key.",
+          "pt": "Abra o console. A página de entrada pede a sua chave de API.",
+          "es": "Abra la consola. La página de ingreso pide su clave de API."
+        },
+        "highlight": "#api-key"
+      }
+    },
+    {
+      "id": "type-key",
+      "action": "fill",
+      "selector": "#api-key",
+      "valueFromCredential": "apiKey",
+      "doc": {
+        "caption": {
+          "en": "Type or paste your API key in the field. It is exchanged for a session and never kept in the browser.",
+          "pt": "Digite ou cole a sua chave de API no campo. Ela é trocada por uma sessão e nunca fica guardada no navegador.",
+          "es": "Escriba o pegue su clave de API en el campo. Se cambia por una sesión y nunca queda guardada en el navegador."
+        },
+        "highlight": "#api-key"
+      }
+    },
+    {
+      "id": "submit",
+      "action": "click",
+      "selector": "button[type=\"submit\"]",
+      "doc": {
+        "caption": {
+          "en": "Press Sign in.",
+          "pt": "Pressione Sign in.",
+          "es": "Pulse Sign in."
+        },
+        "highlight": "button[type=\"submit\"]"
+      }
+    },
+    {
+      "id": "wait-history",
+      "action": "waitForSelector",
+      "selector": "#runs-body",
+      "state": "attached"
+    },
+    {
+      "id": "settle-history",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "history",
+      "action": "assertVisible",
+      "selector": "#stats",
+      "doc": {
+        "caption": {
+          "en": "Run history: every past run, newest first, with the counts of passed and failed runs across the top.",
+          "pt": "Histórico de execuções: todas as execuções passadas, da mais nova à mais antiga, com as contagens de aprovadas e reprovadas no topo.",
+          "es": "Historial de ejecuciones: todas las ejecuciones pasadas, de la más nueva a la más antigua, con los conteos de aprobadas y falladas arriba."
+        },
+        "highlight": "#stats"
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "id": "sign-out",
+      "label": "Sign out so the next build can sign in",
+      "action": "click",
+      "selector": "#logout"
+    }
+  ]
+}

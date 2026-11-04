@@ -70,6 +70,10 @@ Commands
                                     (the state of every target profile in one read: routines, trend, flaky, slower, vault, schedules; exit 0 unless --fail-on-red and a target is red)
   summary [--days N] [--target id[,id]] [--lang en|pt|es] [--out file.md]
                                     (the periodic summary a summary schedule sends: health, what broke and was fixed, flaky, slower, new accessibility, evolution; exit 0)
+  manual build <target> [--lang pt,es,en] [--format md,html] [--build-id b] [--timeout-seconds N] [--no-wait]
+                                    (the living manual: runs the active routines of the target tagged 'doc', takes a figure per documented step with its element highlighted and writes
+                                     Markdown/HTML into MANUAL_OUTPUT_DIR/<target>/ plus the list of figures that changed since the last build. All or nothing; exit 0 written, 2 anything else)
+  manual show <target>              (what the last build wrote: build, figures, what changed, captions missing in a language)
   routines list
   routines lint <routineId|file.json|-> [--target id] [--strict]
                                     (the authoring conventions as code: GX001 login submit without a gate (error), GX002 login without logout teardown, WT001 fixed wait, SEL001 positional selector;
@@ -287,6 +291,36 @@ function formatSnapshot(state: Record<string, any>): string {
   return `${lines.join('\n')}\n`;
 }
 
+function formatManualBuild(state: Record<string, any>): string {
+  const lines = [`Manual build ${state.buildRunId} of "${state.targetProfile}": ${state.status}`];
+  for (const chapter of (state.routines ?? []) as Array<Record<string, any>>) {
+    const detail = chapter.outcome === 'ok' ? `  ${chapter.figures ?? 0} figure(s)` : chapter.error ? `  ${chapter.error}` : '';
+    lines.push(`  ${chapter.outcome === 'ok' ? 'OK   ' : chapter.outcome ? 'FAIL ' : '...  '}  ${chapter.routineId} v${chapter.version}${detail}`);
+  }
+  for (const skipped of (state.skipped ?? []) as Array<Record<string, any>>) lines.push(`  skipped  ${skipped.routineId}: ${skipped.reason}`);
+  const output = state.output as Record<string, any> | undefined;
+  if (output) {
+    const counts = output.figures as Record<string, number>;
+    lines.push(`  written to ${output.folder}  (build ${output.buildId}, ${(output.langs as string[]).join(',')}, ${(output.formats as string[]).join(',')}, ${output.files} files)`);
+    const first = (output.changes as Record<string, any>).firstBuild === true;
+    lines.push(
+      first
+        ? `  figures: ${counts.total} (first build of this manual: nothing to compare with)`
+        : `  figures: ${counts.total} - ${counts.changed} changed, ${counts.new} new, ${counts.removed} removed, ${counts.negligible} differ slightly, ${counts.unchanged} unchanged`,
+    );
+    if (!first && (counts.changed ?? 0) + (counts.new ?? 0) + (counts.removed ?? 0) + (counts.negligible ?? 0) > 0) {
+      lines.push(`  review: ${output.folder}/<lang>/figures-changed.md`);
+      for (const change of (output.changes.changed ?? []) as Array<Record<string, any>>) lines.push(`    changed  ${change.id}${change.percent === undefined ? '' : `  (${change.percent}% of the picture)`}${change.reason === 'resized' ? '  (other size)' : ''}`);
+      for (const id of (output.changes.new ?? []) as string[]) lines.push(`    new      ${id}`);
+      for (const id of (output.changes.removed ?? []) as string[]) lines.push(`    removed  ${id}`);
+    }
+    if (output.missingCaptions > 0) lines.push(`  ${output.missingCaptions} caption(s) have no text in a requested language (marked in the pages; see manual.json)`);
+  }
+  for (const warning of (state.warnings ?? []) as string[]) lines.push(`  warning: ${warning}`);
+  if (state.reason) lines.push(`  ${state.reason}`);
+  return `${lines.join('\n')}\n`;
+}
+
 function formatMatrix(state: Record<string, any>): string {
   const lines = [`Permission matrix "${state.matrixId}" (${state.runId}): ${state.status}${state.buildId ? `  build ${state.buildId}` : ''}`];
   const cells = state.cells as Array<Record<string, any>>;
@@ -338,7 +372,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' || command === 'flaky' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' || command === 'flaky' || command === 'manual' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -645,6 +679,86 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
         if (state.status !== 'running') {
           const exitCode = (state.exitCode ?? 2) as ExitCode;
           emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution snapshot', exitCode, result: state as never }, formatSnapshot(state));
+          return exitCode;
+        }
+      }
+    }
+
+    if (command === 'manual build' || command === 'manual show') {
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { ...common, lang: { type: 'string' }, format: { type: 'string' }, 'build-id': { type: 'string' }, 'timeout-seconds': { type: 'string' }, 'no-wait': { type: 'boolean' } },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [target] = positionals;
+
+      if (command === 'manual show') {
+        if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai manual show <target>');
+        const response = await api('GET', `/v1/manual/${encodeURIComponent(target)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const manual = response.body as Record<string, any>;
+        const counts = manual.changes as Record<string, any>;
+        const lines = [
+          `Manual of "${manual.targetProfile}": build ${manual.buildId}, ${manual.createdAt}`,
+          `  ${manual.folder}`,
+          `  chapters: ${(manual.routines as unknown[]).length}, figures: ${(manual.figures as unknown[]).length}, languages: ${(manual.langs as string[]).join(',')}, formats: ${(manual.formats as string[]).join(',')}`,
+          counts.firstBuild
+            ? '  first build: nothing was compared'
+            : `  since the previous build${counts.previousBuildId ? ` (${counts.previousBuildId})` : ''}: ${(counts.changed as unknown[]).length} changed, ${(counts.new as unknown[]).length} new, ${(counts.removed as unknown[]).length} removed, ${(counts.negligible as unknown[]).length} differ slightly, ${counts.unchanged} unchanged`,
+          ...((manual.missingCaptions as unknown[]).length > 0 ? [`  ${(manual.missingCaptions as unknown[]).length} caption(s) have no text in a requested language`] : []),
+        ];
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'manual show', exitCode: 0, result: manual as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (!target || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai manual build <target> [--lang pt,es,en] [--format md,html] [--build-id b]');
+      const list = (text: string | undefined, allowed: readonly string[], flag: string): string[] | undefined => {
+        if (text === undefined) return undefined;
+        const items = text.split(',').map((item) => item.trim()).filter(Boolean);
+        if (items.length === 0 || items.some((item) => !allowed.includes(item))) throw new CliError('UsageError', `${flag} expects a comma-separated list of: ${allowed.join(', ')}`);
+        return items;
+      };
+      const langs = list(values.lang, ['en', 'pt', 'es'], '--lang');
+      const formats = list(values.format, ['md', 'html'], '--format');
+      const timeoutSeconds = values['timeout-seconds'] === undefined ? 3600 : Number(values['timeout-seconds']);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1) throw new CliError('UsageError', '--timeout-seconds must be a positive number');
+
+      const started = await api('POST', '/v1/manual/builds', {
+        targetProfile: target,
+        ...(langs ? { langs } : {}),
+        ...(formats ? { formats } : {}),
+        ...(values['build-id'] ? { buildId: values['build-id'] } : {}),
+      });
+      if (started.status !== 202) throw errorOf(started);
+      const accepted = started.body as { buildRunId: string; targetProfile: string; status: string; routines: number; skipped: unknown[] };
+
+      if (values['no-wait']) {
+        emit(
+          { cliSchema: CLI_SCHEMA_VERSION, command: 'manual build', exitCode: 0, result: accepted },
+          `Manual build started: ${accepted.buildRunId} (${accepted.routines} routine(s)). Poll with: GET /v1/manual/builds/${accepted.buildRunId}\n`,
+        );
+        return 0;
+      }
+
+      io.err(`[${accepted.buildRunId}] started: ${accepted.routines} documented routine(s)\n`);
+      const deadline = Date.now() + timeoutSeconds * 1000;
+      for (;;) {
+        if (io.signal?.aborted) {
+          await api('POST', `/v1/manual/builds/${accepted.buildRunId}/cancel`).catch(() => undefined);
+          throw new CliError('Cancelled', `interrupted; the manual build ${accepted.buildRunId} was cancelled and nothing was written`);
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) {
+          throw new CliError('ManualBuildWaitTimeout', `the manual build ${accepted.buildRunId} did not finish within ${timeoutSeconds}s; it keeps running (GET /v1/manual/builds/${accepted.buildRunId})`);
+        }
+        const poll = await api('GET', `/v1/manual/builds/${accepted.buildRunId}?wait=${Math.min(50, Math.max(1, Math.floor(remaining / 1000)))}`, undefined, 70_000);
+        if (poll.status !== 200) throw errorOf(poll);
+        const state = poll.body as Record<string, any>;
+        if (state.status !== 'running') {
+          const exitCode = (state.exitCode ?? 2) as ExitCode;
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'manual build', exitCode, result: state as never }, formatManualBuild(state));
           return exitCode;
         }
       }

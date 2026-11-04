@@ -1,3 +1,4 @@
+import { captionTexts, DOC_LANGS, type RoutineDoc } from '../schemas/docStep.schema.js';
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
 import { walkWithPath } from '../schemas/stepTree.js';
 
@@ -71,7 +72,28 @@ export function lintRoutineSteps(steps: readonly ExplorationStep[], vaultValues:
       const problem = secretProblem(text, vaultValues);
       if (problem) issues.push({ path: [...path, property].join('.'), message: problem });
     }
+
+    // T9.2: a caption ends up in a published manual, so it is held to the same rule as a typed value.
+    const caption = (step as { doc?: { caption?: Record<string, string | undefined> } }).doc?.caption;
+    for (const lang of DOC_LANGS) {
+      const text = caption?.[lang];
+      const problem = text === undefined ? undefined : secretProblem(text, vaultValues);
+      if (problem) issues.push({ path: [...path, 'doc', 'caption', lang].join('.'), message: problem });
+    }
   }
 
+  return issues;
+}
+
+/** T9.2: the chapter title and introduction of a routine are published like the captions of its steps. */
+export function lintRoutineDoc(doc: RoutineDoc | undefined, vaultValues: string[]): LintIssue[] {
+  const issues: LintIssue[] = [];
+  for (const field of ['title', 'intro'] as const) {
+    for (const lang of DOC_LANGS) {
+      const text = doc?.[field]?.[lang];
+      const problem = text === undefined ? undefined : secretProblem(text, vaultValues);
+      if (problem) issues.push({ path: `doc.${field}.${lang}`, message: problem });
+    }
+  }
   return issues;
 }

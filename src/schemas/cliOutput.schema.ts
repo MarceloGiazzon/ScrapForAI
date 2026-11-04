@@ -202,6 +202,17 @@ export const cliDifferentialCompareSchema = z
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
+/** `manual build --no-wait`. */
+export const cliManualStartedSchema = z.object({ buildRunId: z.string(), targetProfile: z.string(), status: z.string(), routines: z.number(), skipped: z.array(z.unknown()) }).strict();
+
+/** `manual build` (the finished state, see manual/manualService.ts ManualBuildState) and `manual show` (manual.json plus its folder): passed through as the API returns them. */
+export const cliManualBuildStateSchema = z
+  .object({ buildRunId: z.string(), targetProfile: z.string(), status: z.enum(['running', 'completed', 'failed', 'cancelled', 'interrupted']), routines: z.array(z.unknown()), skipped: z.array(z.unknown()) })
+  .passthrough();
+export const cliManualShowSchema = z
+  .object({ targetProfile: z.string(), buildId: z.string(), createdAt: z.string(), folder: z.string(), figures: z.array(z.unknown()), changes: z.object({ firstBuild: z.boolean() }).passthrough() })
+  .passthrough();
+
 /** `evolution list`: the snapshots stored for a target, oldest first. */
 export const cliEvolutionListSchema = z
   .object({
@@ -276,6 +287,8 @@ export const cliOutputSchema = z.union([
   success('summary', cliSummarySchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('differential', z.union([cliDifferentialStateSchema, cliDifferentialCompareSchema, cliDifferentialStartedSchema])),
+  success('manual build', z.union([cliManualBuildStateSchema, cliManualStartedSchema])),
+  success('manual show', cliManualShowSchema),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),
   success('evolution timeline', cliEvolutionTimelineSchema),

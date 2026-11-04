@@ -1,0 +1,18 @@
+{
+  "id": "scrapforai-console",
+  "name": "ScrapForAI web console",
+  "platform": "generic",
+  "environment": "dev",
+  "baseUrl": "http://127.0.0.1:3000/ui/",
+  "credentialSets": [
+    "scrapforai-console"
+  ],
+  "noiseFilters": [],
+  "surfaces": {},
+  "screens": [],
+  "flags": {
+    "allowDestructive": false,
+    "allowFaults": false,
+    "maxSessionsPerCredential": 1
+  }
+}

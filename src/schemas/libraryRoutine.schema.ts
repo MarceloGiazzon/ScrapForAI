@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
+import { routineDocSchema } from './docStep.schema.js';
 import { actorsSchema, buildIdSchema, explorationOptionsSchema, explorationStepSchema, leafStepSchema, safeName } from './explorationRequest.schema.js';
 import { parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
@@ -33,6 +34,8 @@ const contentShape = {
   parameters: parametersSchema.optional(),
   // T8.4. Optional with no default, so routines saved before the lint keep their digest.
   lintSuppress: z.array(lintSuppressionSchema).max(50).optional(),
+  // T9.2. Optional with no default, so routines saved before the living manual keep their digest. Chapter heading and introduction per language.
+  doc: routineDocSchema.optional(),
   steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
   // T1.4. Optional with NO default on purpose: a default would add `teardown: []` to every routine and
   // change the digest of versions saved before teardown existed, failing their integrity check.
@@ -71,6 +74,7 @@ export const routineSaveBodyBase = z
     options: explorationOptionsSchema.optional(),
     parameters: contentShape.parameters,
     lintSuppress: contentShape.lintSuppress,
+    doc: contentShape.doc,
     steps: contentShape.steps.optional(),
     teardown: contentShape.teardown,
     fromJobId: jobId.optional(),
@@ -121,6 +125,8 @@ export const routineRunBodySchema = z
     profile: z.enum(['full', 'functional']).optional(),
     // T6.3: also record the requests that succeeded (see options.recordTraffic).
     recordTraffic: z.boolean().optional(),
+    // T9.2: take the figures of the steps that carry `doc` (the living manual build does). Needs the full profile and screenshots; both are forced for the run.
+    docFigures: z.boolean().optional(),
     // T5.3: replay a run's generated values (the seed is in its result.parameters) or take another sample.
     seed: seedSchema.optional(),
     sample: sampleIndexSchema.optional(),

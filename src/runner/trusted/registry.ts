@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { docHighlightSource } from './scripts/doc.js';
 import { axeAuditSource } from './scripts/axe.js';
 import { netStateSource, netTrackerSource } from './scripts/network.js';
 import { piiSurfacesSource } from './scripts/pii.js';
@@ -53,6 +54,8 @@ export const TRUSTED_SCRIPTS = [
   // T8.2: counts pending XHR/fetch (installed as an init script) and reads the count; two numbers, no URL or body.
   { id: 'net-tracker', source: netTrackerSource, sha256: 'ad6127ef1fd3759676cf146e4d4fb7c47012a74000dab4150acbbc3e7b0350d3', timeoutMs: 3000, maxOutputChars: 100 },
   { id: 'net-state', source: netStateSource, sha256: '6bca5fa4164712483465e3a0a39277eefc848033526cad83795af59dbe824305', timeoutMs: 1000, maxOutputChars: 100 },
+  // T9.2: draws / removes the highlight border of a documentation figure around rectangles the server computed. Takes numbers only.
+  { id: 'doc-highlight', source: docHighlightSource, sha256: '8c88cbbe58f8ac67fa8eaf34e3208eb0b03de7d9a339734699c3a1be1c1ae537', timeoutMs: 3000, maxOutputChars: 200 },
 ] as const satisfies readonly TrustedScriptDefinition[];
 
 export type TrustedScriptId = (typeof TRUSTED_SCRIPTS)[number]['id'];

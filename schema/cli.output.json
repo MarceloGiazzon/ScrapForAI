@@ -2863,6 +2863,162 @@
         },
         "command": {
           "type": "string",
+          "const": "manual build"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "buildRunId": {
+                  "type": "string"
+                },
+                "targetProfile": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "completed",
+                    "failed",
+                    "cancelled",
+                    "interrupted"
+                  ]
+                },
+                "routines": {
+                  "type": "array",
+                  "items": {}
+                },
+                "skipped": {
+                  "type": "array",
+                  "items": {}
+                }
+              },
+              "required": [
+                "buildRunId",
+                "targetProfile",
+                "status",
+                "routines",
+                "skipped"
+              ],
+              "additionalProperties": {}
+            },
+            {
+              "type": "object",
+              "properties": {
+                "buildRunId": {
+                  "type": "string"
+                },
+                "targetProfile": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "routines": {
+                  "type": "number"
+                },
+                "skipped": {
+                  "type": "array",
+                  "items": {}
+                }
+              },
+              "required": [
+                "buildRunId",
+                "targetProfile",
+                "status",
+                "routines",
+                "skipped"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "manual show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "targetProfile": {
+              "type": "string"
+            },
+            "buildId": {
+              "type": "string"
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "folder": {
+              "type": "string"
+            },
+            "figures": {
+              "type": "array",
+              "items": {}
+            },
+            "changes": {
+              "type": "object",
+              "properties": {
+                "firstBuild": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "firstBuild"
+              ],
+              "additionalProperties": {}
+            }
+          },
+          "required": [
+            "targetProfile",
+            "buildId",
+            "createdAt",
+            "folder",
+            "figures",
+            "changes"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "evolution list"
         },
         "exitCode": {

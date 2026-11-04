@@ -24,7 +24,7 @@ import { listAllCredentialValues } from '../vault/credentials/credentialVault.js
 import { recordRunMetrics } from '../metrics/perfRecorder.js';
 import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
 import { type ConventionLintResult, lintConventions } from './conventionLint.js';
-import { lintRoutineSteps, lintParameters } from './routineLint.js';
+import { lintParameters, lintRoutineDoc, lintRoutineSteps } from './routineLint.js';
 
 function zodDetails(error: ZodError): Array<{ path: string; message: string }> {
   return error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
@@ -155,6 +155,7 @@ export async function saveRoutine(
     options: body.options,
     parameters: body.parameters,
     lintSuppress: body.lintSuppress,
+    doc: body.doc,
     steps: body.steps,
     teardown: body.teardown,
     // From the job, but anything the caller passed explicitly wins (contentFromJob already applies that).
@@ -193,7 +194,7 @@ export async function saveRoutine(
   );
 
   const vaultValues = await listAllCredentialValues();
-  const issues = [...lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], vaultValues), ...lintParameters(content.parameters ?? [], vaultValues)];
+  const issues = [...lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], vaultValues), ...lintParameters(content.parameters ?? [], vaultValues), ...lintRoutineDoc(content.doc, vaultValues)];
   if (issues.length > 0) {
     throw new RoutineLibraryError(422, 'RoutineLintError', 'Routine contains what looks like a secret', issues);
   }
@@ -270,12 +271,14 @@ export async function runLibraryRoutine(
     parameterValues: body.parameterValues,
     caller: body.caller,
     options:
-      body.retention || body.profile || body.recordTraffic
+      body.retention || body.profile || body.recordTraffic || body.docFigures
         ? {
             ...(routine.options ?? explorationRequestSchema.shape.options.parse(undefined)),
             ...(body.retention ? { retention: body.retention } : {}),
             ...(body.profile ? { profile: body.profile } : {}),
             ...(body.recordTraffic ? { recordTraffic: true } : {}),
+            // T9.2: a figure needs the real page (full profile: images are not stand-ins) and a screenshot, whatever the routine's own options say.
+            ...(body.docFigures ? { docFigures: true, profile: 'full' as const, screenshots: routine.options?.screenshots === 'always' ? ('always' as const) : ('onFailure' as const) } : {}),
           }
         : routine.options,
     steps: routine.steps,

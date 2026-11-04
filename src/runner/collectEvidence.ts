@@ -19,7 +19,8 @@ export interface EvidenceCollector {
   traffic?: TrafficEvidence[];
   trafficTruncated: boolean;
   getDisallowedNavigationError(): string | undefined;
-  captureScreenshot(name: string): Promise<ScreenshotEvidence>;
+  /** `fullPage` defaults to true. T9.2: a documentation figure asks for the viewport (`fullPage: false`) and `stable` (running animations are finished or cancelled first). */
+  captureScreenshot(name: string, options?: { fullPage?: boolean; stable?: boolean }): Promise<ScreenshotEvidence>;
   collectDomText(): Promise<string | undefined>;
 }
 
@@ -195,9 +196,9 @@ export function registerEvidenceCollectors(
     getDisallowedNavigationError() {
       return disallowedNavigationError;
     },
-    async captureScreenshot(name: string) {
+    async captureScreenshot(name: string, options: { fullPage?: boolean; stable?: boolean } = {}) {
       const screenshotPath = artifactStore.screenshotPath(`${fileNamePrefix}${name}`);
-      await page.screenshot({ path: screenshotPath.absolutePath, fullPage: true });
+      await page.screenshot({ path: screenshotPath.absolutePath, fullPage: options.fullPage ?? true, ...(options.stable ? { animations: 'disabled' as const } : {}) });
       const evidence = { name: fileNamePrefix === '' ? screenshotPath.safeName : artifactStore.screenshotPath(name).safeName, path: screenshotPath.relativePath };
       screenshots.push(evidence);
       return evidence;

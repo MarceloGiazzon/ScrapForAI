@@ -312,6 +312,26 @@ Everything before it is the setup, run in order as always; the block holds only 
   one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
   for a way to write a partial one unless the person asked for `allowPartial`.
 
+## Writing the user manual from routines (living manual)
+
+A routine tagged `doc` is also a chapter of the manual of its target profile. You write the routine and the captions; a person or a pipeline builds the manual
+(`scrapforai manual build <target> --lang pt,es,en`, API key required: it starts browsers and writes files, so there is no MCP tool for it and you do not start it).
+
+- Save the routine with `tags: ['doc']` (`save_routine`; the schema takes `doc`). On each step you want as a figure add
+  `doc: { caption: { en, pt, es }, highlight?: '<selector>', when?: 'before'|'after', fullPage? }`; on the routine `doc: { title: { en, pt, es }, intro: { en, pt, es } }`.
+  Captions are **plain text** in the user's language (one sentence, what the reader should do or see), never markup, never a secret. Give every language the manual will be built in: a missing one is
+  shown in another language and flagged.
+- **Every documented step needs an `id`.** The figure is named after it and the list of "figures that changed" follows it, so do not rename ids you have shipped.
+- Where the figure is taken: before the step for click/fill/hover/press/select/check (the element is visible and circled, a field is still empty), after it for everything else (goto, waits, asserts).
+  Use `when` only to change that. A figure is **never** taken after a step that types a vault value (refused when you save): the picture would show the password.
+- `highlight` is any selector the runner understands and must match a VISIBLE element, or the build fails (that is the point: the manual must not describe a button that is gone). Prefer an id, a label or a role
+  over a position (`SEL001` warns about `:nth-child` there too). Put `setViewport` first so the figures have a stable size.
+- Not in a `teardown`, not inside a `parallel` block. Use fixed values, never random ones, in what the figure shows; the manual build already fixes the seed for generated values.
+- A build is **all or nothing**: one failing routine writes nothing and leaves the previous manual alone. After a build, `manual show <target>` and `<lang>/figures-changed.md` list the figures that moved, so the
+  writer reviews only those. A page with a clock, a counter or the latest runs changes on every build: use a stable, seeded environment and `setClock` for dates; do not "fix" it by loosening the captions.
+- Preview one routine without building: `run_routine` / `POST /v1/routines/:id/run` with `docFigures: true`; the figures are the screenshots `doc-<step id>` of the run.
+- `templates/manual/README.md` has the details, and `templates/manual/scrapforai-console/` is a complete example (the web console of ScrapForAI itself, three languages).
+
 ## Errors you will meet
 
 | Error | Meaning | What to do |
@@ -321,7 +341,9 @@ Everything before it is the setup, run in order as always; the block holds only 
 | `CredentialInUse` (409) | That login is in another session | Wait and retry, or use another set |
 | `TooManySessionsForCredential` (400) | More actors use one credential set than the profile allows at once | Give the actors different sets, or ask for `flags.maxSessionsPerCredential` |
 | `TooManyActors` (400) | The run uses more actors than `MAX_ACTORS_PER_JOB` | Split the scenario |
-| `RoutineLintError` (422) | A literal looks like a secret | Replace with `valueFromCredential` |
+| `RoutineLintError` (422) | A literal (or a `doc` caption) looks like a secret | Replace with `valueFromCredential`; rewrite the caption |
+| `NoDocRoutines` (404) / `ManualBuildRunning` (409) | A manual build found no active routine tagged `doc` for the target / one is already running | Tag the routines `doc`; wait for the running build |
+| `DocFigureError` | A `doc.highlight` matched no visible element | Fix the selector, or the step before it; the build wrote nothing |
 | `StillRed` | The fix did not work on that build | Report it; do not retry until something changed |
 | `ValidationError` | The request does not match the schema | Fetch `GET /v1/schema/…` and fix the shape |
 | `PinnedQuotaExceeded` (409) | The pinned store is full | Tell the user; nothing is deleted automatically |

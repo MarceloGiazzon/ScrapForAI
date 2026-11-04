@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { docCaptionSchema } from './docStep.schema.js';
 import { parameterRecordSchema } from './parameters.schema.js';
 import { piiReportSchema } from './pii.schema.js';
 
@@ -42,6 +43,8 @@ export const stepResultSchema = z.object({
   branch: z.number().int().min(0).optional(),
   /** T6.5: on a `parallel` block's own result: how each branch ended, by branch number. */
   branches: z.array(z.object({ actor: z.string(), status: stepStatusSchema, stepsRun: z.number().int().min(0) })).optional(),
+  /** T9.2: only in a run with options.docFigures, on a step that carries `doc`: its captions and the name of the figure (the screenshot) taken for it. */
+  doc: z.object({ caption: docCaptionSchema, figure: z.string() }).optional(),
 });
 export type StepResult = z.infer<typeof stepResultSchema>;
 

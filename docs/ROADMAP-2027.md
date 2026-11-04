@@ -1465,6 +1465,28 @@ lentidão e flakiness.
   dependência), para que quem escreve o manual revise só essas.
 - O próprio manual do ScrapForAI (en/es/pt, hoje feito à mão) é o primeiro cliente.
 
+> **Implementada em 2026-11-04** (`src/manual/`, `src/schemas/docStep.schema.ts`, `templates/manual/`, ver AGENTS.md, "Living manual"). Um passo ganha `doc: { caption: { pt, es, en }, highlight?, when?, fullPage? }` e a rotina
+> `doc: { title?, intro? }` (por idioma); o script confiável `doc-highlight` desenha uma borda em volta do elemento (recebe só retângulos, nunca o seletor) antes do screenshot. **`doc` não faz nada numa execução comum**: a figura só
+> é tirada quando a execução pede (`options.docFigures`, o que o build faz), então uma execução normal continua sendo o que sempre foi. `scrapforai manual build <alvo> --lang pt,es,en [--format md,html]` (`POST /v1/manual/builds`,
+> `GET /v1/manual/:alvo`, CLI `manual show`) roda as rotinas **ativas** com a tag `doc` do perfil, pela fila (prioridade de suíte, trava de credencial), e grava Markdown/HTML + figuras em `MANUAL_OUTPUT_DIR/<alvo>/`. **Quais
+> figuras mudaram:** sem dependência, o PNG é decodificado no próprio código (zlib) e reduzido a uma grade 32x32 de luminância média; a comparação com o `manual.json` do build anterior, figura a figura, diz `changed` (outro
+> tamanho, ou uma célula mudou 6 ou mais de 255, com a porcentagem da imagem), `new`, `removed`, `negligible` (os bytes diferem mas nenhuma área visível se moveu: provável ruído; **listado, nunca escondido**) e iguais; o relatório
+> `<idioma>/figures-changed.md` é o que quem escreve o manual revisa. **O primeiro cliente** é o console web do próprio ScrapForAI (`templates/manual/scrapforai-console/`: entrar no console, 4 figuras, e uma figura por tela, 7;
+> tudo em três idiomas), construído de verdade contra um console descartável: a chave de API é digitada pelo cofre, a figura desse passo sai **antes** de digitar (o campo aparece vazio) e a chave não aparece em nenhum arquivo gerado.
+> **Decisões fora do texto:** (1) **tudo ou nada**, como o snapshot de evolução: se uma rotina falha, ou um `highlight` não encontra elemento visível, NADA é escrito e o manual anterior fica como estava (um manual com as figuras novas
+> das rotinas que passaram e a velha da que falhou pareceria completo e estaria meio errado). (2) **O manual inteiro é construído sempre** (sem `--routines`): um build remove os arquivos do build anterior que ele não escreve mais,
+> então um subconjunto apagaria os outros capítulos; e só remove o que o `manual.json` anterior listava, então um arquivo de uma pessoa naquela pasta sobrevive. (3) Onde a figura é tirada: **antes** do passo nos que agem num
+> elemento (clicar, digitar, escolher...), **depois** nos demais, e **nunca depois** de um passo que digita um valor do cofre (recusado ao salvar). (4) Um `highlight` que não acha nada **falha** o build em vez de gerar figura sem destaque
+> (a legenda diria "pressione este botão" ao lado de uma figura sem botão). (5) Legendas são **texto simples**, escapado para Markdown/HTML, e passam pelo mesmo lint de segredo dos valores dos passos (422). (6) Um passo com `doc` **exige `id`**
+> (a figura leva o nome dele e a lista de figuras mudadas o segue); `doc` não vale em `teardown` nem dentro de `parallel`. (7) O texto fala só de legendas; o título e a introdução do capítulo por idioma ficaram no `doc` da rotina (sem ele
+> valem o `title`/`description` da rotina). (8) Uma legenda que falta num idioma pedido aparece no primeiro idioma que existe, **marcada** nesse idioma, e listada em `missingCaptions`. (9) As figuras são as mesmas para todos os idiomas
+> (o aplicativo está num idioma só). (10) Lint DOC001/DOC002 (passo com `doc` numa rotina sem a tag; tag sem nenhum passo com `doc`) para o build não ignorar uma rotina em silêncio. (11) Saída 0 manual gravado, 2 qualquer outra coisa
+> (não é veredito de teste); o início do build exige o token bearer (inicia navegadores e grava arquivos). (12) O HTML não tem script nem imagens preguiçosas (aberto do disco e impresso em PDF as figuras têm de estar lá).
+> **Observado no console real:** telas com dados que se movem (Histórico, Saúde, Desempenho) aparecem como "mudaram" em todo build, porque mostram as execuções dos builds anteriores; o manual deve ser construído contra um ambiente
+> estável e com dados fixos, e `setClock` para datas. **Fica de fora:** subconjunto de rotinas, tipo de agendamento ou ferramenta MCP (iniciar navegadores e gravar arquivos é decisão de uma pessoa ou de um pipeline), seta (só borda),
+> PDF, figura por idioma, tradução de `title`/`description` além de `doc.title`/`doc.intro`, tela no console web e o commit da saída em git. O manual escrito à mão em `_userManual/` **não foi tocado**: os capítulos gerados são figuras e
+> legendas, não prosa, e trocar a prosa é decisão de quem cuida daquele manual.
+
 ### T9.3 — Resumo semanal · M
 
 Agendamento (T3.2) que gera um resumo: saúde por app, regressões, flaky, alertas de desempenho,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '../config/env.js';
 import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
 import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
+import { docStepSchema } from './docStep.schema.js';
 import { PII_SURFACES } from '../security/piiDetectors.js';
 import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
@@ -83,6 +84,8 @@ const baseStep = {
   description: z.string().min(1).max(500).optional(),
   // T6.4: which actor (browser context) runs the step. Absent = `main`, the run's own session.
   actor: safeName.optional(),
+  // T9.2: caption + highlight for the living manual. Inert unless the run sets options.docFigures; a step that has one must have an `id` (checked in validateStepList).
+  doc: docStepSchema.optional(),
   frame: frameRefSchema.optional(),
   delayMs: z.number().int().min(0).max(60000).optional(),
   waitFor: waitConditionSchema.optional(),
@@ -625,6 +628,8 @@ export const explorationOptionsSchema = z
     // T6.3: also record the requests that SUCCEEDED (method, path, status, type; deduplicated, never a body or a query), in `evidence.traffic`. By default the
     // network evidence only holds failures. Differential runs ask for it; optional with no default, so a saved routine keeps its digest.
     recordTraffic: z.boolean().optional(),
+    // T9.2: take the figures of the steps that carry `doc` (screenshot with the highlight drawn). `manual build` sets it; optional with no default, so a saved routine keeps its digest.
+    docFigures: z.boolean().optional(),
     // T8.1: `false` turns off the automatic login of a `genexus` target profile for this run (its login routine is not included for you).
     autoLogin: z.boolean().optional(),
     collectDomOnFailure: z.boolean().default(false),
@@ -673,6 +678,7 @@ export const explorationRequestBaseSchema = z
 type RoutineForValidation = {
   targetUrl?: string;
   targetProfile?: string;
+  options?: { docFigures?: boolean | undefined; screenshots?: string | undefined; profile?: string | undefined };
   parameters?: Array<{ name: string }>;
   actors?: Record<string, unknown>;
   steps: Array<z.infer<typeof explorationStepSchema>>;
@@ -689,6 +695,7 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
   }
 
   validateStepList(routine.steps, 'steps', ctx);
+  validateDocFigures(routine, ctx);
   validateParameterReferences(routine, ctx);
   validateActorReferences(routine, ctx);
 
@@ -710,6 +717,42 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
       path: ['steps'],
       message: `steps exceed MAX_STEPS_PER_JOB (${env.MAX_STEPS_PER_JOB}); a parallel block counts as one step plus the steps of its branches`,
     });
+  }
+}
+
+/**
+ * T9.2: a figure is only taken when the run asks (`options.docFigures`), and it needs screenshots: `functional` turns them off and stubs images, `screenshots: 'off'`
+ * says no. Better to say so up front than to hand back a manual with holes.
+ */
+function validateDocFigures(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
+  if (routine.options?.docFigures !== true) return;
+  if (routine.options.profile === 'functional') {
+    ctx.addIssue({ code: 'custom', path: ['options', 'docFigures'], message: 'docFigures needs the full profile: the functional one replaces images with stand-ins and takes no screenshots' });
+  }
+  if (routine.options.screenshots === 'off') {
+    ctx.addIssue({ code: 'custom', path: ['options', 'docFigures'], message: 'docFigures needs screenshots: options.screenshots is "off"' });
+  }
+}
+
+/**
+ * T9.2: the rules of a step that carries `doc`.
+ *  - It needs an `id`: the figure is named after it, and the list of "figures that changed" must stay stable when steps are added before it.
+ *  - Not in a teardown (cleanup is not documentation) and not in a `parallel` branch (what a race shows is not a figure).
+ *  - Never AFTER a step that types a vault value: the figure would show what was typed. The default for those steps is before.
+ */
+function validateDocStep(step: AnyStep, path: Array<string | number>, field: 'steps' | 'teardown', ctx: z.RefinementCtx): void {
+  const doc = (step as { doc: { when?: 'before' | 'after' } }).doc;
+  if ((step as { id?: string }).id === undefined) {
+    ctx.addIssue({ code: 'custom', path: [...path, 'doc'], message: 'a step with doc needs an id: the figure is named after it and the list of changed figures follows it' });
+  }
+  if (field === 'teardown') {
+    ctx.addIssue({ code: 'custom', path: [...path, 'doc'], message: 'doc is not allowed in a teardown: cleanup is not part of the manual' });
+  }
+  if (path.includes('branches')) {
+    ctx.addIssue({ code: 'custom', path: [...path, 'doc'], message: 'doc is not allowed inside a parallel branch: branches run at the same time, so a figure would show a moment chosen by the race' });
+  }
+  if (doc.when === 'after' && (step as { valueFromCredential?: string }).valueFromCredential !== undefined) {
+    ctx.addIssue({ code: 'custom', path: [...path, 'doc', 'when'], message: 'a figure cannot be taken after a step that types a vault value (it would show it); use when: "before" or leave it out' });
   }
 }
 
@@ -792,6 +835,8 @@ function validateStepList(steps: readonly AnyStep[], field: 'steps' | 'teardown'
           });
         }
       }
+
+      if ((step as { doc?: unknown }).doc !== undefined) validateDocStep(step, here, field, ctx);
 
       if (step.id) {
         if (seen.has(step.id)) {

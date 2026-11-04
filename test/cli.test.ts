@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 38);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 40);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1175,4 +1175,135 @@ test('differential --from-jobs: compares two past runs; 0 when the same, 1 when 
   assert.equal((await cli(['differential', 'crud', '--left', 'a'])).code, 2);
   assert.equal((await cli(['differential', 'crud', '--left', 'a', '--right', 'b', '--time-ratio', '1'])).code, 2);
   assert.equal(seen.length, 0, 'usage errors are caught before any request');
+});
+
+// --- T9.2: `scrapforai manual build|show` ------------------------------------------------------------------------------------------
+
+const manualState = (status: 'completed' | 'failed', exitCode: 0 | 2, overrides: Record<string, unknown> = {}) => ({
+  buildRunId: 'man_abc',
+  targetProfile: 'app',
+  status,
+  createdAt: '2026-11-04T12:00:00.000Z',
+  request: { targetProfile: 'app', langs: ['en', 'pt'], formats: ['md', 'html'] },
+  routines:
+    status === 'completed'
+      ? [{ routineId: '01-orders', version: 2, title: 'Orders', state: 'done', outcome: 'ok', figures: 4 }]
+      : [{ routineId: '01-orders', version: 2, title: 'Orders', state: 'done', outcome: 'failed', error: 'step "press-save": DocFigureError: doc.highlight "#nope" matched no visible element' }],
+  skipped: [{ routineId: '03-draft', status: 'draft', reason: 'draft: only active routines are built into the manual' }],
+  ...(status === 'completed'
+    ? {
+        output: {
+          folder: '/docs/manual/app',
+          buildId: 'rev-3',
+          buildIdSource: 'provided',
+          langs: ['en', 'pt'],
+          formats: ['md', 'html'],
+          files: 12,
+          removedFiles: 0,
+          figures: { total: 4, new: 1, changed: 2, negligible: 0, unchanged: 1, removed: 0 },
+          changes: {
+            firstBuild: false,
+            previousBuildId: 'rev-2',
+            new: ['01-orders/saved'],
+            removed: [],
+            changed: [{ id: '01-orders/open', reason: 'visual', changedCells: 40, totalCells: 1024, percent: 3.9 }, { id: '01-orders/press-save', reason: 'resized' }],
+            negligible: [],
+            unchanged: 1,
+          },
+          missingCaptions: 2,
+        },
+        reason: 'manual written: 4 figure(s) in 1 chapter(s)',
+      }
+    : { reason: '1 of 1 routine(s) did not pass (01-orders); nothing was written, the previous manual is untouched' }),
+  exitCode,
+  ...overrides,
+});
+
+const manualStarted = { buildRunId: 'man_abc', targetProfile: 'app', status: 'running', routines: 1, skipped: [] };
+
+test('manual build: sends the languages and formats, waits, lists the figures to review, and exits 0 when written, 2 when not', async () => {
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, manualStarted) : respond(200, manualState('completed', 0)));
+  const done = await cli(['manual', 'build', 'app', '--lang', 'en,pt', '--format', 'md', '--build-id', 'rev-3', '--json']);
+  assert.equal(done.code, 0);
+  assert.equal(seen[0]!.url, '/v1/manual/builds');
+  assert.equal(seen[0]!.auth, `Bearer ${KEY}`);
+  assert.deepEqual(seen[0]!.body, { targetProfile: 'app', langs: ['en', 'pt'], formats: ['md'], buildId: 'rev-3' });
+  assert.equal(validJson(done.stdout).command, 'manual build');
+
+  const text = await cli(['manual', 'build', 'app']);
+  assert.deepEqual(seen[0]!.body, { targetProfile: 'app' }, 'nothing is sent that the user did not ask for');
+  assert.match(text.stdout, /OK\s+01-orders v2\s+4 figure\(s\)/);
+  assert.match(text.stdout, /skipped\s+03-draft: draft/);
+  assert.match(text.stdout, /written to \/docs\/manual\/app\s+\(build rev-3, en,pt, md,html, 12 files\)/);
+  assert.match(text.stdout, /figures: 4 - 2 changed, 1 new, 0 removed, 0 differ slightly, 1 unchanged/);
+  assert.match(text.stdout, /review: \/docs\/manual\/app\/<lang>\/figures-changed\.md/);
+  assert.match(text.stdout, /changed\s+01-orders\/open\s+\(3\.9% of the picture\)/);
+  assert.match(text.stdout, /changed\s+01-orders\/press-save\s+\(other size\)/);
+  assert.match(text.stdout, /new\s+01-orders\/saved/);
+  assert.match(text.stdout, /2 caption\(s\) have no text in a requested language/);
+
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, manualStarted) : respond(200, manualState('failed', 2)));
+  const failed = await cli(['manual', 'build', 'app']);
+  assert.equal(failed.code, 2);
+  assert.match(failed.stdout, /FAIL\s+01-orders v2\s+step "press-save": DocFigureError/);
+  assert.match(failed.stdout, /nothing was written, the previous manual is untouched/);
+  assert.equal(validJson((await cli(['manual', 'build', 'app', '--json'])).stdout).exitCode, 2);
+
+  const started = await cli(['manual', 'build', 'app', '--no-wait', '--json']);
+  assert.equal(started.code, 0);
+  assert.equal(validJson(started.stdout).result.buildRunId, 'man_abc');
+});
+
+test('manual build: a first build says there is nothing to compare; an API refusal is exit 2 with its type; bad usage never reaches the API', async () => {
+  const firstOutput = { ...(manualState('completed', 0).output as Record<string, unknown>), changes: { firstBuild: true, new: [], removed: [], changed: [], negligible: [], unchanged: 0 } };
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, manualStarted) : respond(200, manualState('completed', 0, { output: firstOutput })));
+  const first = await cli(['manual', 'build', 'app']);
+  assert.match(first.stdout, /figures: 4 \(first build of this manual: nothing to compare with\)/);
+  assert.ok(!/review:/.test(first.stdout));
+
+  handler = (_req, respond) => respond(404, { error: { type: 'NoDocRoutines', message: 'No active routine of target profile "app" is tagged "doc"' } });
+  const refused = await cli(['manual', 'build', 'app', '--json']);
+  assert.equal(refused.code, 2);
+  assert.equal(JSON.parse(refused.stdout).error.type, 'NoDocRoutines');
+
+  seen.length = 0;
+  assert.equal((await cli(['manual', 'build'])).code, 2);
+  assert.equal((await cli(['manual', 'build', 'app', '--lang', 'fr'])).code, 2);
+  assert.equal((await cli(['manual', 'build', 'app', '--lang', ''])).code, 2);
+  assert.equal((await cli(['manual', 'build', 'app', '--format', 'pdf'])).code, 2);
+  assert.equal((await cli(['manual', 'build', 'app', '--timeout-seconds', '0'])).code, 2);
+  assert.equal((await cli(['manual', 'show'])).code, 2);
+  assert.equal(seen.length, 0, 'usage errors are caught before any request');
+});
+
+test('manual show: what the last build wrote; no manual yet is exit 2 with its type', async () => {
+  const manifest = {
+    manualVersion: 1,
+    targetProfile: 'app',
+    title: 'The Orders App',
+    buildId: 'rev-3',
+    createdAt: '2026-11-04T12:00:00.000Z',
+    langs: ['en', 'pt'],
+    formats: ['md', 'html'],
+    routines: [{ id: '01-orders', version: 2, title: 'Orders', jobId: 'job_1', figures: 4 }],
+    figures: [{ id: '01-orders/open' }, { id: '01-orders/saved' }],
+    changes: { firstBuild: false, previousBuildId: 'rev-2', new: [], removed: [], changed: [{ id: '01-orders/open', reason: 'visual' }], negligible: ['x/y'], unchanged: 1 },
+    missingCaptions: [{ routineId: '01-orders', stepId: 'open', field: 'caption', lang: 'pt' }],
+    files: [],
+    folder: '/docs/manual/app',
+  };
+  handler = (_req, respond) => respond(200, manifest);
+  const shown = await cli(['manual', 'show', 'app']);
+  assert.equal(shown.code, 0);
+  assert.equal(seen[0]!.url, '/v1/manual/app');
+  assert.match(shown.stdout, /Manual of "app": build rev-3/);
+  assert.match(shown.stdout, /chapters: 1, figures: 2, languages: en,pt, formats: md,html/);
+  assert.match(shown.stdout, /since the previous build \(rev-2\): 1 changed, 0 new, 0 removed, 1 differ slightly, 1 unchanged/);
+  assert.match(shown.stdout, /1 caption\(s\) have no text in a requested language/);
+  assert.equal(validJson((await cli(['manual', 'show', 'app', '--json'])).stdout).command, 'manual show');
+
+  handler = (_req, respond) => respond(404, { error: { type: 'ManualNotFound', message: 'No manual has been built for "app" yet' } });
+  const none = await cli(['manual', 'show', 'app', '--json']);
+  assert.equal(none.code, 2);
+  assert.equal(JSON.parse(none.stdout).error.type, 'ManualNotFound');
 });

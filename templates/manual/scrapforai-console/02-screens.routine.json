@@ -1,0 +1,216 @@
+{
+  "title": "The screens of the console",
+  "description": "The first client of the living manual: one figure per screen of the ScrapForAI web console, with the screen's link highlighted.",
+  "tags": [
+    "doc"
+  ],
+  "surface": "screens",
+  "status": "active",
+  "targetProfile": "scrapforai-console",
+  "credentialSet": "scrapforai-console",
+  "doc": {
+    "title": {
+      "en": "The screens",
+      "pt": "As telas",
+      "es": "Las pantallas"
+    },
+    "intro": {
+      "en": "The top bar links to every screen. The one you are on is highlighted in each figure.",
+      "pt": "A barra do topo leva a todas as telas. Em cada figura, a tela em que você está aparece destacada.",
+      "es": "La barra superior lleva a todas las pantallas. En cada figura, la pantalla en la que está aparece resaltada."
+    }
+  },
+  "steps": [
+    {
+      "id": "size",
+      "action": "setViewport",
+      "width": 1100,
+      "height": 700
+    },
+    {
+      "id": "open-login",
+      "action": "goto",
+      "url": "$targetUrl"
+    },
+    {
+      "id": "wait-login",
+      "action": "waitForSelector",
+      "selector": "#api-key",
+      "state": "visible"
+    },
+    {
+      "id": "type-key",
+      "action": "fill",
+      "selector": "#api-key",
+      "valueFromCredential": "apiKey"
+    },
+    {
+      "id": "submit",
+      "action": "click",
+      "selector": "button[type=\"submit\"]"
+    },
+    {
+      "id": "wait-history",
+      "action": "waitForSelector",
+      "selector": "#runs-body",
+      "state": "attached"
+    },
+    {
+      "id": "settle-history",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "history",
+      "action": "assertVisible",
+      "selector": "#stats",
+      "doc": {
+        "caption": {
+          "en": "Run history: every past run, newest first, with the counts of passed and failed runs across the top.",
+          "pt": "Histórico de execuções: todas as execuções passadas, da mais nova à mais antiga, com as contagens de aprovadas e reprovadas no topo.",
+          "es": "Historial de ejecuciones: todas las ejecuciones pasadas, de la más nueva a la más antigua, con los conteos de aprobadas y falladas arriba."
+        },
+        "highlight": "#stats"
+      }
+    },
+    {
+      "id": "go-executive",
+      "action": "click",
+      "selector": "nav a[href=\"executive.html\"]"
+    },
+    {
+      "id": "settle-executive",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "executive",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"executive.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Executive: tests, regressions caught, quality trend and the readiness of each system for its latest build.",
+          "pt": "Executivo: testes, regressões pegas, tendência de qualidade e a prontidão de cada sistema para o seu último build.",
+          "es": "Ejecutivo: pruebas, regresiones detectadas, tendencia de calidad y la preparación de cada sistema para su último build."
+        },
+        "highlight": "nav a[href=\"executive.html\"]"
+      }
+    },
+    {
+      "id": "go-health",
+      "action": "click",
+      "selector": "nav a[href=\"health.html\"]"
+    },
+    {
+      "id": "settle-health",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "health",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"health.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Health: one card per target profile, with its status and the reasons behind it.",
+          "pt": "Saúde: um cartão por perfil de alvo, com o seu status e os motivos.",
+          "es": "Salud: una tarjeta por perfil de destino, con su estado y los motivos."
+        },
+        "highlight": "nav a[href=\"health.html\"]"
+      }
+    },
+    {
+      "id": "go-vault",
+      "action": "click",
+      "selector": "nav a[href=\"vault.html\"]"
+    },
+    {
+      "id": "settle-vault",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "vault",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"vault.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Regression vault: the bugs that were fixed, kept as permanent proof.",
+          "pt": "Cofre de regressão: os bugs corrigidos, guardados como prova permanente.",
+          "es": "Bóveda de regresión: los bugs corregidos, guardados como prueba permanente."
+        },
+        "highlight": "nav a[href=\"vault.html\"]"
+      }
+    },
+    {
+      "id": "go-performance",
+      "action": "click",
+      "selector": "nav a[href=\"performance.html\"]"
+    },
+    {
+      "id": "settle-performance",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "performance",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"performance.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Performance: how long each routine and each step takes over time, and which one got slower.",
+          "pt": "Desempenho: quanto tempo cada rotina e cada passo levam ao longo do tempo, e qual ficou mais lento.",
+          "es": "Rendimiento: cuánto tardan cada rutina y cada paso a lo largo del tiempo, y cuál se volvió más lento."
+        },
+        "highlight": "nav a[href=\"performance.html\"]"
+      }
+    },
+    {
+      "id": "go-config",
+      "action": "click",
+      "selector": "nav a[href=\"config.html\"]"
+    },
+    {
+      "id": "settle-config",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "config",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"config.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Configuration: the settings of the server, grouped; the locked ones need the API key as a bearer token.",
+          "pt": "Configuração: os ajustes do servidor, agrupados; os bloqueados exigem a chave de API como token bearer.",
+          "es": "Configuración: los ajustes del servidor, agrupados; los bloqueados exigen la clave de API como token bearer."
+        },
+        "highlight": "nav a[href=\"config.html\"]"
+      }
+    },
+    {
+      "id": "go-status",
+      "action": "click",
+      "selector": "nav a[href=\"status.html\"]"
+    },
+    {
+      "id": "settle-status",
+      "action": "waitForQuiet"
+    },
+    {
+      "id": "status",
+      "action": "assertVisible",
+      "selector": "nav a[href=\"status.html\"]",
+      "doc": {
+        "caption": {
+          "en": "Status: the running service and its storage.",
+          "pt": "Status: o serviço em execução e o seu armazenamento.",
+          "es": "Estado: el servicio en ejecución y su almacenamiento."
+        },
+        "highlight": "nav a[href=\"status.html\"]"
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "id": "sign-out",
+      "label": "Sign out so the next build can sign in",
+      "action": "click",
+      "selector": "#logout"
+    }
+  ]
+}
