@@ -470,6 +470,28 @@
       ],
       "additionalProperties": false
     },
+    "autoLogin": {
+      "type": "object",
+      "properties": {
+        "routineId": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "gate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "routineId",
+        "version",
+        "gate"
+      ],
+      "additionalProperties": false
+    },
     "includes": {
       "type": "array",
       "items": {
@@ -634,6 +656,27 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/__schema4"
+          }
+        },
+        "noiseFiltered": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string"
+              },
+              "count": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "reason",
+              "count"
+            ],
+            "additionalProperties": false
           }
         },
         "unexpectedExternalRequests": {

@@ -85,7 +85,8 @@ before(async () => {
   await profile('gx-nogate', { platform: 'genexus', loginRoutine: 'gx-login-b' });
   await profile('plain-app', { platform: 'generic', loginRoutine: 'gx-login' });
   await save('gx-login', 'gx-app', loginSteps);
-  await save('gx-login-b', 'gx-nogate', loginSteps);
+  // This profile has no loginGate, so its login routine carries its own (GX001).
+  await save('gx-login-b', 'gx-nogate', [...loginSteps, { id: 'gate', action: 'waitForUrlContains', value: 'home', timeoutMs: 5000 }] as Body['steps']);
   await saveCredentialSet('gx-admin', { boundOrigins: [ORIGIN], values: { loginUser: 'admin', loginPassword: 'placeholder-password-1' }, tags: [] }, 'create');
 });
 

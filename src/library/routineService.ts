@@ -22,6 +22,7 @@ import { getTarget } from '../targets/targetStore.js';
 import { listAllCredentialValues } from '../vault/credentials/credentialVault.js';
 import { recordRunMetrics } from '../metrics/perfRecorder.js';
 import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
+import { type ConventionLintResult, lintConventions } from './conventionLint.js';
 import { lintRoutineSteps, lintParameters } from './routineLint.js';
 
 function zodDetails(error: ZodError): Array<{ path: string; message: string }> {
@@ -135,7 +136,7 @@ export async function saveRoutine(
   id: string,
   body: RoutineSaveBody,
   options: { allowFailedJob?: boolean } = {},
-): Promise<{ routine: LibraryRoutine; created: boolean }> {
+): Promise<{ routine: LibraryRoutine; created: boolean; lint: ConventionLintResult }> {
   const fromJob = body.fromJobId === undefined ? {} : await contentFromJob(body, body.fromJobId, options.allowFailedJob === true);
 
   const candidate = {
@@ -148,6 +149,7 @@ export async function saveRoutine(
     credentialSet: body.credentialSet,
     options: body.options,
     parameters: body.parameters,
+    lintSuppress: body.lintSuppress,
     steps: body.steps,
     teardown: body.teardown,
     // From the job, but anything the caller passed explicitly wins (contentFromJob already applies that).
@@ -160,7 +162,8 @@ export async function saveRoutine(
   }
   const content: RoutineContent = parsed.data;
 
-  if (!(await getTarget(content.targetProfile))) {
+  const profile = await getTarget(content.targetProfile);
+  if (!profile) {
     throw new RoutineLibraryError(400, 'TargetProfileNotFound', `Target profile "${content.targetProfile}" does not exist`);
   }
 
@@ -186,7 +189,44 @@ export async function saveRoutine(
     throw new RoutineLibraryError(422, 'RoutineLintError', 'Routine contains what looks like a secret', issues);
   }
 
-  return saveRoutineVersion(id, content, body.createdBy);
+  // T8.4: the authoring conventions. An error stops the save (nothing is stored); warnings are returned with the saved routine.
+  const lint = lintConventions(content, conventionContext(profile, id));
+  const errors = lint.findings.filter((finding) => finding.severity === 'error');
+  if (errors.length > 0) {
+    throw new RoutineLibraryError(
+      422,
+      'RoutineConventionError',
+      `The routine breaks an authoring convention (${[...new Set(errors.map((finding) => finding.rule))].join(', ')}); fix it, or accept it on purpose with lintSuppress { rule, reason }`,
+      errors.map((finding) => ({ path: finding.path, message: `${finding.rule}: ${finding.message}` })),
+    );
+  }
+
+  return { ...(await saveRoutineVersion(id, content, body.createdBy)), lint };
+}
+
+/** What the convention rules need to know about the profile the routine belongs to. */
+export function conventionContext(profile: NonNullable<Awaited<ReturnType<typeof getTarget>>>, routineId?: string) {
+  const isLoginRoutine = routineId !== undefined && profile.loginRoutine === routineId;
+  return {
+    platform: profile.platform,
+    ...(profile.loginRoutine ? { loginRoutineId: profile.loginRoutine } : {}),
+    ...(isLoginRoutine ? { isLoginRoutine: true, ...(profile.loginGate ? { gateProvidedByProfile: true } : {}) } : {}),
+  };
+}
+
+/** Lints steps without saving them (POST /v1/routines/lint, `scrapforai routines lint`). */
+export async function lintRoutineContent(input: {
+  targetProfile: string;
+  steps: RoutineContent['steps'];
+  teardown?: RoutineContent['teardown'];
+  lintSuppress?: RoutineContent['lintSuppress'];
+  routineId?: string;
+}): Promise<ConventionLintResult> {
+  const profile = await getTarget(input.targetProfile);
+  if (!profile) {
+    throw new RoutineLibraryError(400, 'TargetProfileNotFound', `Target profile "${input.targetProfile}" does not exist`);
+  }
+  return lintConventions(input, conventionContext(profile, input.routineId));
 }
 
 /**

@@ -286,9 +286,42 @@ test('routines list, runs show and pin', async () => {
   assert.match(full.stderr, /PinnedQuotaExceeded/);
 });
 
+test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file or a stored routine is read, usage errors never reach the API', async () => {
+  const finding = { rule: 'GX001', severity: 'error', path: 'steps.3', stepId: 'submit', message: 'no gate', suggestion: 'add one' };
+  const warning = { rule: 'WT001', severity: 'warning', path: 'steps.1', message: 'fixed wait' };
+  const file = JSON.stringify({ targetProfile: 'gx-app', steps: [{ action: 'reload' }], lintSuppress: [{ rule: 'SEL001', reason: 'a long enough reason' }] });
+
+  handler = (_req, respond) => respond(200, { findings: [finding, warning], suppressed: [{ ...warning, rule: 'SEL001', reason: 'a long enough reason' }] });
+  const bad = await cli(['routines', 'lint', 'login.json'], { readFile: async () => file });
+  assert.equal(bad.code, 1);
+  assert.match(bad.stdout, /ERROR\s+GX001\s+steps\.3 \(submit\): no gate/);
+  assert.match(bad.stdout, /warning\s+WT001/);
+  assert.match(bad.stdout, /accepted\s+SEL001.*a long enough reason/);
+  assert.equal(seen.at(-1)!.url, '/v1/routines/lint');
+  assert.deepEqual((seen.at(-1)!.body as { targetProfile: string }).targetProfile, 'gx-app');
+  assert.equal(validJson((await cli(['routines', 'lint', 'login.json', '--json'], { readFile: async () => file })).stdout).result.findings.length, 2);
+
+  handler = (_req, respond) => respond(200, { findings: [warning], suppressed: [] });
+  assert.equal((await cli(['routines', 'lint', 'login.json'], { readFile: async () => file })).code, 0);
+  assert.equal((await cli(['routines', 'lint', 'login.json', '--strict'], { readFile: async () => file })).code, 1);
+
+  // A stored routine: read from the library, then linted as that routine (the server knows if it is the login routine).
+  handler = (req, respond) => respond(200, req.url === '/v1/routines/lint' ? { findings: [], suppressed: [] } : { routine: { id: 'gx-login', targetProfile: 'gx-app', steps: [{ action: 'reload' }] }, versions: [] });
+  const stored = await cli(['routines', 'lint', 'gx-login']);
+  assert.equal(stored.code, 0);
+  assert.match(stored.stdout, /No findings/);
+  assert.equal((seen.at(-1)!.body as { routineId: string }).routineId, 'gx-login');
+
+  const usage = await cli(['routines', 'lint']);
+  assert.equal(usage.code, 2);
+  const noProfile = await cli(['routines', 'lint', 'x.json'], { readFile: async () => JSON.stringify({ steps: [{ action: 'reload' }] }) });
+  assert.equal(noProfile.code, 2);
+  assert.equal(seen.length, 0, 'neither reached the API');
+});
+
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 35);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 36);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 

@@ -98,6 +98,8 @@ From `docs/npdev-testing-guide.md`:
   `platform: genexus` it is already filtered out of `networkFailures` and counted in `evidence.noiseFiltered`.
 - On a `genexus` profile the profile's `loginRoutine` (+ `loginGate`) is included for you when you pass a `credentialSet`: do not include it again.
   `options.autoLogin: false` turns that off.
+- `save_routine` returns `lint: { findings, suppressed }`. On a `genexus` profile a login submit with no gate (`GX001`) is REFUSED (422): add a `waitForUrlContains`, or set the profile's `loginGate`.
+  Warnings: `GX002` (login without logout teardown), `WT001` (fixed wait), `SEL001` (positional selector). To accept one on purpose: `lintSuppress: [{ rule, reason }]`.
 - Prefer `waitForQuiet` (or `afterWaitFor: { quiet: {} }` on the action) to a fixed `waitForTimeout`: it waits until no XHR/fetch is pending.
 - A "missing component" is often a consequence of **not reaching the page** (failed login, redirect). Confirm
   the URL first (the login gate, or a `collect` of `url`) before calling it a UI defect.

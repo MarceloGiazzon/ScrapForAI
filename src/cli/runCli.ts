@@ -64,6 +64,9 @@ Commands
   health [--target <id>] [--fail-on-red]
                                     (the state of every target profile in one read: routines, trend, flaky, slower, vault, schedules; exit 0 unless --fail-on-red and a target is red)
   routines list
+  routines lint <routineId|file.json|-> [--target id] [--strict]
+                                    (the authoring conventions as code: GX001 login submit without a gate (error), GX002 login without logout teardown, WT001 fixed wait, SEL001 positional selector;
+                                     exit 1 on an error, or on any finding with --strict; a routine can accept a finding with lintSuppress { rule, reason })
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
   report <jobId|suiteRunId> --out <file> [--format html|pdf] [--lang en|pt|es]
@@ -1002,6 +1005,55 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const text = routines.length === 0 ? 'No routines saved.\n' : `${routines.map((r) => `${r.id}  v${r.version}  ${r.status}  ${r.targetProfile}  ${r.title}${r.tags?.length ? `  [${r.tags.join(', ')}]` : ''}`).join('\n')}\n`;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'routines list', exitCode: 0, result: { routines } as never }, text);
       return 0;
+    }
+
+    if (command === 'routines lint') {
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, target: { type: 'string' }, strict: { type: 'boolean' } } });
+      asJson = values.json === true;
+      const source = positionals[0];
+      if (!source) throw new CliError('Usage', 'routines lint needs a routine id, a .json file or - for stdin');
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+
+      let content: Record<string, any>;
+      let routineId: string | undefined;
+      if (source === '-' || source.endsWith('.json')) {
+        const raw = source === '-' ? await (io.readStdin ?? (async () => { throw new Error('stdin is not available'); }))() : await (io.readFile ?? (async () => { throw new Error('files are not available'); }))(source);
+        try {
+          content = JSON.parse(raw) as Record<string, any>;
+        } catch {
+          throw new CliError('Usage', 'the input is not valid JSON');
+        }
+      } else {
+        const stored = await api('GET', `/v1/routines/${encodeURIComponent(source)}`);
+        if (stored.status !== 200) throw errorOf(stored);
+        content = (stored.body as { routine: Record<string, any> }).routine;
+        routineId = source;
+      }
+
+      const targetProfile = values.target ?? content.targetProfile;
+      if (!targetProfile || !Array.isArray(content.steps)) throw new CliError('Usage', 'the input needs steps and a targetProfile (or pass --target)');
+      const response = await api('POST', '/v1/routines/lint', {
+        targetProfile,
+        steps: content.steps,
+        ...(content.teardown ? { teardown: content.teardown } : {}),
+        ...(content.lintSuppress ? { lintSuppress: content.lintSuppress } : {}),
+        ...(routineId ? { routineId } : {}),
+      });
+      if (response.status !== 200) throw errorOf(response);
+
+      const { findings, suppressed } = response.body as { findings: Array<Record<string, any>>; suppressed: Array<Record<string, any>> };
+      const line = (item: Record<string, any>, prefix: string) => `${prefix}  ${item.rule}  ${item.path}${item.stepId ? ` (${item.stepId})` : ''}: ${item.message}${item.suggestion ? `\n         -> ${item.suggestion}` : ''}`;
+      const lines = [
+        ...findings.map((item) => line(item, item.severity === 'error' ? 'ERROR  ' : 'warning')),
+        ...suppressed.map((item) => `accepted  ${item.rule}  ${item.path}: ${item.reason}`),
+      ];
+      const failed = findings.some((item) => item.severity === 'error') || (values.strict === true && findings.length > 0);
+      const exitCode: ExitCode = failed ? 1 : 0;
+      emit(
+        { cliSchema: CLI_SCHEMA_VERSION, command: 'routines lint', exitCode, result: { findings, suppressed } as never },
+        `${lines.length === 0 ? 'No findings.' : lines.join('\n')}\n`,
+      );
+      return exitCode;
     }
 
     if (command === 'runs show') {

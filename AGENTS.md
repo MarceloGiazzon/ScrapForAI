@@ -472,6 +472,16 @@ step limits, artifact retention, etc.).
   timeout is refused. **GeneXus spike NOT done**: no generated GeneXus app (Java or .NET) was available (WmsOffice is NPDev), so whether the GeneXus runtime exposes a reliable "busy" flag is
   unknown; the counter works without it. To do it: on a real page, read the globals the runtime defines (`gx`, its ajax/event objects) before and during a server event and see if any
   flips. `test/network-quiet.test.ts`, `test/network-quiet.smoke.ts` (Chromium: fetch -> XHR chain, an iframe, a request that hangs, a run without the counter).
+- **Convention lint** (`src/library/conventionLint.ts` pure, `routineService.ts`, T8.4): the authoring conventions as rules with a CODE. **GX001** (error, genexus): a submit after typing a
+  credential (`fill`/`selectOption` with `valueFromCredential`, then click/doubleClick/press) with no login gate in the next 3 steps (`waitForUrlContains`, `assertUrlContains`, a `waitFor.urlContains`) and none on the
+  submit's own `afterWaitFor.urlContains`; not asked of the profile's own login routine when the profile has a `loginGate` (T8.1 adds it). **GX002** (warning, genexus): the routine logs in (directly, or by including the profile's
+  login routine) and has no teardown; not asked of the login routine itself. **WT001** (warning): a fixed `waitForTimeout` (suggests `waitForQuiet`). **SEL001** (warning): a positional `selector`/`scope`/`startSelector`
+  (`:nth-child(`, `:nth-of-type(`, `:first-child`, `:last-child`, `:first`, `:last`, `>> nth=`). GX rules apply to `platform: genexus` only; WT001 and SEL001 to every profile. **At save** (`PUT /v1/routines/:id`, MCP `save_routine`): an
+  `error` stops the save with 422 `RoutineConventionError` (details `GX001: ...`, nothing is stored); warnings come back in the response as `lint: { findings, suppressed }`. **Suppression**: the routine's optional `lintSuppress: [{ rule, reason (10+ chars), stepId? }]`
+  (no default, so older digests hold; it is part of the routine, so it is versioned and reviewed) moves the finding to `suppressed` with its reason; it is never dropped from the output. `POST /v1/routines/lint` (`{ targetProfile, steps, teardown?, lintSuppress?, routineId? }`)
+  lints without saving; CLI `scrapforai routines lint <routineId|file.json|-> [--target id] [--strict]` (exit 1 on an error, or on any finding with `--strict`; 0 otherwise). Departures from the roadmap: SEL001 cannot know whether a semantic selector exists
+  (the lint reads the routine, not the page), so it warns on every positional selector; and the CLI needs the server (the rules need the target profile). Not done: a lint of ALL stored routines at once, `drift` between a stored routine and newer rules (an old routine is only linted when re-saved or asked), a rule for `evaluate`,
+  `lint_routine` as an MCP tool (save_routine already returns the findings). `test/convention-lint.test.ts`, `test/cli.test.ts`.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -549,7 +559,7 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `perf list|alerts|show <routine> [--fail-on-alert]`, `flaky list|show <routine> [--fail-on-suggestion]`, `health [--target id] [--fail-on-red]`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`routines list|lint <routineId|file|->`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `perf list|alerts|show <routine> [--fail-on-alert]`, `flaky list|show <routine> [--fail-on-suggestion]`, `health [--target id] [--fail-on-red]`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
 `permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
 `evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--accessibility [--a11y-standard x]] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
 `evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),

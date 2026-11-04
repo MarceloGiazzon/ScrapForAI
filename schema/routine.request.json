@@ -45,7 +45,7 @@
       "$ref": "#/$defs/__schema30"
     },
     "teardown": {
-      "$ref": "#/$defs/__schema76"
+      "$ref": "#/$defs/__schema77"
     }
   },
   "required": [
@@ -462,6 +462,9 @@
         "piiScan": {
           "type": "boolean"
         },
+        "autoLogin": {
+          "type": "boolean"
+        },
         "collectDomOnFailure": {
           "default": false,
           "type": "boolean"
@@ -566,7 +569,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -578,7 +581,7 @@
               "maxLength": 2048
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -609,14 +612,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "reload"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -646,7 +649,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -684,7 +687,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -699,7 +702,7 @@
               ]
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -730,17 +733,59 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
+            },
+            "action": {
+              "type": "string",
+              "const": "waitForQuiet"
+            },
+            "idleMs": {
+              "type": "integer",
+              "minimum": 50,
+              "maximum": 10000
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema48"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema38"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "waitForUrlContains"
             },
             "value": {
-              "$ref": "#/$defs/__schema48"
+              "$ref": "#/$defs/__schema49"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -771,7 +816,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -811,7 +856,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -857,7 +902,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -903,31 +948,31 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
-            },
-            "action": {
-              "$ref": "#/$defs/__schema49"
-            },
-            "selector": {
-              "$ref": "#/$defs/__schema50"
-            },
-            "timeoutMs": {
               "$ref": "#/$defs/__schema47"
             },
-            "value": {
+            "action": {
+              "$ref": "#/$defs/__schema50"
+            },
+            "selector": {
               "$ref": "#/$defs/__schema51"
             },
-            "valueFromCredential": {
-              "$ref": "#/$defs/__schema53"
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema48"
             },
-            "valueFromVariable": {
+            "value": {
+              "$ref": "#/$defs/__schema52"
+            },
+            "valueFromCredential": {
               "$ref": "#/$defs/__schema54"
             },
-            "valueFromParameter": {
+            "valueFromVariable": {
               "$ref": "#/$defs/__schema55"
             },
-            "valueFromGenerator": {
+            "valueFromParameter": {
               "$ref": "#/$defs/__schema56"
+            },
+            "valueFromGenerator": {
+              "$ref": "#/$defs/__schema57"
             }
           },
           "required": [
@@ -958,17 +1003,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "click"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -999,17 +1044,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "doubleClick"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1040,17 +1085,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "hover"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1081,14 +1126,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "press"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "key": {
               "type": "string",
@@ -1096,7 +1141,7 @@
               "maxLength": 80
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1128,31 +1173,31 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
-            },
-            "action": {
-              "$ref": "#/$defs/__schema57"
-            },
-            "selector": {
-              "$ref": "#/$defs/__schema50"
-            },
-            "timeoutMs": {
               "$ref": "#/$defs/__schema47"
             },
-            "value": {
+            "action": {
+              "$ref": "#/$defs/__schema58"
+            },
+            "selector": {
               "$ref": "#/$defs/__schema51"
             },
-            "valueFromCredential": {
-              "$ref": "#/$defs/__schema53"
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema48"
             },
-            "valueFromVariable": {
+            "value": {
+              "$ref": "#/$defs/__schema52"
+            },
+            "valueFromCredential": {
               "$ref": "#/$defs/__schema54"
             },
-            "valueFromParameter": {
+            "valueFromVariable": {
               "$ref": "#/$defs/__schema55"
             },
-            "valueFromGenerator": {
+            "valueFromParameter": {
               "$ref": "#/$defs/__schema56"
+            },
+            "valueFromGenerator": {
+              "$ref": "#/$defs/__schema57"
             }
           },
           "required": [
@@ -1183,17 +1228,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "check"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1224,17 +1269,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "uncheck"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1265,14 +1310,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "waitForSelector"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "state": {
               "type": "string",
@@ -1284,7 +1329,7 @@
               ]
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1316,7 +1361,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1338,7 +1383,7 @@
               "maximum": 599
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1369,17 +1414,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertVisible"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1410,17 +1455,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertHidden"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1451,17 +1496,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertEnabled"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1492,17 +1537,17 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertDisabled"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1533,20 +1578,20 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertTextContains"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "text": {
-              "$ref": "#/$defs/__schema52"
+              "$ref": "#/$defs/__schema53"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1578,14 +1623,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertUrlContains"
             },
             "value": {
-              "$ref": "#/$defs/__schema48"
+              "$ref": "#/$defs/__schema49"
             }
           },
           "required": [
@@ -1616,14 +1661,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertCount"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "operator": {
               "type": "string",
@@ -1672,7 +1717,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1775,7 +1820,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1813,7 +1858,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1824,7 +1869,7 @@
               "maxItems": 5,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema58"
+                "$ref": "#/$defs/__schema59"
               }
             }
           },
@@ -1856,7 +1901,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1866,17 +1911,17 @@
               "$ref": "#/$defs/__schema5"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "textMarkers": {
               "maxItems": 20,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema59"
+                "$ref": "#/$defs/__schema60"
               }
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -1907,7 +1952,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1949,7 +1994,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -1959,10 +2004,10 @@
               "$ref": "#/$defs/__schema5"
             },
             "startSelector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "scope": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "maxTabs": {
               "default": 200,
@@ -1975,11 +2020,11 @@
               "maxItems": 3,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema60"
+                "$ref": "#/$defs/__schema61"
               }
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2010,31 +2055,31 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
-              "$ref": "#/$defs/__schema61"
+              "$ref": "#/$defs/__schema62"
             },
             "name": {
               "$ref": "#/$defs/__schema5"
             },
             "scope": {
-              "$ref": "#/$defs/__schema62"
-            },
-            "standard": {
               "$ref": "#/$defs/__schema63"
             },
-            "rules": {
+            "standard": {
               "$ref": "#/$defs/__schema64"
             },
-            "failOn": {
-              "$ref": "#/$defs/__schema66"
+            "rules": {
+              "$ref": "#/$defs/__schema65"
             },
-            "baseline": {
+            "failOn": {
               "$ref": "#/$defs/__schema67"
             },
+            "baseline": {
+              "$ref": "#/$defs/__schema68"
+            },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2065,7 +2110,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2197,21 +2242,21 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "assertNoTextMatches"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "kinds": {
               "minItems": 1,
               "maxItems": 4,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema68"
+                "$ref": "#/$defs/__schema69"
               }
             },
             "contains": {
@@ -2219,11 +2264,11 @@
               "maxItems": 20,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema69"
+                "$ref": "#/$defs/__schema70"
               }
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2253,7 +2298,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2267,7 +2312,7 @@
               "maxItems": 6,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema70"
+                "$ref": "#/$defs/__schema71"
               }
             },
             "failOn": {
@@ -2282,7 +2327,7 @@
               ]
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2313,19 +2358,19 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
-              "$ref": "#/$defs/__schema71"
-            },
-            "fixedTime": {
               "$ref": "#/$defs/__schema72"
             },
+            "fixedTime": {
+              "$ref": "#/$defs/__schema73"
+            },
             "installAt": {
-              "$ref": "#/$defs/__schema74"
+              "$ref": "#/$defs/__schema75"
             },
             "fastForwardMs": {
-              "$ref": "#/$defs/__schema75"
+              "$ref": "#/$defs/__schema76"
             }
           },
           "required": [
@@ -2355,20 +2400,20 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "extractText"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "name": {
               "$ref": "#/$defs/__schema5"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2400,14 +2445,14 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
               "const": "extractAttribute"
             },
             "selector": {
-              "$ref": "#/$defs/__schema50"
+              "$ref": "#/$defs/__schema51"
             },
             "attribute": {
               "$ref": "#/$defs/__schema5"
@@ -2416,7 +2461,7 @@
               "$ref": "#/$defs/__schema5"
             },
             "timeoutMs": {
-              "$ref": "#/$defs/__schema47"
+              "$ref": "#/$defs/__schema48"
             }
           },
           "required": [
@@ -2449,7 +2494,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2493,7 +2538,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2549,7 +2594,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2598,7 +2643,7 @@
               "$ref": "#/$defs/__schema38"
             },
             "afterWaitFor": {
-              "$ref": "#/$defs/__schema46"
+              "$ref": "#/$defs/__schema47"
             },
             "action": {
               "type": "string",
@@ -2716,6 +2761,9 @@
         },
         "urlContains": {
           "$ref": "#/$defs/__schema45"
+        },
+        "quiet": {
+          "$ref": "#/$defs/__schema46"
         }
       },
       "additionalProperties": false
@@ -2772,50 +2820,61 @@
       "maxLength": 2048
     },
     "__schema46": {
-      "$ref": "#/$defs/__schema39"
+      "type": "object",
+      "properties": {
+        "idleMs": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 10000
+        }
+      },
+      "additionalProperties": false
     },
     "__schema47": {
+      "$ref": "#/$defs/__schema39"
+    },
+    "__schema48": {
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 30000
     },
-    "__schema48": {
+    "__schema49": {
       "type": "string",
       "maxLength": 500
     },
-    "__schema49": {
+    "__schema50": {
       "type": "string",
       "const": "fill"
     },
-    "__schema50": {
+    "__schema51": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema51": {
-      "$ref": "#/$defs/__schema52"
-    },
     "__schema52": {
-      "type": "string",
-      "maxLength": 5000
+      "$ref": "#/$defs/__schema53"
     },
     "__schema53": {
-      "$ref": "#/$defs/__schema5"
+      "type": "string",
+      "maxLength": 5000
     },
     "__schema54": {
       "$ref": "#/$defs/__schema5"
     },
     "__schema55": {
-      "$ref": "#/$defs/__schema11"
+      "$ref": "#/$defs/__schema5"
     },
     "__schema56": {
-      "$ref": "#/$defs/__schema12"
+      "$ref": "#/$defs/__schema11"
     },
     "__schema57": {
+      "$ref": "#/$defs/__schema12"
+    },
+    "__schema58": {
       "type": "string",
       "const": "selectOption"
     },
-    "__schema58": {
+    "__schema59": {
       "type": "string",
       "enum": [
         "console",
@@ -2825,12 +2884,12 @@
         "pageErrors"
       ]
     },
-    "__schema59": {
+    "__schema60": {
       "type": "string",
       "minLength": 1,
       "maxLength": 500
     },
-    "__schema60": {
+    "__schema61": {
       "type": "string",
       "enum": [
         "neverFocused",
@@ -2838,14 +2897,14 @@
         "invisibleFocus"
       ]
     },
-    "__schema61": {
+    "__schema62": {
       "type": "string",
       "const": "auditAccessibility"
     },
-    "__schema62": {
-      "$ref": "#/$defs/__schema50"
-    },
     "__schema63": {
+      "$ref": "#/$defs/__schema51"
+    },
+    "__schema64": {
       "default": "wcag2aa",
       "type": "string",
       "enum": [
@@ -2855,19 +2914,19 @@
         "wcag22aa"
       ]
     },
-    "__schema64": {
+    "__schema65": {
       "minItems": 1,
       "maxItems": 100,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema65"
+        "$ref": "#/$defs/__schema66"
       }
     },
-    "__schema65": {
+    "__schema66": {
       "type": "string",
       "pattern": "^[a-z0-9-]{1,80}$"
     },
-    "__schema66": {
+    "__schema67": {
       "default": "none",
       "type": "string",
       "enum": [
@@ -2877,7 +2936,7 @@
         "any"
       ]
     },
-    "__schema67": {
+    "__schema68": {
       "type": "object",
       "properties": {
         "screen": {
@@ -2896,7 +2955,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema68": {
+    "__schema69": {
       "type": "string",
       "enum": [
         "stackTrace",
@@ -2905,12 +2964,12 @@
         "serverPath"
       ]
     },
-    "__schema69": {
+    "__schema70": {
       "type": "string",
       "minLength": 1,
       "maxLength": 200
     },
-    "__schema70": {
+    "__schema71": {
       "type": "string",
       "enum": [
         "url",
@@ -2921,27 +2980,27 @@
         "hidden-input"
       ]
     },
-    "__schema71": {
+    "__schema72": {
       "type": "string",
       "const": "setClock"
     },
-    "__schema72": {
-      "$ref": "#/$defs/__schema73"
-    },
     "__schema73": {
+      "$ref": "#/$defs/__schema74"
+    },
+    "__schema74": {
       "type": "string",
       "format": "date-time",
       "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
     },
-    "__schema74": {
-      "$ref": "#/$defs/__schema73"
-    },
     "__schema75": {
+      "$ref": "#/$defs/__schema74"
+    },
+    "__schema76": {
       "type": "integer",
       "minimum": 1,
       "maximum": 315360000000
     },
-    "__schema76": {
+    "__schema77": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",

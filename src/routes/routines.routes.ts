@@ -2,10 +2,10 @@ import { Router, type Response } from 'express';
 import { ZodError } from 'zod';
 
 import { getRoutine, listRoutines, listVersions, RoutineLibraryError } from '../library/routineLibrary.js';
-import { runLibraryRoutine, saveRoutine } from '../library/routineService.js';
+import { lintRoutineContent, runLibraryRoutine, saveRoutine } from '../library/routineService.js';
 import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolveRequest.js';
-import { routineRunBodySchema, routineSaveBodySchema } from '../schemas/libraryRoutine.schema.js';
+import { routineLintBodySchema, routineRunBodySchema, routineSaveBodySchema } from '../schemas/libraryRoutine.schema.js';
 import { redactSecrets } from '../security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from '../security/validateTargetUrl.js';
 import { VaultError } from '../vault/credentials/credentialVault.js';
@@ -84,6 +84,22 @@ routinesRouter.get('/:id', async (req, res, next) => {
   }
 });
 
+// T8.4: the authoring conventions, without saving anything.
+routinesRouter.post('/lint', async (req, res, next) => {
+  try {
+    const parsed = routineLintBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { type: 'ValidationError', message: 'Invalid lint request', details: zodDetails(parsed.error) } });
+      return;
+    }
+    res.json(await lintRoutineContent(parsed.data));
+  } catch (error) {
+    if (!sendKnownError(res, error)) {
+      next(error);
+    }
+  }
+});
+
 routinesRouter.put('/:id', async (req, res, next) => {
   try {
     const parsed = routineSaveBodySchema.safeParse(req.body);
@@ -92,8 +108,8 @@ routinesRouter.put('/:id', async (req, res, next) => {
       return;
     }
 
-    const { routine, created } = await saveRoutine(String(req.params.id), parsed.data);
-    res.status(created ? 201 : 200).json({ created, routine });
+    const { routine, created, lint } = await saveRoutine(String(req.params.id), parsed.data);
+    res.status(created ? 201 : 200).json({ created, routine, lint });
   } catch (error) {
     if (!sendKnownError(res, error)) {
       next(error);

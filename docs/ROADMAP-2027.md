@@ -1363,6 +1363,8 @@ lentidão e flakiness.
 
 ### T8.4 — Lint de rotinas (convenções como código) · M
 
+> **Implementada em 2026-11-04** (`src/library/conventionLint.ts`; ver AGENTS.md, "Convention lint"). Códigos: GX001 (erro, genexus), GX002, WT001, SEL001. Desvios: (1) SEL001 avisa em todo seletor posicional, porque o lint lê a rotina e não a página (não sabe se existe um semântico); (2) o erro só barra o salvar em perfil `genexus`; (3) a supressão é `lintSuppress` na própria rotina, versionada com ela. **Não feito:** lint de todas as rotinas guardadas de uma vez.
+
 - `scrapforai routine lint <arquivo|id>` e lint automático no `save_routine`.
 - Regras derivadas de [genexus-routine-conventions.md](genexus-routine-conventions.md):
   - submit de login sem *login gate* em seguida → erro;

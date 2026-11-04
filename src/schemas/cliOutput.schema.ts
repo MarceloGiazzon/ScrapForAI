@@ -35,6 +35,11 @@ export const cliRunResultSchema = z
   })
   .strict();
 
+const cliLintFindingSchema = z.object({ rule: z.string(), severity: z.enum(['error', 'warning']), path: z.string(), message: z.string() }).passthrough();
+export const cliRoutinesLintSchema = z
+  .object({ findings: z.array(cliLintFindingSchema), suppressed: z.array(cliLintFindingSchema.extend({ reason: z.string() })) })
+  .strict();
+
 export const cliRoutinesResultSchema = z
   .object({
     routines: z.array(
@@ -210,6 +215,7 @@ export const cliOutputSchema = z.union([
   success('run', cliRunResultSchema),
   success('suite', z.union([suiteStateSchema, cliSuiteStartedSchema])),
   success('routines list', cliRoutinesResultSchema),
+  success('routines lint', cliRoutinesLintSchema),
   success('runs show', cliRunsShowResultSchema),
   success('pin', cliPinResultSchema),
   success('report', cliReportSchema),

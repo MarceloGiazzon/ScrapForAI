@@ -13,6 +13,11 @@ import { parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema 
  */
 export const routineStatusSchema = z.enum(['draft', 'active', 'quarantined', 'retired']);
 
+/** T8.4: a convention finding the author accepts on purpose, with the reason. The finding is still listed (as suppressed). */
+export const lintSuppressionSchema = z
+  .object({ rule: z.string().regex(/^[A-Z]{2,4}[0-9]{3}$/, 'rule code such as GX001'), reason: z.string().min(10).max(300), stepId: z.string().min(1).max(80).optional() })
+  .strict();
+
 const contentShape = {
   title: z.string().min(1).max(160),
   description: z.string().max(2000).optional(),
@@ -24,6 +29,8 @@ const contentShape = {
   options: explorationOptionsSchema.optional(),
   // T5.3. Optional with no default, like teardown: a default would change the digest of routines saved before parameters existed.
   parameters: parametersSchema.optional(),
+  // T8.4. Optional with no default, so routines saved before the lint keep their digest.
+  lintSuppress: z.array(lintSuppressionSchema).max(50).optional(),
   steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
   // T1.4. Optional with NO default on purpose: a default would add `teardown: []` to every routine and
   // change the digest of versions saved before teardown existed, failing their integrity check.
@@ -60,6 +67,7 @@ export const routineSaveBodyBase = z
     credentialSet: safeName.optional(),
     options: explorationOptionsSchema.optional(),
     parameters: contentShape.parameters,
+    lintSuppress: contentShape.lintSuppress,
     steps: contentShape.steps.optional(),
     teardown: contentShape.teardown,
     fromJobId: jobId.optional(),
@@ -86,6 +94,17 @@ export function refineRoutineSaveBody(body: SaveBodyShape, ctx: z.RefinementCtx)
 export const routineSaveBodySchema = routineSaveBodyBase.superRefine(refineRoutineSaveBody);
 /** MCP save_routine: the same body plus the routine id. */
 export const mcpSaveRoutineSchema = routineSaveBodyBase.extend({ id: safeName }).superRefine(refineRoutineSaveBody);
+
+/** POST /v1/routines/lint body: the content to lint (not stored). `routineId` lets the rules know it is the profile's login routine. */
+export const routineLintBodySchema = z
+  .object({
+    targetProfile: safeName,
+    steps: contentShape.steps,
+    teardown: contentShape.teardown,
+    lintSuppress: contentShape.lintSuppress,
+    routineId: safeName.optional(),
+  })
+  .strict();
 
 /** POST /v1/routines/:id/run body: per-run inputs only; the steps always come from the routine. */
 export const routineRunBodySchema = z
