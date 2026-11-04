@@ -90,7 +90,14 @@ async function run(steps: unknown[], teardown?: unknown[]) {
 }
 
 const settle = { action: 'waitForTimeout', timeoutMs: 400 };
-const msgIs = (text: string) => ({ action: 'assertTextContains', selector: '#msg', text });
+// The page answers after a fetch, so every check waits for its text to appear (up to 5 s) instead of sleeping a fixed time: a fixed sleep races the fetch under load.
+const becomes = (selector: string, text: string) => ({
+  action: 'assertTextContains',
+  selector,
+  text,
+  waitFor: { selector: `${selector}:has-text(${JSON.stringify(text)})`, state: 'visible', timeoutMs: 5000 },
+});
+const msgIs = (text: string) => becomes('#msg', text);
 
 test('HTTP 500 once: the page shows its generic message, the request never reached the server, the next click works', async () => {
   const result = await run([
@@ -132,7 +139,7 @@ test('malformed JSON: the page copes, and the server is not called (nothing chan
     { action: 'injectFault', match: { urlContains: '/api/list' }, fault: { malformedJson: true } },
     { action: 'click', selector: '#load' },
     settle,
-    { action: 'assertTextContains', selector: '#list', text: 'Invalid data received' },
+    becomes('#list', 'Invalid data received'),
   ]);
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.deepEqual(hits, []);
@@ -159,7 +166,7 @@ test('assertNoTextMatches: a page that prints the raw error FAILS the step, nami
   const leaky = await run([
     { action: 'injectFault', match: { urlContains: '/api/save' }, fault: { status: 500, body: trace, contentType: 'text/plain' } },
     { action: 'click', selector: '#raw' },
-    settle,
+    becomes('#msg', 'OrderService'),
     { id: 'no-leak', action: 'assertNoTextMatches', selector: '#msg' },
   ]);
   assert.equal(leaky.status, 'failed');
@@ -173,7 +180,7 @@ test('assertNoTextMatches: a page that prints the raw error FAILS the step, nami
   const onlyPaths = await run([
     { action: 'injectFault', match: { urlContains: '/api/save' }, fault: { status: 500, body: trace, contentType: 'text/plain' } },
     { action: 'click', selector: '#raw' },
-    settle,
+    becomes('#msg', 'OrderService'),
     { action: 'assertNoTextMatches', selector: '#msg', kinds: ['serverPath'] },
   ]);
   assert.equal(onlyPaths.status, 'passed', JSON.stringify(onlyPaths.error));
@@ -204,7 +211,7 @@ test('a fault on an allowed OTHER origin is answered with CORS, so the page sees
     { action: 'injectFault', match: { urlContains: '/api/x' }, fault: { status: 500 } },
     { action: 'click', selector: '#cross' },
     settle,
-    { action: 'assertTextContains', selector: '#x', text: 'HTTP 500' },
+    becomes('#x', 'HTTP 500'),
   ]);
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.deepEqual(hits, [], 'the other origin was never reached');

@@ -217,6 +217,9 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
   state) and add `assertNoTextMatches { selector?, kinds?, contains? }`: it fails if a stack trace, exception class, SQL error or server path is on screen (it does not accept your regular expression). Faults only
   touch allowlisted origins, are listed in `evidence.routing` with `handledBy: 'fault'`, and end before the `teardown`. A `staging` profile refuses them unless a person set `flags.allowFaults`. Starting points:
   `templates/routines/chaos-*.routine.json`.
+- To test **what the page does on another date** (an expired offer, month end, a session that times out), add `setClock { fixedTime }` or `setClock { installAt, fastForwardMs? }` BEFORE the `goto` (times are ISO 8601 with a zone,
+  e.g. `2030-01-31T23:59:50-03:00`). `fixedTime` freezes `Date`; `installAt` starts the page's clock there and lets it run, `fastForwardMs` jumps ahead (one `installAt` per run). **It only moves the BROWSER's clock**: a rule that
+  runs on the server (most GeneXus date rules) still sees the real date, so do not conclude anything about it from that run; the report says so. `waitForTimeout` stays real time.
 - A snapshot of the whole catalogue per build is a person/CI job (`scrapforai evolution snapshot <target>`, API key required):
   one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
   for a way to write a partial one unless the person asked for `allowPartial`.

@@ -239,3 +239,38 @@ test('T3.5: the suite report shows quarantined routines in a block apart and eve
   const plain = renderSuiteReport({ ...data, variants: [data.variants[0]!.passedOnRetry ? { ...data.variants[0]!, passedOnRetry: undefined, attempts: undefined } : data.variants[0]!] }, 'en');
   assert.ok(!plain.includes(STRINGS.en.quarantineTitle) && !plain.includes(STRINGS.en.passedOnRetryNote), 'no quarantine and no retry: neither block appears');
 });
+
+test('T7.2/T7.3: a run with a simulated clock or broken answers says so, in every language, grouped and escaped; a normal run has no such section', async () => {
+  await makeJob('job_rep_sim', {
+    clock: [
+      { stepId: 'jump', mode: 'install', time: '2030-01-31T23:59:50.000Z', fastForwardMs: 90_061_000 },
+      { mode: 'fixed', time: '2031-02-03T00:00:00.000Z' },
+    ],
+    evidence: {
+      screenshots: [], console: [], consoleErrors: [], pageErrors: [], network: [], networkFailures: [], unexpectedExternalRequests: [],
+      routing: [
+        { origin: 'https://dev.example.com', pathname: '/api/save<img src=x>', method: 'POST', handledBy: 'fault', action: 'fulfill', detail: 'status 500' },
+        { origin: 'https://dev.example.com', pathname: '/api/save<img src=x>', method: 'POST', handledBy: 'fault', action: 'fulfill', detail: 'status 500' },
+        { origin: 'https://dev.example.com', pathname: '/api/list', method: 'GET', handledBy: 'fault', action: 'delay', detail: 'delay 10000 ms' },
+        { origin: 'https://evil.example.org', pathname: '/x.png', method: 'GET', handledBy: 'allowlist-guard', action: 'abort' },
+      ],
+    },
+  });
+
+  const en = (await get('/v1/runs/job_rep_sim/report?lang=en')).text;
+  for (const expected of ['Simulated conditions', 'Browser clock started at', '2030-01-31T23:59:50.000Z', 'then moved forward by 1 d 1 h 1 min 1 s', 'Browser clock fixed at', 'Only the browser&#39;s clock was changed', 'status 500', 'delay 10000 ms']) {
+    assert.ok(en.includes(expected), `missing: ${expected}`);
+  }
+  assert.ok(en.includes('POST /api/save&lt;img src=x&gt;'), 'the path is text');
+  assert.ok(!en.includes('<img src=x>'));
+  assert.match(en, /<td>2<\/td>/, 'two identical faults are one row with a count of 2');
+  assert.ok(!en.includes('allowlist-guard') && !en.includes('/x.png'), 'only faults are listed, not other policies');
+
+  const pt = (await get('/v1/runs/job_rep_sim/report?lang=pt')).text;
+  assert.ok(pt.includes('Condições simuladas') && pt.includes('Relógio do navegador iniciado em') && pt.includes('e adiantado em'));
+  const es = (await get('/v1/runs/job_rep_sim/report?lang=es')).text;
+  assert.ok(es.includes('Condiciones simuladas') && es.includes('Reloj del navegador fijado en'));
+
+  const normal = (await get('/v1/runs/job_rep1/report?lang=en')).text;
+  assert.ok(!normal.includes('Simulated conditions'));
+});

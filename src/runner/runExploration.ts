@@ -13,7 +13,7 @@ import { summarizeResult } from '../history/summarizeResult.js';
 import { checkAssertEquals } from '../oracle/assertEquals.js';
 import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility.schema.js';
 import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
-import type { ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
+import type { ClockEvidence, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import { assertCredentialOrigin } from '../security/credentialBinding.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
@@ -277,6 +277,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   let domTextSnapshot: string | undefined;
   let finalUrl: string | undefined;
   let probedBuildId: string | undefined;
+  // T7.3: what setClock did to the browser's clock, and whether the clock was installed (it can be, once).
+  const clockEvents: ClockEvidence[] = [];
+  let clockInstalled = false;
 
   try {
     // FORCE_HEADLESS (set by the Light distribution, which bundles only the headless shell)
@@ -647,6 +650,30 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             }
             break;
           }
+          case 'setClock': {
+            // T7.3: the browser's clock only (context-wide: every page and frame). The server's clock is the real one.
+            const clock = playwright.context.clock;
+            if (step.fixedTime !== undefined) {
+              const at = new Date(step.fixedTime);
+              await clock.setFixedTime(at);
+              clockEvents.push({ ...(step.id ? { stepId: step.id } : {}), mode: 'fixed', time: at.toISOString() });
+            } else {
+              if (clockInstalled) {
+                throw new StepExecutionError('setClock: installAt can be used once per run (installing again would restart the time); use fixedTime to move the clock');
+              }
+              const at = new Date(step.installAt!);
+              await clock.install({ time: at });
+              clockInstalled = true;
+              if (step.fastForwardMs !== undefined) await clock.fastForward(step.fastForwardMs);
+              clockEvents.push({
+                ...(step.id ? { stepId: step.id } : {}),
+                mode: 'install',
+                time: at.toISOString(),
+                ...(step.fastForwardMs === undefined ? {} : { fastForwardMs: step.fastForwardMs }),
+              });
+            }
+            break;
+          }
           case 'extractText':
             extracted[step.name] = await frame.locator(step.selector).innerText({ timeout });
             break;
@@ -807,6 +834,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     targetUrl: normalizedTargetUrl,
     caller: request.caller ?? null,
     ...(functional ? { profile: 'functional' as const } : {}),
+    ...(clockEvents.length > 0 ? { clock: clockEvents } : {}),
     ...(request.parameterRecord ? { parameters: request.parameterRecord } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
     ...(request.teardown

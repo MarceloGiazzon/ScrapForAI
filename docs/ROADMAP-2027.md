@@ -1220,6 +1220,10 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.3 — Relógio falso · P
 
+> **Implementada em 2026-11-04, sem o gancho `serverClock`** (`context.clock` do Playwright, ver AGENTS.md, "Fake clock"). Desvios: (1) os instantes são ISO 8601 **com fuso** (`Z` ou deslocamento), anos 1970–2100: sem fuso, a máquina do browser decidiria o dia;
+> (2) `installAt` só pode ser usado **uma vez por execução** (o Playwright aceita de novo e reinicia o tempo em silêncio); `fixedTime` pode ser repetido; (3) o resultado traz `clock` e o **relatório** ganhou a seção "Condições simuladas", que avisa que só o relógio do
+> navegador mudou (e lista também as falhas do T7.2). **Pendente, `[cross-repo]`:** o gancho `serverClock` precisa de um endpoint de data só para dev no NPDev; existe apenas a proposta `docs/T7.3-NPDEV-SERVER-CLOCK-PROPOSAL.md`, o repositório do NPDev não foi tocado.
+
 - Step `setClock { fixedTime } | { installAt, fastForwardMs? }`, usando `page.clock` do
   Playwright.
 - **Limitação documentada:** só afeta o relógio do browser. Regras de data do GeneXus rodam quase

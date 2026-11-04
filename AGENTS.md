@@ -419,8 +419,18 @@ step limits, artifact retention, etc.).
   caller's**: a caller regex over a page the caller does not control could stall the server (every pattern is bounded and linear, the text is cut at 200 000 chars, `test/faults.test.ts` times hostile input);
   `contains` adds literal fragments. The error names the kinds, counts and ONE example each (clipped to 100 chars, redacted) and does not copy the page. Templates: `templates/routines/chaos-save-500`,
   `chaos-search-slow`, `chaos-json-corrupt`. Not done: faults on a response BODY of a real call (only made-up or truncated ones), a `clearFaults` step, faults on websockets, matching by header or request body,
-  fault injection in suites as a variant dimension, and the list of the faults of a run in the report. `test/faults.test.ts` (controller, routing, patterns, schema, staging), `test/fault-injection.smoke.ts`
+  fault injection in suites as a variant dimension. The faults of a run ARE in the run report ("Simulated conditions", see Fake clock). `test/faults.test.ts` (controller, routing, patterns, schema, staging), `test/fault-injection.smoke.ts`
   (Chromium: 500 once, delay, malformed JSON, aborts, a page that leaks, `untilStep`, teardown, cross-origin CORS, a run without faults).
+- **Fake clock** (`setClock` step, T7.3): `{ fixedTime } | { installAt, fastForwardMs? }` changes the clock the PAGE sees (`Date`, timers, `requestAnimationFrame`) through Playwright's `context.clock` (so every page and
+  frame of the run). `fixedTime`: `Date.now()`/`new Date()` return that instant at all times while timers keep running; it works before or after the page is open and can be repeated (each call moves it).
+  `installAt`: the page's clock starts there and then runs at normal speed; `fastForwardMs` (up to ten years) jumps it forward once (due timers fire at most once). **`installAt` is refused the second time in a
+  run**: Playwright would accept it and silently restart the time. Times are ISO 8601 **with a zone** (`Z` or an offset), years 1970-2100: a time with no zone would let the machine running the browser decide
+  which day it is. `result.clock` = `[{ stepId?, mode: 'fixed'|'install', time, fastForwardMs? }]` (present only when the run changed the clock). **The limit that matters**: the SERVER's clock is the real one,
+  and most GeneXus date rules run on the server; `test/clock.smoke.ts` proves it (the page lives in 2030, the server answers 2026). So the **run report** (en/pt/es) gets a "Simulated conditions" section with
+  that warning whenever a clock was changed, and the same section lists the faults of T7.2 (grouped by request and effect, with counts), so a report never passes a simulated condition off as the real one.
+  The `serverClock` hook of the roadmap needs an endpoint in the NPDev application (`[cross-repo]`): only a proposal exists, `docs/T7.3-NPDEV-SERVER-CLOCK-PROPOSAL.md`. `waitForTimeout`/`delayMs` are real time
+  (Playwright side), not the fake clock. Not done: `runFor`/`pauseAt` (stepping a paused clock), a clock per suite variant, a time zone other than the machine's for the page's `Intl` (only the instant is set).
+  `test/clock.test.ts` (accepted forms, zone, year range), `test/clock.smoke.ts` (Chromium), `test/reports.test.ts` (the section, three languages, escaped).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

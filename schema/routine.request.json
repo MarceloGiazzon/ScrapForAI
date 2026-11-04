@@ -45,7 +45,7 @@
       "$ref": "#/$defs/__schema30"
     },
     "teardown": {
-      "$ref": "#/$defs/__schema70"
+      "$ref": "#/$defs/__schema75"
     }
   },
   "required": [
@@ -2253,6 +2253,48 @@
               "$ref": "#/$defs/__schema46"
             },
             "action": {
+              "$ref": "#/$defs/__schema70"
+            },
+            "fixedTime": {
+              "$ref": "#/$defs/__schema71"
+            },
+            "installAt": {
+              "$ref": "#/$defs/__schema73"
+            },
+            "fastForwardMs": {
+              "$ref": "#/$defs/__schema74"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema38"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "action": {
               "type": "string",
               "const": "extractText"
             },
@@ -2806,6 +2848,26 @@
       "maxLength": 200
     },
     "__schema70": {
+      "type": "string",
+      "const": "setClock"
+    },
+    "__schema71": {
+      "$ref": "#/$defs/__schema72"
+    },
+    "__schema72": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "__schema73": {
+      "$ref": "#/$defs/__schema72"
+    },
+    "__schema74": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 315360000000
+    },
+    "__schema75": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",

@@ -310,6 +310,38 @@ const auditAccessibilityStep = z
       ctx.addIssue({ code: 'custom', path: ['baseline'], message: 'failOn "new" needs a baseline: there is no "new" without something to compare with' });
     }
   });
+// T7.3: changes the clock the PAGE sees (Date, timers, requestAnimationFrame), through Playwright's page.clock. It does not touch the server's clock:
+// a GeneXus date rule that runs on the server (most of them) sees the real date. The run records it in `result.clock` and the report says so.
+//  - `fixedTime`: Date.now() / new Date() return that instant, always (timers keep running). Works before or after the page is open.
+//  - `installAt`: the page's clock starts at that instant and then runs at normal speed; `fastForwardMs` then jumps it forward (due timers fire at most
+//    once, like a person who left the tab asleep). Once per run: installing again would silently restart the time.
+// Times are ISO 8601 WITH a zone ("2030-01-31T23:59:50-03:00" or "...Z"): the machine running the browser must not decide which day it is.
+const MAX_CLOCK_YEAR = 2100;
+const clockTime = z.iso
+  .datetime({ offset: true })
+  .refine((value) => {
+    const year = new Date(value).getUTCFullYear();
+    return year >= 1970 && year <= MAX_CLOCK_YEAR;
+  }, { message: `the time must be between 1970 and ${MAX_CLOCK_YEAR}` });
+const setClockStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('setClock'),
+    fixedTime: clockTime.optional(),
+    installAt: clockTime.optional(),
+    /** Only with installAt. Up to ten years. */
+    fastForwardMs: z.number().int().min(1).max(315_360_000_000).optional(),
+  })
+  .strict()
+  .superRefine((step, ctx) => {
+    if ((step.fixedTime === undefined) === (step.installAt === undefined)) {
+      ctx.addIssue({ code: 'custom', message: 'setClock needs exactly one of fixedTime or installAt' });
+    }
+    if (step.fastForwardMs !== undefined && step.installAt === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['fastForwardMs'], message: 'fastForwardMs only goes with installAt' });
+    }
+  });
+
 // T7.2: from this step on, requests that match are answered wrongly on purpose, to see how the application copes: an HTTP error, a slow
 // response, a dropped connection or a broken JSON body. Only requests to allowlisted origins are touched; each one is listed in
 // result.evidence.routing with handledBy "fault". It ends after `times` matches, after the step `untilStep` finishes, or with the run.
@@ -450,6 +482,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   auditAccessibilityStep,
   injectFaultStep,
   assertNoTextMatchesStep,
+  setClockStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,

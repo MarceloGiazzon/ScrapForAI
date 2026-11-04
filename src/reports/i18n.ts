@@ -62,6 +62,15 @@ export interface Strings {
   syntheticTag: string;
   syntheticNote: string;
   replayHint: string;
+  simulatedTitle: string;
+  clockFixed: string;
+  clockInstall: string;
+  clockForward: string;
+  clockNote: string;
+  faultRequest: string;
+  faultDone: string;
+  faultCount: string;
+  faultsNote: string;
   quarantineTitle: string;
   quarantineNote: string;
   quarantinedTag: string;
@@ -150,6 +159,15 @@ const en: Strings = {
   syntheticTag: 'synthetic',
   syntheticNote: "Synthetic data: the generated identity documents are made up but carry correct check digits, so one may coincide with a real person's or company's. Use only in dev/QA environments.",
   replayHint: 'Run again with the same seed and sample to reproduce these values.',
+  simulatedTitle: 'Simulated conditions',
+  clockFixed: 'Browser clock fixed at',
+  clockInstall: 'Browser clock started at',
+  clockForward: 'then moved forward by',
+  clockNote: "Only the browser's clock was changed. Rules that run on the server (most GeneXus date rules) saw the real date, so this run does not prove them.",
+  faultRequest: 'Request',
+  faultDone: 'What was done to it',
+  faultCount: 'Times',
+  faultsNote: 'These requests were answered wrongly on purpose to see how the application copes. Errors shown in this report may be a result of that, not defects of the server.',
   quarantineTitle: 'Quarantined routines (not counted in the verdict)',
   quarantineNote: 'These routines are quarantined because they were unstable. They ran, and their results are shown here, but they do not change the verdict of the suite.',
   quarantinedTag: 'quarantined',
@@ -238,6 +256,15 @@ const pt: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Dados sintéticos: os documentos gerados são inventados, mas têm dígitos verificadores corretos, então um deles pode coincidir com o de uma pessoa ou empresa real. Use apenas em ambientes de dev/QA.',
   replayHint: 'Execute de novo com a mesma semente e amostra para reproduzir estes valores.',
+  simulatedTitle: 'Condições simuladas',
+  clockFixed: 'Relógio do navegador fixado em',
+  clockInstall: 'Relógio do navegador iniciado em',
+  clockForward: 'e adiantado em',
+  clockNote: 'Só o relógio do navegador foi alterado. Regras que rodam no servidor (a maioria das regras de data do GeneXus) viram a data real, então esta execução não as comprova.',
+  faultRequest: 'Requisição',
+  faultDone: 'O que foi feito com ela',
+  faultCount: 'Vezes',
+  faultsNote: 'Estas requisições foram respondidas errado de propósito para ver como a aplicação reage. Erros mostrados neste relatório podem ser resultado disso, não defeitos do servidor.',
   quarantineTitle: 'Rotinas em quarentena (não contam no veredito)',
   quarantineNote: 'Estas rotinas estão em quarentena por serem instáveis. Elas rodaram e o resultado aparece aqui, mas não alteram o veredito da suíte.',
   quarantinedTag: 'quarentena',
@@ -326,6 +353,15 @@ const es: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Datos sintéticos: los documentos generados son inventados pero tienen dígitos verificadores correctos, por lo que uno puede coincidir con el de una persona o empresa real. Úselos solo en entornos de dev/QA.',
   replayHint: 'Ejecute de nuevo con la misma semilla y muestra para reproducir estos valores.',
+  simulatedTitle: 'Condiciones simuladas',
+  clockFixed: 'Reloj del navegador fijado en',
+  clockInstall: 'Reloj del navegador iniciado en',
+  clockForward: 'y adelantado en',
+  clockNote: 'Solo se cambió el reloj del navegador. Las reglas que corren en el servidor (la mayoría de las reglas de fecha de GeneXus) vieron la fecha real, por lo que esta ejecución no las comprueba.',
+  faultRequest: 'Solicitud',
+  faultDone: 'Qué se hizo con ella',
+  faultCount: 'Veces',
+  faultsNote: 'Estas solicitudes se respondieron mal a propósito para ver cómo reacciona la aplicación. Los errores mostrados en este informe pueden ser resultado de eso, no defectos del servidor.',
   quarantineTitle: 'Rutinas en cuarentena (no cuentan en el veredicto)',
   quarantineNote: 'Estas rutinas están en cuarentena por ser inestables. Se ejecutaron y su resultado se muestra aquí, pero no cambian el veredicto de la suite.',
   quarantinedTag: 'cuarentena',

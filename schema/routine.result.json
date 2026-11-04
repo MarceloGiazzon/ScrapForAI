@@ -127,6 +127,35 @@
       "type": "string",
       "const": "functional"
     },
+    "clock": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "install"
+            ]
+          },
+          "time": {
+            "type": "string"
+          },
+          "fastForwardMs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "mode",
+          "time"
+        ],
+        "additionalProperties": false
+      }
+    },
     "includes": {
       "type": "array",
       "items": {

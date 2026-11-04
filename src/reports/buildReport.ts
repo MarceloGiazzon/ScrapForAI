@@ -92,6 +92,19 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
     return parsed.success ? [{ name, result: parsed.data }] : [];
   });
 
+  // T7.2/T7.3: what the run changed on purpose, so a report never passes a simulated condition off as the real one. Faults are grouped (same request, same effect).
+  const faultGroups = new Map<string, { method: string; pathname: string; detail: string; count: number }>();
+  for (const entry of result.evidence.routing ?? []) {
+    if (entry.handledBy !== 'fault') continue;
+    const detail = entry.detail ?? entry.action;
+    const key = `${entry.method} ${entry.origin}${entry.pathname} ${detail}`;
+    const group = faultGroups.get(key);
+    if (group) group.count += 1;
+    else faultGroups.set(key, { method: entry.method, pathname: entry.pathname, detail, count: 1 });
+  }
+  const clock = result.clock ?? [];
+  const simulated = clock.length > 0 || faultGroups.size > 0 ? { clock, faults: [...faultGroups.values()] } : undefined;
+
   const describeNetwork =(item: ExplorationResult['evidence']['networkFailures'][number]): string =>
     `${item.method} ${item.origin}${item.pathname} ${item.failureText ?? item.status ?? ''}`.trim();
 
@@ -128,6 +141,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
             },
           }
         : {}),
+      ...(simulated ? { simulated } : {}),
       ...(accessibility.length > 0 ? { accessibility } : {}),
       screenshots,
       consoleCount: result.evidence.console.length,

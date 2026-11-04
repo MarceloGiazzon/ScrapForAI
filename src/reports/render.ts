@@ -63,6 +63,11 @@ export interface RunReportData {
   teardownStatus?: 'passed' | 'failed';
   /** T5.3: what the run's parameters took (only when it used any). */
   parameters?: { seed: string; sample: number; rows: Array<{ name: string; value: string; source: string; synthetic: boolean }> };
+  /** T7.2/T7.3: what the run changed on purpose: the browser's clock, and requests answered wrongly. Only when it did either. */
+  simulated?: {
+    clock: Array<{ mode: 'fixed' | 'install'; time: string; fastForwardMs?: number }>;
+    faults: Array<{ method: string; pathname: string; detail: string; count: number }>;
+  };
   /** T7.4/T7.5: the accessibility audits the run made (one per `auditAccessibility` step), with what changed since their baseline when they had one. */
   accessibility?: Array<{ name: string; result: AccessibilityResult }>;
   screenshots: Array<{ name: string; dataUri: string }>;
@@ -205,6 +210,37 @@ function parametersBlock(s: Strings, parameters: NonNullable<RunReportData['para
 ${synthetic ? `<div class="warn">${esc(s.syntheticNote)}</div>` : ''}`;
 }
 
+/** 90061000 -> "1 d 1 h 1 min 1 s". Units are the same in en/pt/es. */
+export function humanSpan(ms: number): string {
+  if (ms < 1000) return `${ms} ms`;
+  const parts: string[] = [];
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((ms % 3_600_000) / 60_000);
+  const secs = Math.floor((ms % 60_000) / 1000);
+  if (days) parts.push(`${days} d`);
+  if (hours) parts.push(`${hours} h`);
+  if (minutes) parts.push(`${minutes} min`);
+  if (secs) parts.push(`${secs} s`);
+  return parts.join(' ');
+}
+
+/** T7.2/T7.3: a run under a simulated clock or with broken answers says so, in words, before the steps. Everything is escaped. */
+function simulatedBlock(s: Strings, simulated: NonNullable<RunReportData['simulated']>): string {
+  const clock = simulated.clock
+    .map((entry) => {
+      const forward = entry.fastForwardMs === undefined ? '' : `, ${esc(s.clockForward)} ${esc(humanSpan(entry.fastForwardMs))}`;
+      return `<li>${esc(entry.mode === 'fixed' ? s.clockFixed : s.clockInstall)} <span class="mono">${esc(entry.time)}</span>${forward}</li>`;
+    })
+    .join('');
+  const faults = simulated.faults
+    .map((fault) => `<tr><td class="mono">${esc(fault.method)} ${esc(clip(fault.pathname, 200))}</td><td>${esc(fault.detail)}</td><td>${esc(fault.count)}</td></tr>`)
+    .join('');
+  return `<h2>${esc(s.simulatedTitle)}</h2>
+${clock ? `<ul>${clock}</ul><div class="warn">${esc(s.clockNote)}</div>` : ''}
+${faults ? `<table><tr><th>${esc(s.faultRequest)}</th><th>${esc(s.faultDone)}</th><th>${esc(s.faultCount)}</th></tr>${faults}</table><p class="muted">${esc(s.faultsNote)}</p>` : ''}`;
+}
+
 const MAX_A11Y_ROWS = 40;
 const MAX_A11Y_ROWS_NO_BASELINE = 20;
 
@@ -305,6 +341,8 @@ ${
 ${data.teardownStatus === 'failed' ? `<div class="warn">${esc(s.teardownFailed)}</div>` : ''}
 
 ${data.parameters ? parametersBlock(s, data.parameters) : ''}
+
+${data.simulated ? simulatedBlock(s, data.simulated) : ''}
 
 <h2>${esc(s.steps)}</h2>
 <table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.steps)}</table>
