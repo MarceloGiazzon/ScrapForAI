@@ -44,7 +44,7 @@ header.topbar {
 }
 
 header.topbar h1 { font-size: 16px; margin: 0; }
-header.topbar nav { display: flex; gap: 14px; flex: 1; }
+header.topbar nav { display: flex; flex-wrap: wrap; gap: 4px 14px; flex: 1; min-width: 0; }
 header.topbar nav a { color: var(--muted); text-decoration: none; padding: 4px 2px; }
 header.topbar nav a.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
 
@@ -148,3 +148,17 @@ td.wrap { white-space: normal; min-width: 220px; }
 .strip { display: block; }
 .strip-pass { fill: var(--pass); }
 .strip-fail { fill: var(--fail); }
+
+/* Executive overview (T9.4): classes only, the CSP forbids inline style. */
+.stat .hint { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 8px 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.chart { display: block; max-width: 100%; height: auto; }
+.bar-good { fill: var(--pass); }
+.bar-mid { fill: var(--warn); }
+.bar-bad { fill: var(--fail); }
+.bar-none { fill: var(--border); }
+.bar-partial { opacity: .45; }
+.chart-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }

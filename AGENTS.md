@@ -467,6 +467,26 @@ step limits, artifact retention, etc.).
   [--lang] [--out file.md]` (exit 0), MCP `get_summary`. Like every schedule it needs `SCHEDULER_ENABLED=true` to fire on its own. Not done: per-vault-item regressions (a vault item IS a routine
   run, so it shows as its routine), the permission matrix and PII findings in the summary, a summary per target in separate messages, HTML/PDF, a link back to the UI (no public base URL).
   `test/summary.test.ts` (rules, real stores, snapshots on disk, tamper, file, webhooks in their own language, a webhook that is down, run-now through the real dispatcher, route), `test/cli.test.ts`.
+- **Executive panel** (`src/executive/`, `src/routes/executive.routes.ts`, `public/executive.html|js`, T9.4): `GET /v1/executive[?days=30&weeks=8&target=a,b]` (days 1-90, weeks 4-26, read-only, session ok) is the
+  overview for people who do not read run logs, and the data of the web console's **Executive** screen. It only RE-READS what T3.4/T3.5/T3.7, the vault and the pinned evidence store: no run is started, no status
+  changes (`executiveAnalysis.ts` is pure, `executiveService.ts` reads). Per system (target profile, in the Health panel's order, worst first) and in total: **tests** = ACTIVE library routines + ACTIVE vault
+  items (quarantined ones apart, never judged; `guardedBugs` = ACTIVE vault items with a `firstGreen`), **runs** of the period (a run is the LAST attempt, a retried first attempt and `parametric` runs are left
+  out, same rule as the summary) and the pass rate. **Regressions caught** = a test that PASSED and then FAILED (counted per pass -> fail change inside the period, `resolved`/`open` by whether it passed again;
+  `recent` lists up to 5 with build, previous build and failed step): the roadmap said "regressions prevented", but the tool cannot know a change would have reached users, so it says CAUGHT and the page
+  says why; a routine that is flaky now (T3.5) puts its changes under `unstable`, not `caught`, and a test that never passed has not regressed. **Quality trend** = share of passing runs per 7-day week ending at the
+  end of the period (`rate` null for a week with no runs, never 0%; a rate below 1 never rounds up to 1, `rateOf`); `improving`/`worsening` compares the last two weeks with the two before and needs 5 runs on
+  each side and a change of 5 points, else `steady`/`unknown`; a series at `PERF_MAX_RECORDS` has dropped older runs, so weeks before its oldest kept run are `partial` and `historyLimited` names the routines.
+  **Readiness (homologation)** of each system for its LATEST build (the build of the most recent run, or vault last run, that reported a known one): `ready` = every test that counts passed on that build;
+  `blocked` = a test's last run failed (a failing vault item included); `incomplete` = nothing failed but some test has not run on that build (or never ran); `no-data`. **ScrapForAI never approves a build, a person
+  does**: `ready` only says nothing known is failing or missing. A routine whose every run drew generated values is `notJudged` (counted apart, does not hold a system back); with no known build the last results
+  decide and `notes` says "not tied to a build". `evidence` = pinned PASSING runs of that system's tests on that build whose Ed25519 signature checks against the installation's key (`readPublicKeyIfPresent`: the
+  panel NEVER creates a signing key; no key = nothing counts as signed). It checks the signature, not the files: `scrapforai evidence verify` / `GET /v1/evidence/chain?deep=1` do that. Screen: stat tiles, an
+  8-week bar chart with labels (SVG with classes only, CSP), one card per system (readiness badge, latest build, passing/total, signed evidence, regressions, technical health, small trend, recent regressions
+  table), the definitions as notes, and a period selector (7/30/90 days). English only, like the rest of the console. Also fixed in passing: the top bar wraps on a narrow screen and `formatPercent` lives in
+  `api.js` (rounds down, only a rate of exactly 1 reads 100%). Not done: an MCP tool or CLI command (agents have `get_health` / `get_summary`), localization, a history of readiness per build (each read is the
+  state NOW), a manual sign-off record (the tool has no such concept), links from a row to the run/report, per-system thresholds, regressions of vault items counted on their own (a vault item IS a routine run).
+  `test/executive.test.ts` (rules), `test/executive-service.test.ts` (real stores, signed/edited/old-build pins, no key created, route validation), `test/ui-executive.test.ts` (CSP guards, `formatPercent`),
+  `test/executive.smoke.ts` (Chromium under the CSP).
 - **Trusted scripts** (`src/runner/trusted/`, T7.1): the scripts THIS project injects into target pages, as a closed list `{ id, source, sha256, timeoutMs, maxOutputChars }` (`registry.ts`; the sources are
   in `scripts/*.ts` as strings so they ship with `tsc`). A dedicated step names an `id`; the caller never sends code, so they do **not** go through `ALLOW_EVALUATE` (which stays for caller code: `evaluate`/`watch`).
   `verifyTrustedScripts()` compares every source with its pinned sha256 **when the server boots** (first thing in `start()`): a mismatch throws and the server does not start; it also runs on first use. To change a script
@@ -596,6 +616,7 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   `GET /v1/metrics/{routines[/:id],alerts}` — performance series of library routines; `GET /v1/metrics/flaky[/:id]` — flakiness and quarantine suggestions.
   `GET /v1/health[?target=<id>]` — the health of every target profile (routines, trend, flaky, slower, vault, schedules) in one read.
   `GET /v1/summary[?days=&target=&lang=&format=md]` — the periodic summary (health, what broke / was fixed, flaky, slower, accessibility, evolution) that a `summary` schedule sends.
+  `GET /v1/executive[?days=&weeks=&target=]` — the executive overview (tests, regressions caught, quality trend, readiness of each system for its latest build) behind the Executive screen.
   `POST /v1/shrinks`, `GET /v1/shrinks/:id`, `POST /v1/shrinks/:id/cancel` — shrinking a failing sample.
   `POST /v1/differentials`, `GET /v1/differentials/:id[?wait=N][&format=md]`, `POST /v1/differentials/:id/cancel`, `POST /v1/differentials/compare` — the same routines on two targets, and what differs.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
@@ -646,7 +667,7 @@ just a thin proxy over it.
 
 ## Web console
 
-The UI (`UI_ENABLED=true`, `public/`) has History, **Health** (one card per target profile: status and reasons, each routine's state, streak, trend and result strip, the vault and the schedules; read-only), **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
+The UI (`UI_ENABLED=true`, `public/`) has History, **Executive** (for non-technical readers: tests, regressions caught, quality trend and readiness of each system for its latest build, with the evidence signed for it; read-only), **Health** (one card per target profile: status and reasons, each routine's state, streak, trend and result strip, the vault and the schedules; read-only), **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
 "Run", and "Run by impact": paste changed files, see the order and reasons, run the vault as a suite and open its report),
 Configuration and Status. It authenticates with a session cookie, so it can only use endpoints a session may call: capturing
 evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-only. `test/ui-vault.test.ts` guards the CSP rules.

@@ -1484,6 +1484,17 @@ acessibilidade nova e mudanças de evolução. Entregue por webhook (T3.3) ou co
 Visão agregada na UI, para quem não é técnico: quantos testes, quantas regressões evitadas,
 tendência de qualidade e status de homologação por sistema.
 
+> **Implementada em 2026-11-04** (`src/executive/`, `GET /v1/executive`, tela **Executive** em `public/executive.html|js`, ver AGENTS.md, "Executive panel"). Só lê o que T3.4/T3.5/T3.7, o cofre e a
+> evidência fixada já guardam; não inicia execução nem muda status. **Por sistema e no total:** testes (rotinas ativas + itens ativos do cofre; quarentena à parte), execuções do período (a última tentativa; amostras
+> paramétricas fora, como no resumo T9.3) e taxa de aprovação; **regressões pegas** (um teste que passou e depois falhou, com resolvidas/abertas e as 5 mais recentes); **tendência** de qualidade (taxa de
+> aprovação por semana, últimas duas semanas contra as duas anteriores); **prontidão para homologação** do último build do sistema (`ready`/`blocked`/`incomplete`/`no-data`) com a evidência fixada **e assinada**
+> desse build (a assinatura é conferida contra a chave da instalação; a tela nunca cria chave).
+> **Decisões fora do texto:** (1) "regressões **evitadas**" virou "regressões **pegas**": a ferramenta não sabe se a mudança chegaria ao usuário, e a tela explica isso; os bugs corrigidos com prova permanente
+> (`guardedBugs`) aparecem à parte. (2) Um roteiro instável agora (T3.5) não é contado como regressão (`unstable`), e um teste que nunca passou não regrediu. (3) "Status de homologação" é **prontidão**, não aprovação:
+> o ScrapForAI não aprova build, uma pessoa aprova; não existe registro de aprovação. (4) Uma taxa menor que 100% nunca arredonda para 100%. (5) A série de cada rotina guarda só as últimas
+> `PERF_MAX_RECORDS` execuções: semanas mais antigas aparecem como parciais. **Fica de fora:** ferramenta MCP/CLI (há `get_health`/`get_summary`), idiomas além do inglês, histórico de prontidão por build,
+> registro de aprovação por pessoa, limiares por sistema.
+
 ---
 
 # Fase 10 — Distribuição

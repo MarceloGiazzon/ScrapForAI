@@ -49,6 +49,16 @@ export function formatDateTime(iso) {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
+/** 0..1 as a percentage, in whole basis points (the executive report holds four decimals) and rounded DOWN: only a rate of exactly 1 reads as 100%. */
+export function formatPercent(rate) {
+  if (rate === null || rate === undefined) return '—';
+  const basisPoints = Math.round(rate * 10000);
+  if (basisPoints >= 10000) return '100%';
+  const tenths = Math.floor(basisPoints / 10);
+  if (tenths === 0 && basisPoints > 0) return '<0.1%';
+  return `${tenths % 10 === 0 ? tenths / 10 : (tenths / 10).toFixed(1)}%`;
+}
+
 export function formatBytes(bytes) {
   if (!bytes) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];

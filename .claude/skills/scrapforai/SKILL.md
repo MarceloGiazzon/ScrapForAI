@@ -204,6 +204,9 @@ the last good build and the failing step; `fixed`; `still-failing`; `intermitten
 period (counts only: use `evolution_diff` for the details). Quarantined routines are listed but not counted. `markdown` is the same report as text, ready to paste. A person can schedule it
 (`{ kind: 'summary' }` target, delivered to webhooks or written to a file); you cannot create schedules.
 
+The web console's **Executive** screen (`GET /v1/executive`, no MCP tool) is for people who do not read run logs: "regressions caught" is a test that passed and then failed, not proof a change would have
+reached users, and "ready for sign-off" only means nothing known is failing or missing on the system's latest build: a person approves a build, never ScrapForAI. Do not describe it as an approval.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Executive</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="executive.html">Executive</a>
+      <a href="health.html">Health</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="config.html">Configuration</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <div class="card-head">
+        <h2>Executive overview</h2>
+        <label class="muted" for="exec-days">Period</label>
+        <select id="exec-days">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <p class="muted" id="exec-summary">Loading…</p>
+      <div id="exec-banner"></div>
+    </div>
+    <div class="stat-row" id="exec-stats"></div>
+    <div class="card" id="exec-trend"></div>
+    <div id="exec-systems"></div>
+    <div class="card">
+      <h2>How to read this</h2>
+      <ul class="reasons" id="exec-notes"></ul>
+      <p class="muted">This screen only reads: it starts no test and changes no status. The technical detail of each system is on the Health screen.</p>
+    </div>
+  </main>
+  <script type="module" src="executive.js"></script>
+</body>
+</html>

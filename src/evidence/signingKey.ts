@@ -69,3 +69,10 @@ export async function loadPublicKey(): Promise<{ publicKeyPem: string; keyId: st
   const { publicKeyPem, keyId } = await loadSigningKey();
   return { publicKeyPem, keyId };
 }
+
+/** The public half if the installation already has a key; never creates one (for read-only views such as the executive panel). */
+export async function readPublicKeyIfPresent(): Promise<{ publicKeyPem: string; keyId: string } | undefined> {
+  const dir = signingDir();
+  const key = cached?.dir === dir ? cached.key : await readPair(dir);
+  return key ? { publicKeyPem: key.publicKeyPem, keyId: key.keyId } : undefined;
+}
