@@ -1715,6 +1715,196 @@
         },
         "command": {
           "type": "string",
+          "const": "perf list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "routines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "routineId": {
+                    "type": "string"
+                  },
+                  "runs": {
+                    "type": "number"
+                  },
+                  "greenRuns": {
+                    "type": "number"
+                  },
+                  "alerts": {
+                    "type": "array",
+                    "items": {}
+                  }
+                },
+                "required": [
+                  "routineId",
+                  "runs",
+                  "greenRuns",
+                  "alerts"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "routines"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "perf alerts"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number"
+            },
+            "alerts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "routineId": {
+                    "type": "string"
+                  },
+                  "series": {
+                    "type": "string"
+                  },
+                  "baselineMs": {
+                    "type": "number"
+                  },
+                  "recentMs": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "routineId",
+                  "series",
+                  "baselineMs",
+                  "recentMs"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "count",
+            "alerts"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "perf show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "routineId": {
+              "type": "string"
+            },
+            "runs": {
+              "type": "number"
+            },
+            "greenRuns": {
+              "type": "number"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "alert": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "alert"
+                ],
+                "additionalProperties": {}
+              }
+            },
+            "alerts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "routineId",
+            "runs",
+            "greenRuns",
+            "steps",
+            "alerts"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "shrink"
         },
         "exitCode": {

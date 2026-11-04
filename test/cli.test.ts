@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 29);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 32);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -814,6 +814,65 @@ test('webhooks test: POSTs with the bearer; exit 0 if it arrived, 2 if not (the 
   assert.match(missing.stderr, /WebhookNotFound/);
 
   for (const args of [['webhooks'], ['webhooks', 'show'], ['webhooks', 'test'], ['webhooks', 'list', 'x'], ['webhooks', 'show', 'a', 'b']]) {
+    seen.length = 0;
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
+  }
+});
+
+// T3.4: `scrapforai perf list|alerts|show`
+
+const perfSeries = (extra: Record<string, unknown> = {}) => ({ id: 'save', points: [], samples: 14, baselineMs: 800, recentMs: 1500, ratio: 1.88, alert: true, buildChanges: [11], suspectBuild: 'r101', ...extra });
+const perfDetail = (extra: Record<string, unknown> = {}) => ({
+  routineId: 'crud',
+  thresholds: { baselineRuns: 20, recentRuns: 3, minBaselineRuns: 5, alertRatio: 1.3, minDeltaMs: 100 },
+  population: { version: 2, profile: 'full', env: 'https://dev.example.com', runs: 15, lastAt: '2026-11-03T12:00:00.000Z' },
+  populations: [],
+  runs: 16,
+  greenRuns: 15,
+  run: perfSeries({ id: '(run)', baselineMs: 1000, recentMs: 1700, ratio: 1.7 }),
+  steps: [perfSeries({ id: 'open', alert: false, baselineMs: 200, recentMs: 205, ratio: 1.03, suspectBuild: undefined }), perfSeries()],
+  alerts: ['(run)', 'save'],
+  ...extra,
+});
+
+test('perf show/list/alerts: print baseline -> recent and the suspect build; --json matches the contract; exit 0 unless --fail-on-alert', async () => {
+  handler = (_req, respond) => respond(200, perfDetail());
+  const show = await cli(['perf', 'show', 'crud', '--version', '2', '--profile', 'full']);
+  assert.equal(show.code, 0);
+  assert.match(show.stdout, /crud: version 2, full, https:\/\/dev.example.com {2}\(15\/16 green runs\)/);
+  assert.match(show.stdout, /ALERT {2}save\s+14 runs\s+800 ms ->\s+1500 ms {2}x1.88 {2}build r101/);
+  assert.match(show.stdout, /open\s+14 runs\s+200 ms ->\s+205 ms/);
+  assert.equal(seen.at(-1)!.url, '/v1/metrics/routines/crud?limit=1&version=2&profile=full');
+  assert.equal(validJson((await cli(['perf', 'show', 'crud', '--json'])).stdout).command, 'perf show');
+  assert.equal((await cli(['perf', 'show', 'crud', '--fail-on-alert'])).code, 1, 'a CI guard asked to fail on an alert');
+  handler = (_req, respond) => respond(200, perfDetail({ alerts: [] }));
+  assert.equal((await cli(['perf', 'show', 'crud', '--fail-on-alert'])).code, 0);
+
+  handler = (_req, respond) => respond(200, { routines: [{ routineId: 'crud', runs: 16, greenRuns: 15, run: { samples: 15, baselineMs: 1000, recentMs: 1700, alert: true }, alerts: [{ routineId: 'crud', series: 'save' }] }, { routineId: 'new', runs: 2, greenRuns: 2, run: { samples: 2, note: 'needs 8 green runs for a baseline (has 2)', alert: false }, alerts: [] }] });
+  const list = await cli(['perf', 'list']);
+  assert.match(list.stdout, /ALERT {2}crud {2}15\/16 green {2}run 1000 ms -> 1700 ms/);
+  assert.match(list.stdout, /new {2}2\/2 green.*needs 8 green runs/);
+  assert.equal(validJson((await cli(['perf', 'list', '--json'])).stdout).command, 'perf list');
+  assert.equal((await cli(['perf', 'list', '--fail-on-alert'])).code, 1);
+
+  handler = (_req, respond) => respond(200, { count: 1, alerts: [{ routineId: 'crud', series: 'save', baselineMs: 800, recentMs: 1500, ratio: 1.88, suspectBuild: 'r101' }] });
+  const alerts = await cli(['perf', 'alerts']);
+  assert.equal(alerts.code, 0);
+  assert.match(alerts.stdout, /ALERT crud save: 800 ms -> 1500 ms \(x1.88\) {2}new build in the slow runs: r101/);
+  assert.equal(validJson((await cli(['perf', 'alerts', '--json'])).stdout).command, 'perf alerts');
+  assert.equal((await cli(['perf', 'alerts', '--fail-on-alert'])).code, 1);
+  handler = (_req, respond) => respond(200, { count: 0, alerts: [] });
+  assert.match((await cli(['perf', 'alerts', '--fail-on-alert'])).stdout, /No performance alerts/);
+});
+
+test('perf show: an unknown routine is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(404, { error: { type: 'NoPerformanceData', message: 'no runs yet' } });
+  const missing = await cli(['perf', 'show', 'ghost']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, /NoPerformanceData/);
+
+  for (const args of [['perf'], ['perf', 'show'], ['perf', 'list', 'x'], ['perf', 'alerts', 'x'], ['perf', 'show', 'a', 'b'], ['perf', 'show', 'a', '--profile', 'x'], ['perf', 'show', 'a', '--version', '0']]) {
     seen.length = 0;
     assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);

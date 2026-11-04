@@ -123,6 +123,17 @@ export const envSchema = z.object({
   ALLOWED_NOTIFY_ORIGINS: originListFromEnv,
   NOTIFY_TIMEOUT_MS: integerFromEnv.default(10000),
 
+  // --- Performance series (T3.4) ---
+  // Baseline = median of the last PERF_BASELINE_RUNS green runs that came BEFORE the last PERF_RECENT_RUNS; alert when the median of those recent runs
+  // is above baseline x PERF_ALERT_RATIO and also at least PERF_MIN_DELTA_MS slower (a 20 ms step that takes 30 ms is noise).
+  PERF_BASELINE_RUNS: integerFromEnv.default(20),
+  PERF_RECENT_RUNS: integerFromEnv.default(3),
+  PERF_MIN_BASELINE_RUNS: integerFromEnv.default(5),
+  PERF_ALERT_RATIO: z.coerce.number().gt(1).default(1.3),
+  PERF_MIN_DELTA_MS: z.coerce.number().int().min(0).default(100),
+  // Records kept per routine (oldest dropped first).
+  PERF_MAX_RECORDS: integerFromEnv.default(500),
+
   // --- Web UI ---
   UI_ENABLED: booleanFromEnv,
   SESSION_TTL_MINUTES: integerFromEnv.default(480),

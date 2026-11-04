@@ -195,7 +195,7 @@ step limits, artifact retention, etc.).
   lists the changes between consecutive snapshots oldest first, and with `key` says where that control is now and when it was first seen
   (`isFirstSnapshot: true` = earlier history unknown). Not done: the timeline in the web UI, deriving expected changes from the ledger,
   localizing CHANGES.md (English only). `test/evolution-history.test.ts` covers it end to end without a browser.
-  Not in the snapshot yet: `perf.json` (T3.4), accessibility summary (T7.5) and the permission matrix (T6.1 results) - those
+  Not in the snapshot yet: `perf.json` (the T3.4 series exists but is not wired in), accessibility summary (T7.5) and the permission matrix (T6.1 results) - those
   producers do not exist or are not wired. `test/evolution-snapshot.smoke.ts` proves no seeded value or password reaches disk, the
   run state or the git history.
 - **Network routing** (`src/runner/routing.ts`, T5.1): the ONE `context.route('**/*')` of a browser context, created in
@@ -322,6 +322,23 @@ step limits, artifact retention, etc.).
   the next occurrence). Only **scheduled** runs notify: a run started by hand, a suite started by `POST /v1/suites` or the nightly wrapper do not (use a schedule, or `run-now`). Not done: Teams
   `@mentions`, links back to the report/UI (there is no configured public base URL), retries beyond one, the PII detector (T7.8), editing webhooks in the web UI. `test/notify.test.ts` (pure parts + notifier + engine
   against a local receiver, including the sentinel test), `test/scheduler.smoke.ts` (Chromium, HTTP).
+- **Performance series** (`src/metrics/`, T3.4): every run of a LIBRARY routine appends one line to `<dataDir>/metrics/<routineId>.jsonl`
+  (`perfRecorder.ts`, called by `runLibraryRoutine`, so direct, suite, scheduled and vault runs all count): `{ jobId, at, version, profile, env, buildId?, status, durationMs,
+  steps: [{ id, durationMs, status }] }`. Only ids, times and a build id: no URL path, no error text, no extracted value; teardown steps are not recorded; a step without an id is `#<index>`
+  (include steps are `<includeId>.<stepId>`). Not recorded: a run with `parameterValues` (a shrink probe) and anything that is not a library routine. A write failure prints `[metrics]` on stderr and never
+  fails the run; a corrupt line is skipped on read; the file keeps the newest `PERF_MAX_RECORDS` (500) lines. **Analysis** (`perfAnalysis.ts`, pure): per step and for the whole run `(run)`,
+  *baseline* = median of up to `PERF_BASELINE_RUNS` (20) green samples that came BEFORE the last `PERF_RECENT_RUNS` (3) (so a regression is never averaged into its own baseline),
+  *recent* = median of the last 3, **alert** = recent > baseline x `PERF_ALERT_RATIO` (1.3) AND at least `PERF_MIN_DELTA_MS` (100) slower (20 ms -> 40 ms is noise); no baseline until
+  `PERF_MIN_BASELINE_RUNS` (5) + 3 green samples (the series says what it waits for). The whole-run series `(run)` includes the browser start-up, which varies by seconds, so it is the noisier one: trust the named STEP. Only GREEN runs and PASSED steps count (a failed run is cut short or waited for a timeout).
+  A **population** is (routine version, profile, origin): a new version has other steps, `functional` runs stub images, another environment is another machine; the analysis uses the
+  population of the latest run, `?version=&profile=&env=` selects another, `populations` lists them. A step added later has its own, shorter series. For an alert, `suspectBuild` is the build
+  seen in the recent samples but not in the baseline ones, and `buildChanges` marks where the build changed in `points` (builds `unknown` are ignored). `GET /v1/metrics/routines` (one line each + alerts),
+  `GET /v1/metrics/routines/:id[?limit=&version=&profile=&env=]` (points per series, baseline, recent, ratio, thresholds), `GET /v1/metrics/alerts` (all read-only, session ok), CLI
+  `scrapforai perf list|alerts|show <routine>` (**exit 0 unless `--fail-on-alert`**: a slower step is a signal, not a failed test, so a guard opts in), MCP `get_performance`, and the **Performance**
+  screen of the web console (`public/performance.html|js`: SVG sparklines per run and per step with the dashed baseline, a tick where the build changed and the recent dots in red on an alert; classes only,
+  because of the CSP). Not done: notifying a webhook of a new alert (T3.3 only tells about verdict changes), `perf.json` in the evolution snapshot, alerts per target-profile thresholds (env only), the T3.7 health panel.
+  `test/performance.test.ts` (rule, populations, privacy of a record, store cap), `test/ui-performance.test.ts` (CSP guards), `test/performance.smoke.ts` (Chromium: a slower navigation after a "new build" alerts on `open`
+  and names `r101`; the screen renders under the server's CSP).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -339,6 +356,7 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   `GET /v1/targets[/:id]` and `PUT /v1/targets/:id` (bearer only) — target profiles.
   `GET /v1/schedules[/:id]`, `PUT|DELETE /v1/schedules/:id`, `POST /v1/schedules/:id/run-now` (bearer for writes) — schedules.
   `GET /v1/webhooks[/:id]`, `PUT|DELETE /v1/webhooks/:id`, `POST /v1/webhooks/:id/test` (bearer for writes) — notification channels.
+  `GET /v1/metrics/{routines[/:id],alerts}` — performance series of library routines.
   `POST /v1/shrinks`, `GET /v1/shrinks/:id`, `POST /v1/shrinks/:id/cancel` — shrinking a failing sample.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
@@ -358,7 +376,7 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, `list_schedules` and `list_webhooks` (both read-only), and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, `list_schedules` and `list_webhooks` (both read-only), `get_performance` (step times, baseline and alerts; read-only), and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
 matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
@@ -388,7 +406,7 @@ just a thin proxy over it.
 
 ## Web console
 
-The UI (`UI_ENABLED=true`, `public/`) has History, **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
+The UI (`UI_ENABLED=true`, `public/`) has History, **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
 "Run", and "Run by impact": paste changed files, see the order and reasons, run the vault as a suite and open its report),
 Configuration and Status. It authenticates with a session cookie, so it can only use endpoints a session may call: capturing
 evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-only. `test/ui-vault.test.ts` guards the CSP rules.
@@ -397,7 +415,7 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`routines list`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `perf list|alerts|show <routine> [--fail-on-alert]`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
 `permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
 `evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
 `evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),

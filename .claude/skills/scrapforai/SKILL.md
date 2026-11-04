@@ -170,6 +170,11 @@ green schedule turns red and "recovered" when it comes back, and nothing in betw
 does, because they send data out of the server. The URL is a secret kept in the credential vault and is never shown to you (only its origin). Do not put anything secret in a routine's error text
 hoping it will be hidden: the notifier removes vault values and token shapes, but the right fix is not to print them.
 
+How fast a routine runs is recorded on every run: `get_performance` (no argument: every routine and its alerts; with `routineId`: the points per step, baseline, recent time and ratio). An alert
+means the last three green runs are clearly slower than the twenty before them (at least 30% and 100 ms), for the whole run or for a named step, and it names the new build seen in the slow runs.
+It is a lead, not a verdict: check `suspectBuild`, then look at that step in a recent run (`get_run`) before calling it a regression. A new routine version, the functional profile and another
+environment are measured separately, and failed runs never count.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

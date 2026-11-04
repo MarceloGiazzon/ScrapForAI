@@ -97,6 +97,11 @@ export function webhooksDir(): string {
   return path.join(dataDir(), 'webhooks');
 }
 
+/** Performance series (T3.4): metrics/<routineId>.jsonl, one line per run of a library routine. */
+export function metricsDir(): string {
+  return path.join(dataDir(), 'metrics');
+}
+
 /** Shrink run states (T5.6): <dataDir>/shrinks/<shrinkId>.json. */
 export function shrinksDir(): string {
   return path.join(dataDir(), 'shrinks');

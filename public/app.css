@@ -127,3 +127,12 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 .screenshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .screenshot-grid img { width: 100%; border: 1px solid var(--border); border-radius: 6px; }
 pre { overflow-x: auto; background: var(--bg); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+
+/* Performance sparklines (T3.4): classes only, the CSP forbids inline style. */
+.spark { display: block; }
+.spark-line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.spark-base { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.spark-build { stroke: var(--warn); stroke-width: 1; opacity: .8; }
+.spark-dot { fill: var(--accent); }
+.spark-dot.spark-alert { fill: var(--fail); }
+tr.static { cursor: default; }

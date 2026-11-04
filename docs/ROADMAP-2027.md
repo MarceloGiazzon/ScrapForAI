@@ -815,6 +815,11 @@ homologação útil.
 
 ### T3.4 — Série temporal de desempenho · M
 
+> **Implementada em 2026-11-03** (`src/metrics/`, ver AGENTS.md, "Performance series"). Toda execução de rotina da biblioteca grava os tempos por step; baseline = mediana das últimas 20 execuções
+> verdes **anteriores** às 3 mais recentes; alerta quando a mediana das 3 passa de `baseline × 1.3` **e** a diferença é de pelo menos 100 ms (configurável por `PERF_*`). População = (versão da rotina,
+> perfil, origem). Sparkline por rotina e por step com marca de troca de build (tela Performance), CLI `perf`, MCP `get_performance`. **Não feito:** avisar por webhook de um novo alerta, `perf.json` no snapshot de
+> evolução, limiares por perfil de alvo, o painel T3.7.
+
 - `<dataDir>/metrics/<routineId>.jsonl` com `{ jobId, at, buildId, steps: [{ id, durationMs }] }`.
   O `durationMs` por step já é medido hoje.
 - Baseline = mediana das últimas 20 execuções verdes do mesmo step.

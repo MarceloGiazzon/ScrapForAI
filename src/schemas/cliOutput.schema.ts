@@ -140,6 +140,13 @@ const cliWebhookViewSchema = z
   .strict();
 export const cliWebhooksListSchema = z.object({ webhooks: z.array(cliWebhookViewSchema) }).strict();
 
+/** `perf list|alerts|show` (T3.4): passed through as the API returns them (shapes: metrics/perfAnalysis.ts, perfService.ts). */
+export const cliPerfListSchema = z.object({ routines: z.array(z.object({ routineId: z.string(), runs: z.number(), greenRuns: z.number(), alerts: z.array(z.unknown()) }).passthrough()) }).strict();
+export const cliPerfAlertsSchema = z.object({ count: z.number(), alerts: z.array(z.object({ routineId: z.string(), series: z.string(), baselineMs: z.number(), recentMs: z.number() }).passthrough()) }).strict();
+export const cliPerfShowSchema = z
+  .object({ routineId: z.string(), runs: z.number(), greenRuns: z.number(), steps: z.array(z.object({ id: z.string(), alert: z.boolean() }).passthrough()), alerts: z.array(z.string()) })
+  .passthrough();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -207,6 +214,9 @@ export const cliOutputSchema = z.union([
   success('webhooks list', cliWebhooksListSchema),
   success('webhooks show', cliWebhookViewSchema),
   success('webhooks test', deliverySchema),
+  success('perf list', cliPerfListSchema),
+  success('perf alerts', cliPerfAlertsSchema),
+  success('perf show', cliPerfShowSchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),

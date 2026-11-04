@@ -57,6 +57,8 @@ Commands
                                     (smallest input that still fails; exit 0 when found, 2 otherwise)
   schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
   webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
+  perf list | alerts | show <routineId> [--version N] [--profile full|functional] [--fail-on-alert]
+                                    (how long each step takes over time: baseline = median of the last 20 green runs, alert when the last 3 are >30% slower; --fail-on-alert exits 1)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -281,7 +283,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' ?`${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -702,6 +704,59 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const entry = started.body as Record<string, any>;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'schedules run-now', exitCode: 0, result: entry as never }, `${entry.outcome}${entry.run ? `: ${entry.run.kind} ${entry.run.id}` : ''}${entry.message ? ` - ${entry.message}` : ''}\n`);
       return 0;
+    }
+
+    if (command === 'perf list' || command === 'perf alerts' || command === 'perf show') {
+      // T3.4: read-only. The series is recorded by the server on every run of a library routine.
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, version: { type: 'string' }, profile: { type: 'string' }, 'fail-on-alert': { type: 'boolean' } } });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const failOnAlert = values['fail-on-alert'] === true;
+      const ms = (value: number | undefined): string => (value === undefined ? '-' : `${Math.round(value)} ms`);
+      const alertLine = (alert: Record<string, any>): string =>
+        `ALERT ${alert.routineId} ${alert.series}: ${ms(alert.baselineMs)} -> ${ms(alert.recentMs)}${alert.ratio ? ` (x${alert.ratio})` : ''}${alert.suspectBuild ? `  new build in the slow runs: ${alert.suspectBuild}` : ''}`;
+
+      if (command === 'perf list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai perf list');
+        const response = await api('GET', '/v1/metrics/routines');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { routines: Array<Record<string, any>> };
+        const lines = body.routines.map((item) => `${item.alerts.length > 0 ? 'ALERT' : '     '}  ${item.routineId}  ${item.greenRuns}/${item.runs} green  run ${ms(item.run?.baselineMs)} -> ${ms(item.run?.recentMs)}${item.run?.note ? `  (${item.run.note})` : ''}`);
+        const exitCode: ExitCode = failOnAlert && body.routines.some((item) => item.alerts.length > 0) ? 1 : 0;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'perf list', exitCode, result: body as never }, `${lines.length === 0 ? 'No performance data yet.' : lines.join('\n')}\n`);
+        return exitCode;
+      }
+
+      if (command === 'perf alerts') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai perf alerts [--fail-on-alert]');
+        const response = await api('GET', '/v1/metrics/alerts');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { count: number; alerts: Array<Record<string, any>> };
+        const exitCode: ExitCode = failOnAlert && body.count > 0 ? 1 : 0;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'perf alerts', exitCode, result: body as never }, `${body.count === 0 ? 'No performance alerts.' : body.alerts.map(alertLine).join('\n')}\n`);
+        return exitCode;
+      }
+
+      const [routineId] = positionals;
+      if (!routineId || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai perf show <routineId> [--version N] [--profile full|functional] [--fail-on-alert]');
+      if (values.profile !== undefined && values.profile !== 'full' && values.profile !== 'functional') throw new CliError('UsageError', '--profile must be full or functional');
+      const version = values.version === undefined ? undefined : Number(values.version);
+      if (version !== undefined && (!Number.isInteger(version) || version < 1)) throw new CliError('UsageError', '--version must be a positive integer');
+      const query = new URLSearchParams({ limit: '1', ...(version === undefined ? {} : { version: String(version) }), ...(values.profile ? { profile: values.profile } : {}) });
+      const response = await api('GET', `/v1/metrics/routines/${encodeURIComponent(routineId)}?${query.toString()}`);
+      if (response.status !== 200) throw errorOf(response);
+      const body = response.body as Record<string, any>;
+      const population = body.population as Record<string, any> | undefined;
+      const row = (series: Record<string, any>): string =>
+        `${series.alert ? 'ALERT' : '     '}  ${String(series.id).padEnd(24)} ${String(series.samples).padStart(4)} runs  ${ms(series.baselineMs).padStart(9)} -> ${ms(series.recentMs).padStart(9)}${series.ratio ? `  x${series.ratio}` : ''}${series.suspectBuild ? `  build ${series.suspectBuild}` : ''}${series.note ? `  (${series.note})` : ''}`;
+      const lines = [
+        `${body.routineId}${population ? `: version ${population.version}, ${population.profile}, ${population.env}` : ''}  (${body.greenRuns}/${body.runs} green runs)`,
+        ...(body.run ? [row(body.run)] : []),
+        ...(body.steps as Array<Record<string, any>>).map(row),
+      ];
+      const exitCode: ExitCode = failOnAlert && (body.alerts as string[]).length > 0 ? 1 : 0;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'perf show', exitCode, result: body as never }, `${lines.join('\n')}\n`);
+      return exitCode;
     }
 
     if (command === 'webhooks list' || command === 'webhooks show' || command === 'webhooks test') {

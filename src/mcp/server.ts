@@ -32,7 +32,7 @@ const server = new McpServer(
       'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails. ' +
       'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result. ' +
       'To describe a target\'s screens, use the prompt propose_screen_catalog: you propose a catalogue, a person approves and saves it. ' +
-      'Schedules and webhooks (list_schedules, list_webhooks) are read-only here: a person creates them, because they run browsers and send data out unattended. ' +
+      'Schedules and webhooks (list_schedules, list_webhooks) are read-only here; get_performance shows which step got slower and in which build: a person creates them, because they run browsers and send data out unattended. ' +
       'To see how a system evolved between builds, use evolution_diff (two builds) and evolution_query (when did X appear); snapshots themselves are taken by a person or CI.',
   },
 );
@@ -211,6 +211,32 @@ server.registerTool(
   async ({ id }) => {
     try {
       return toToolResult(await getJson(id ? `/v1/webhooks/${encodeURIComponent(id)}` : '/v1/webhooks'));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_performance',
+  {
+    title: 'Get performance',
+    description:
+      'How long a library routine and each of its steps take over time. Without routineId: every routine with a series, its run-level baseline/recent times and its alerts. ' +
+      'With routineId: the sparkline points per step (oldest first, with build ids), the baseline (median of the last 20 green runs before the last 3), the recent time ' +
+      '(median of the last 3), the ratio, whether it is an ALERT (recent > baseline x 1.3 and at least 100 ms slower) and, for an alert, the new build seen in the slow runs ' +
+      '(the usual suspect). Only green runs and passed steps count; a new routine version, the functional profile and another environment are separate populations ' +
+      '(version/profile narrow the choice). Read-only.',
+    inputSchema: z
+      .object({ routineId: safeName.optional(), version: z.number().int().positive().optional(), profile: z.enum(['full', 'functional']).optional(), limit: z.number().int().min(1).max(500).optional() })
+      .strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ routineId, version, profile, limit }) => {
+    try {
+      if (!routineId) return toToolResult(await getJson('/v1/metrics/routines'));
+      const query = new URLSearchParams({ ...(version === undefined ? {} : { version: String(version) }), ...(profile ? { profile } : {}), ...(limit === undefined ? {} : { limit: String(limit) }) });
+      return toToolResult(await getJson(`/v1/metrics/routines/${encodeURIComponent(routineId)}${query.size > 0 ? `?${query.toString()}` : ''}`));
     } catch (error) {
       return toErrorResult(error);
     }

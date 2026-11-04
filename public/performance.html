@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Performance</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="config.html">Configuration</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Performance of routines</h2>
+      <p class="muted" id="perf-summary">Loading…</p>
+      <p class="muted">Every run of a library routine records how long each step took. The baseline is the median of the last green runs before the most recent three; a step is flagged when the median of those three is clearly slower. Failed runs do not count, and a new routine version, the functional profile or another environment is measured on its own.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Routine</th><th>Green runs</th><th>Whole run: baseline</th><th>Whole run: recent</th><th>State</th></tr>
+          </thead>
+          <tbody id="perf-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="perf-detail"></div>
+  </main>
+  <script type="module" src="performance.js"></script>
+</body>
+</html>

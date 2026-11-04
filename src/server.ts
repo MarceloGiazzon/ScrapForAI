@@ -29,6 +29,7 @@ import { shrinksRouter } from './routes/shrinks.routes.js';
 import { startScheduler } from './scheduler/runtime.js';
 import { suitesRouter } from './routes/suites.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
+import { metricsRouter } from './routes/metrics.routes.js';
 import { vaultRouter } from './routes/vault.routes.js';
 import { webhooksRouter } from './routes/webhooks.routes.js';
 import { apiAuth } from './security/apiAuth.js';
@@ -142,6 +143,7 @@ app.post('/v1/shrinks', explorationLimiter); // a shrink drives browsers, like a
 app.use('/v1/shrinks', shrinksRouter);
 app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/webhooks', webhooksRouter);
+app.use('/v1/metrics', metricsRouter);
 app.use('/v1/evidence', evidenceRouter);
 app.use('/v1/vault', vaultRouter);
 app.use('/v1/permissions', permissionsRouter);

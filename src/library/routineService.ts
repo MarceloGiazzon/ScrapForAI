@@ -20,6 +20,7 @@ import {
 import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { getTarget } from '../targets/targetStore.js';
 import { listAllCredentialValues } from '../vault/credentials/credentialVault.js';
+import { recordRunMetrics } from '../metrics/perfRecorder.js';
 import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
 import { lintRoutineSteps, lintParameters } from './routineLint.js';
 
@@ -235,7 +236,10 @@ export async function runLibraryRoutine(
   if (context.suite) {
     resolved.suite = context.suite;
   }
-  return runExploration(resolved);
+  const result = await runExploration(resolved);
+  // T3.4: the time each step took joins the routine's series. Never fails the run.
+  await recordRunMetrics(result, { fixedParameters: body.parameterValues !== undefined });
+  return result;
 }
 
 /**
