@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
-import { actorsSchema, buildIdSchema, explorationOptionsSchema, explorationStepSchema, safeName } from './explorationRequest.schema.js';
+import { actorsSchema, buildIdSchema, explorationOptionsSchema, explorationStepSchema, leafStepSchema, safeName } from './explorationRequest.schema.js';
 import { parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 /**
@@ -36,7 +36,7 @@ const contentShape = {
   steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
   // T1.4. Optional with NO default on purpose: a default would add `teardown: []` to every routine and
   // change the digest of versions saved before teardown existed, failing their integrity check.
-  teardown: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB).optional(),
+  teardown: z.array(leafStepSchema).min(1).max(env.MAX_STEPS_PER_JOB).optional(),
 };
 
 /** What an author supplies (and what the digest covers, together with the id). */

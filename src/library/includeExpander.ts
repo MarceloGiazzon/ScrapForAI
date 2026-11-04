@@ -1,8 +1,9 @@
 import { env } from '../config/env.js';
 import { renameVariables } from '../oracle/expression.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
-import { type ExplorationStep, explorationRequestSchema, type RunnableStep } from '../schemas/explorationRequest.schema.js';
+import { type ExplorationStep, explorationRequestSchema, type RunnableLeaf, type RunnableStep } from '../schemas/explorationRequest.schema.js';
 import { type Parameter, sanitizeParameterName } from '../schemas/parameters.schema.js';
+import { countSteps } from '../schemas/stepTree.js';
 import { getRoutine } from './routineLibrary.js';
 
 /**
@@ -23,7 +24,8 @@ export interface IncludedRoutineRef {
 
 export interface ExpandedSteps {
   steps: RunnableStep[];
-  teardown: RunnableStep[];
+  /** No `parallel` block (T6.5): a teardown runs one step after the other. */
+  teardown: RunnableLeaf[];
   includes: IncludedRoutineRef[];
   /**
    * Parameters declared by the INCLUDED routines (T5.3), renamed `<include path>_<name>` (dots become underscores) so two includes of the
@@ -54,20 +56,20 @@ interface Context {
 }
 
 /** T6.4: the step runs as the include's actor unless it names its own. */
-function withActor(step: RunnableStep, actor: string | undefined): RunnableStep {
-  return actor === undefined || step.actor !== undefined ? step : ({ ...step, actor } as RunnableStep);
+function withActor(step: RunnableLeaf, actor: string | undefined): RunnableLeaf {
+  return actor === undefined || step.actor !== undefined ? step : ({ ...step, actor } as RunnableLeaf);
 }
 
 /** A step of an included routine that draws from one of ITS parameters now draws from the renamed one. */
-function withScopedParameter(step: RunnableStep, scope: Map<string, string>): RunnableStep {
+function withScopedParameter(step: RunnableLeaf, scope: Map<string, string>): RunnableLeaf {
   // T5.5: a formula of an included routine reads ITS parameters by their declared name; follow the rename.
   if (step.action === 'assertEquals' && 'expr' in step.expected && scope.size > 0) {
     const expr = renameVariables(step.expected.expr, scope);
-    return expr === step.expected.expr ? step : ({ ...step, expected: { expr } } as RunnableStep);
+    return expr === step.expected.expr ? step : ({ ...step, expected: { expr } } as RunnableLeaf);
   }
   const name = (step as { valueFromParameter?: string }).valueFromParameter;
   const renamed = name === undefined ? undefined : scope.get(name);
-  return renamed === undefined ? step : ({ ...step, valueFromParameter: renamed } as RunnableStep);
+  return renamed === undefined ? step : ({ ...step, valueFromParameter: renamed } as RunnableLeaf);
 }
 
 function prefixed(step: RunnableStep, prefix: string): RunnableStep {
@@ -96,7 +98,7 @@ function prefixed(step: RunnableStep, prefix: string): RunnableStep {
  * (its own teardown first, then those of ITS includes in reverse order), so the caller can order them.
  */
 async function expandList(
-  steps: ExplorationStep[],
+  steps: readonly ExplorationStep[],
   context: Context,
   prefix: string,
   collectTeardown: boolean,
@@ -105,8 +107,21 @@ async function expandList(
   const deferred: RunnableStep[][] = [];
 
   for (const step of steps) {
+    if (step.action === 'parallel') {
+      // T6.5: the includes INSIDE a branch expand in place (a branch is a list like any other), under the same prefix, actor and parameter scope.
+      // The teardown an include of a branch brings is deferred with the rest, branch by branch.
+      const branches: RunnableLeaf[][] = [];
+      for (const branch of step.branches) {
+        const expandedBranch = await expandList(branch, context, prefix, collectTeardown);
+        branches.push(expandedBranch.steps as RunnableLeaf[]);
+        deferred.push(...expandedBranch.deferred);
+      }
+      out.push(prefixed({ ...step, branches } as RunnableStep, prefix));
+      continue;
+    }
+
     if (step.action !== 'include') {
-      out.push(withActor(prefixed(withScopedParameter(step as RunnableStep, context.scope), prefix), context.actor));
+      out.push(withActor(prefixed(withScopedParameter(step as RunnableLeaf, context.scope), prefix) as RunnableLeaf, context.actor));
       continue;
     }
 
@@ -196,13 +211,14 @@ export async function expandIncludes(
 
   const main = await expandList(input.steps, context, '', true);
   const ownTeardown = input.teardown ? (await expandList(input.teardown, context, '', false)).steps : [];
-  const teardown = [...ownTeardown, ...[...main.deferred].reverse().flat()];
+  const teardown = [...ownTeardown, ...[...main.deferred].reverse().flat()] as RunnableLeaf[];
 
-  if (main.steps.length + teardown.length > env.MAX_STEPS_PER_JOB) {
+  const expandedCount = countSteps(main.steps) + countSteps(teardown);
+  if (expandedCount > env.MAX_STEPS_PER_JOB) {
     throw new IncludeError(
       400,
       'ExpandedRoutineTooLong',
-      `After expanding includes the run has ${main.steps.length + teardown.length} steps (steps + teardown); MAX_STEPS_PER_JOB is ${env.MAX_STEPS_PER_JOB}`,
+      `After expanding includes the run has ${expandedCount} steps (steps + teardown); MAX_STEPS_PER_JOB is ${env.MAX_STEPS_PER_JOB}`,
     );
   }
 

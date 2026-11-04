@@ -7,6 +7,7 @@ import { sessionCredentialSets } from '../runner/actors.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { snapshotBodySchema } from '../schemas/evolution.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { someStep } from '../schemas/stepTree.js';
 import type { Schedule } from '../schemas/schedule.schema.js';
 import { type SuiteRequest, suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { attemptMetadata, runAttempts } from '../orchestrator/retry.js';
@@ -21,7 +22,8 @@ import type { Dispatched, Dispatcher, RunRef, Settled, SettledFacts } from './sc
 const WAIT_SLICE_MS = 30_000;
 
 type StepLike = { action?: string };
-const usesEvaluate = (steps: unknown): boolean => Array.isArray(steps) && (steps as StepLike[]).some((step) => step.action === 'evaluate' || step.action === 'watch');
+// Inside a `parallel` block too (T6.5): an unattended run must not get arbitrary page JavaScript through a branch.
+const usesEvaluate = (steps: unknown): boolean => Array.isArray(steps) && someStep(steps as StepLike[], (step) => step.action === 'evaluate' || step.action === 'watch');
 
 /** Does this routine (includes expanded) run evaluate/watch? */
 async function routineUsesEvaluate(id: string, version: number | undefined): Promise<boolean> {

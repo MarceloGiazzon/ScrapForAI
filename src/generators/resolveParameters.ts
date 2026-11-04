@@ -8,6 +8,7 @@ import {
   parameterName,
   sanitizeParameterName,
 } from '../schemas/parameters.schema.js';
+import { leafSteps, mapLeaves, someStep } from '../schemas/stepTree.js';
 import { valueAt } from './generators.js';
 
 /**
@@ -61,7 +62,8 @@ const usesParameters = (step: StepLike): boolean => step.valueFromParameter !== 
 
 /** Names a step list refers to through `valueFromParameter`. */
 export function referencedParameters(steps: StepLike[]): string[] {
-  return [...new Set(steps.flatMap((step) => (step.valueFromParameter !== undefined ? [step.valueFromParameter] : [])))];
+  // Inside a `parallel` block too (T6.5).
+  return [...new Set([...leafSteps(steps)].flatMap((step) => (step.valueFromParameter !== undefined ? [step.valueFromParameter] : [])))];
 }
 
 /**
@@ -75,7 +77,7 @@ export function declareParameters<T extends StepLike>(input: Pick<ResolveInput<T
 } {
   const declared = input.parameters ?? [];
   const all = [...input.steps, ...(input.teardown ?? [])];
-  if (declared.length === 0 && !all.some(usesParameters)) return { parameters: [], steps: input.steps, ...(input.teardown ? { teardown: input.teardown } : {}) };
+  if (declared.length === 0 && !someStep(all, usesParameters)) return { parameters: [], steps: input.steps, ...(input.teardown ? { teardown: input.teardown } : {}) };
 
   const parameters: Parameter[] = [];
   const names = new Set<string>();
@@ -86,22 +88,23 @@ export function declareParameters<T extends StepLike>(input: Pick<ResolveInput<T
   }
 
   // Inline generators become implicit parameters, named after their step so the record says where each value went.
+  // `slot` is where the step sits ("s3"; "s3b1_0" inside a parallel branch): the name of a step with no id (T6.5).
   const rewrite = (steps: T[], phase: string): T[] =>
-    steps.map((step, index) => {
+    mapLeaves(steps, (step, slot) => {
       if (step.valueFromGenerator === undefined) return step;
       // A step id may carry dots (`login.user`, from an include): the parameter name gets underscores instead.
-      const name = sanitizeParameterName(`gen_${step.id ?? `${phase}${index}`}`);
+      const name = sanitizeParameterName(`gen_${step.id ?? slot}`);
       if (!parameterName.safeParse(name).success) throw new ParameterError('InvalidGenerator', `cannot name a parameter after step "${step.id}"`);
       if (names.has(name)) throw new ParameterError('DuplicateParameter', `"${name}" is already a parameter: give the step a different id`);
       const parsed = checkedGeneratorSchema.safeParse(step.valueFromGenerator);
       if (!parsed.success) {
-        throw new ParameterError('InvalidGenerator', `step "${step.id ?? `${phase}${index}`}": ${parsed.error.issues.map((issue) => issue.message).join('; ')}`);
+        throw new ParameterError('InvalidGenerator', `step "${step.id ?? slot}": ${parsed.error.issues.map((issue) => issue.message).join('; ')}`);
       }
       names.add(name);
       parameters.push({ name, generator: parsed.data, includeBoundaries: true });
       const { valueFromGenerator: _generator, ...rest } = step;
       return { ...rest, valueFromParameter: name } as T;
-    });
+    }, phase);
 
   const steps = rewrite(input.steps, 's');
   const teardown = input.teardown ? rewrite(input.teardown, 't') : undefined;

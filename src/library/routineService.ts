@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import type { ZodError } from 'zod';
 
 import { sanitizeParameterName } from '../schemas/parameters.schema.js';
+import { mapLeaves } from '../schemas/stepTree.js';
 import { expandIncludes } from './includeExpander.js';
 import { resolveJobFile } from '../evidence/locate.js';
 import { resolveExplorationRequest } from '../runner/resolveRequest.js';
@@ -99,11 +100,12 @@ function pinParameterValues(request: JobRequestFile, values: Record<string, stri
   const remaining = new Set(Object.keys(values));
   for (const parameter of declared) remaining.delete(parameter.name);
 
+  // mapLeaves also reaches the steps inside a `parallel` block (T6.5); `slot` is "s3" at the top level, as before.
   const rewrite = (steps: unknown): unknown =>
     Array.isArray(steps)
-      ? steps.map((step: Record<string, unknown>, index) => {
+      ? mapLeaves(steps as Array<Record<string, unknown>>, (step, slot) => {
           if (step.valueFromGenerator === undefined) return step;
-          const name = sanitizeParameterName(`gen_${typeof step.id === 'string' ? step.id : `s${index}`}`);
+          const name = sanitizeParameterName(`gen_${typeof step.id === 'string' ? step.id : slot}`);
           const value = values[name];
           if (value === undefined) return step;
           remaining.delete(name);

@@ -135,6 +135,9 @@
           "stepId": {
             "type": "string"
           },
+          "actor": {
+            "type": "string"
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -586,7 +589,7 @@
       "type": "number"
     },
     "error": {
-      "$ref": "#/$defs/__schema1"
+      "$ref": "#/$defs/__schema2"
     },
     "steps": {
       "type": "array",
@@ -600,10 +603,190 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema2"
+        "$ref": "#/$defs/__schema3"
+      }
+    },
+    "actors": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "credentialSet": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "stepsRun": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "evidence": {
+            "$ref": "#/$defs/__schema4"
+          }
+        },
+        "required": [
+          "stepsRun",
+          "evidence"
+        ],
+        "additionalProperties": false
       }
     },
     "evidence": {
+      "$ref": "#/$defs/__schema4"
+    }
+  },
+  "required": [
+    "jobId",
+    "status",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "targetUrl",
+    "caller",
+    "steps",
+    "extracted",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "__schema0": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "finishedAt": {
+          "type": "string"
+        },
+        "durationMs": {
+          "type": "number"
+        },
+        "error": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "branch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "branches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/$defs/__schema1"
+              },
+              "stepsRun": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "actor",
+              "status",
+              "stepsRun"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "index",
+        "action",
+        "status",
+        "startedAt",
+        "finishedAt",
+        "durationMs"
+      ],
+      "additionalProperties": false
+    },
+    "__schema1": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "skipped"
+      ]
+    },
+    "__schema2": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "__schema3": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema3"
+          }
+        }
+      ]
+    },
+    "__schema4": {
       "type": "object",
       "properties": {
         "screenshots": {
@@ -615,6 +798,9 @@
                 "type": "string"
               },
               "path": {
+                "type": "string"
+              },
+              "actor": {
                 "type": "string"
               }
             },
@@ -631,13 +817,13 @@
         "console": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema3"
+            "$ref": "#/$defs/__schema5"
           }
         },
         "consoleErrors": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema3"
+            "$ref": "#/$defs/__schema5"
           }
         },
         "pageErrors": {
@@ -649,13 +835,13 @@
         "network": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema6"
           }
         },
         "networkFailures": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema6"
           }
         },
         "traffic": {
@@ -664,25 +850,28 @@
             "type": "object",
             "properties": {
               "origin": {
-                "$ref": "#/$defs/__schema5"
-              },
-              "pathname": {
-                "$ref": "#/$defs/__schema6"
-              },
-              "method": {
                 "$ref": "#/$defs/__schema7"
               },
-              "resourceType": {
+              "pathname": {
                 "$ref": "#/$defs/__schema8"
               },
-              "status": {
+              "method": {
                 "$ref": "#/$defs/__schema9"
               },
-              "failureText": {
+              "resourceType": {
                 "$ref": "#/$defs/__schema10"
               },
-              "unexpectedExternalOrigin": {
+              "status": {
                 "$ref": "#/$defs/__schema11"
+              },
+              "failureText": {
+                "$ref": "#/$defs/__schema12"
+              },
+              "unexpectedExternalOrigin": {
+                "$ref": "#/$defs/__schema13"
+              },
+              "actor": {
+                "$ref": "#/$defs/__schema14"
               },
               "count": {
                 "type": "integer",
@@ -726,7 +915,7 @@
         "unexpectedExternalRequests": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema6"
           }
         },
         "routing": {
@@ -759,6 +948,9 @@
               },
               "detail": {
                 "type": "string"
+              },
+              "actor": {
+                "type": "string"
               }
             },
             "required": [
@@ -788,125 +980,17 @@
         "unexpectedExternalRequests"
       ],
       "additionalProperties": false
-    }
-  },
-  "required": [
-    "jobId",
-    "status",
-    "startedAt",
-    "finishedAt",
-    "durationMs",
-    "targetUrl",
-    "caller",
-    "steps",
-    "extracted",
-    "evidence"
-  ],
-  "additionalProperties": false,
-  "$defs": {
-    "__schema0": {
-      "type": "object",
-      "properties": {
-        "index": {
-          "type": "number"
-        },
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "action": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "passed",
-            "failed",
-            "skipped"
-          ]
-        },
-        "startedAt": {
-          "type": "string"
-        },
-        "finishedAt": {
-          "type": "string"
-        },
-        "durationMs": {
-          "type": "number"
-        },
-        "error": {
-          "$ref": "#/$defs/__schema1"
-        }
-      },
-      "required": [
-        "index",
-        "action",
-        "status",
-        "startedAt",
-        "finishedAt",
-        "durationMs"
-      ],
-      "additionalProperties": false
     },
-    "__schema1": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string"
-        },
-        "message": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "message"
-      ],
-      "additionalProperties": false
-    },
-    "__schema2": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema2"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema2"
-          }
-        }
-      ]
-    },
-    "__schema3": {
+    "__schema5": {
       "type": "object",
       "properties": {
         "type": {
           "type": "string"
         },
         "text": {
+          "type": "string"
+        },
+        "actor": {
           "type": "string"
         },
         "location": {
@@ -931,29 +1015,32 @@
       ],
       "additionalProperties": false
     },
-    "__schema4": {
+    "__schema6": {
       "type": "object",
       "properties": {
         "origin": {
-          "$ref": "#/$defs/__schema5"
-        },
-        "pathname": {
-          "$ref": "#/$defs/__schema6"
-        },
-        "method": {
           "$ref": "#/$defs/__schema7"
         },
-        "resourceType": {
+        "pathname": {
           "$ref": "#/$defs/__schema8"
         },
-        "status": {
+        "method": {
           "$ref": "#/$defs/__schema9"
         },
-        "failureText": {
+        "resourceType": {
           "$ref": "#/$defs/__schema10"
         },
-        "unexpectedExternalOrigin": {
+        "status": {
           "$ref": "#/$defs/__schema11"
+        },
+        "failureText": {
+          "$ref": "#/$defs/__schema12"
+        },
+        "unexpectedExternalOrigin": {
+          "$ref": "#/$defs/__schema13"
+        },
+        "actor": {
+          "$ref": "#/$defs/__schema14"
         }
       },
       "required": [
@@ -963,12 +1050,6 @@
       ],
       "additionalProperties": false
     },
-    "__schema5": {
-      "type": "string"
-    },
-    "__schema6": {
-      "type": "string"
-    },
     "__schema7": {
       "type": "string"
     },
@@ -976,13 +1057,22 @@
       "type": "string"
     },
     "__schema9": {
-      "type": "number"
+      "type": "string"
     },
     "__schema10": {
       "type": "string"
     },
     "__schema11": {
+      "type": "number"
+    },
+    "__schema12": {
+      "type": "string"
+    },
+    "__schema13": {
       "type": "boolean"
+    },
+    "__schema14": {
+      "type": "string"
     }
   }
 }

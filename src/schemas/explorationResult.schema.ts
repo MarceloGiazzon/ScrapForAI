@@ -35,6 +35,13 @@ export const stepResultSchema = z.object({
   finishedAt: z.string(),
   durationMs: z.number(),
   error: errorSchema.optional(),
+  /**
+   * T6.5: the branch (0-based) of a `parallel` block this step ran in. Absent outside a block. The steps of a block follow its own result in the
+   * list, branch 0 first, each branch in the order it ran: the ORDER is fixed, the times (`startedAt`/`finishedAt`) show how they overlapped.
+   */
+  branch: z.number().int().min(0).optional(),
+  /** T6.5: on a `parallel` block's own result: how each branch ended, by branch number. */
+  branches: z.array(z.object({ actor: z.string(), status: stepStatusSchema, stepsRun: z.number().int().min(0) })).optional(),
 });
 export type StepResult = z.infer<typeof stepResultSchema>;
 

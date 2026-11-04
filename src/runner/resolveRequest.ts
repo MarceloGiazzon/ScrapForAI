@@ -1,8 +1,9 @@
 import { env } from '../config/env.js';
 import { ParameterError, resolveParameters } from '../generators/resolveParameters.js';
 import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpander.js';
-import type { ExplorationRequest, ExplorationStep, RunnableStep } from '../schemas/explorationRequest.schema.js';
+import type { ExplorationRequest, ExplorationStep, RunnableLeaf, RunnableStep } from '../schemas/explorationRequest.schema.js';
 import type { ParameterRecord } from '../schemas/parameters.schema.js';
+import { someStep } from '../schemas/stepTree.js';
 import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
@@ -20,7 +21,7 @@ export const AUTO_LOGIN_ID = 'autologin';
 
 /** True when a step types a vault value: the run logs itself in. */
 function typesCredential(steps: RunnableStep[]): boolean {
-  return steps.some((step) => (step.action === 'fill' || step.action === 'selectOption') && step.valueFromCredential !== undefined);
+  return someStep(steps, (step) => (step.action === 'fill' || step.action === 'selectOption') && step.valueFromCredential !== undefined);
 }
 
 /** T6.4: what one actor may type from the vault: the fields of ITS credential set, and the origins they are bound to. */
@@ -34,7 +35,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   targetUrl: string;
   /** Includes are expanded (T1.4): the runner only sees executable steps. */
   steps: RunnableStep[];
-  teardown?: RunnableStep[];
+  /** A teardown holds no `parallel` block (T6.5): its steps run one after the other. */
+  teardown?: RunnableLeaf[];
   /** The routines expanded into this run, with the versions actually used. */
   includes?: IncludedRoutineRef[];
   /** T5.3: the values the run's parameters take for its seed and sample. Absent when the run uses no parameter. */
@@ -170,7 +172,8 @@ export async function resolveExplorationRequest(
     steps: parameterized.steps,
     ...(buildProbe ? { buildProbe } : {}),
     ...(autoLogin ? { autoLogin } : {}),
-    ...(parameterized.teardown && parameterized.teardown.length > 0 ? { teardown: parameterized.teardown } : {}),
+    // The schema keeps `parallel` out of a teardown (and the expander re-checks the expanded list), so these are all leaf steps.
+    ...(parameterized.teardown && parameterized.teardown.length > 0 ? { teardown: parameterized.teardown as RunnableLeaf[] } : {}),
     ...(parameterized.record ? { parameterRecord: parameterized.record } : {}),
     // Kept "as written" whenever the steps were rewritten (includes expanded, inline generators turned into parameters), so a good
     // run saves as the routine its author wrote, not as the expansion.

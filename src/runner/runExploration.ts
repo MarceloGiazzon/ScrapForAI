@@ -12,7 +12,7 @@ import { appendRun } from '../history/runHistoryStore.js';
 import { summarizeResult } from '../history/summarizeResult.js';
 import { checkAssertEquals } from '../oracle/assertEquals.js';
 import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility.schema.js';
-import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
+import { type FrameRef, type RunnableLeaf, type RunnableParallel, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
 import type { ClockEvidence, EvidenceBlock, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
 import type { PiiReport } from '../schemas/pii.schema.js';
 import { assertCredentialOrigin, type CredentialBinding } from '../security/credentialBinding.js';
@@ -58,6 +58,23 @@ interface ActorSession {
   finalUrl: string | undefined;
 }
 
+/**
+ * T6.5: what a step may WRITE while it runs, and where its result goes. The run has one scope for the steps and one for the teardown. A branch of a
+ * `parallel` block gets a scope of its own, so branches running at the same time never touch the same list or object; the block merges them into
+ * the run's in BRANCH order afterwards. That is what keeps the result the same whichever branch finished first.
+ */
+interface StepScope {
+  /** Where the step's result is pushed. */
+  results: StepResult[];
+  /** What the step extracts (`extracted[name] = ...`). In a branch: only this branch's own writes. */
+  extracted: Record<string, JsonValue>;
+  /** In a branch: what the run had extracted BEFORE the block, which the branch may read (assertEquals) but a sibling's writes are not in it. */
+  inherited: Record<string, JsonValue> | undefined;
+  clockEvents: ClockEvidence[];
+  /** A holder, so the run's two scopes (steps, teardown) share the one value. */
+  domText: { value: string | undefined };
+}
+
 class StepExecutionError extends Error {
   constructor(message: string) {
     super(message);
@@ -65,7 +82,7 @@ class StepExecutionError extends Error {
   }
 }
 
-function timeoutFor(step: RunnableStep): number {
+function timeoutFor(step: RunnableLeaf): number {
   const timeoutMs = 'timeoutMs' in step ? step.timeoutMs : undefined;
   return Math.min(timeoutMs ?? env.STEP_TIMEOUT_MS, env.STEP_TIMEOUT_MS);
 }
@@ -205,7 +222,7 @@ export async function runEvaluate(frame: Frame, script: string): Promise<unknown
   }
 }
 
-function resolveValue(step: RunnableStep, request: ResolvedExplorationRequest, targetFrame: Frame, actor: ActorSession): string {
+function resolveValue(step: RunnableLeaf, request: ResolvedExplorationRequest, targetFrame: Frame, actor: ActorSession): string {
   if ('value' in step && step.value !== undefined) {
     return step.value;
   }
@@ -321,11 +338,13 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   let failedStepIndex: number | undefined;
   let resultError: ExplorationResult['error'];
   let tracePath: string | undefined;
-  let domTextSnapshot: string | undefined;
   let finalUrl: string | undefined;
   let probedBuildId: string | undefined;
   // T7.3: what setClock did to the browser's clock.
   const clockEvents: ClockEvidence[] = [];
+  // T6.5: the scope of the steps and the scope of the teardown (they share what is extracted, the clock events and the DOM text).
+  const rootScope: StepScope = { results: steps, extracted, inherited: undefined, clockEvents, domText: { value: undefined } };
+  const teardownScope: StepScope = { ...rootScope, results: teardownSteps };
   // T7.8: the PII hunt of this run, only for a run that asks for it (options.piiScan or a scanForPii step).
   let hunting = false;
   let piiReport: ExplorationResult['pii'];
@@ -391,17 +410,21 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     }
     const primary = sessions.get(usedActors[0]!)!;
 
-    // One step, in either phase. Teardown (T1.4) uses the same machinery but must not touch the verdict:
-    // its failures stay in teardownSteps and never set failedStepIndex/resultError.
-    const runStep = async (step: RunnableStep, index: number, phase: 'steps' | 'teardown'): Promise<boolean> => {
+    // One step, in either phase. It records its result in `scope.results` and hands it back; it does NOT decide the verdict (the caller sets
+    // failedStepIndex/resultError from it), because a step inside a `parallel` block must not touch the run's verdict until the block is merged.
+    // Teardown (T1.4) uses the same machinery and its failures never reach the verdict at all.
+    const runStep = async (step: RunnableLeaf, phase: 'steps' | 'teardown', scope: StepScope): Promise<StepResult> => {
       // Every actor a step names was opened above (actorsInUse reads the same lists).
       const session = sessions.get(actorOf(step))!;
       const evidence = session.evidence;
+      // Shadows the run's `extracted` on purpose: every `extracted[name] = ...` below writes into THIS scope.
+      const extracted = scope.extracted;
       let stepFailed = false;
       const stepStartedAt = new Date();
       let responseWaiter: Promise<unknown> | undefined;
       const stepResult: StepResult = {
-        index,
+        // In a branch this is provisional: the block numbers its results once it knows the final order.
+        index: scope.results.length,
         id: step.id,
         label: step.label,
         description: step.description,
@@ -589,7 +612,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
                 ...(step.tolerance ? { tolerance: step.tolerance } : {}),
                 locale: step.locale,
                 parameters: request.parameterRecord?.values ?? {},
-                extracted,
+                // A branch reads what the run extracted before its block plus its own; never a sibling's (they run at the same time).
+                extracted: scope.inherited ? { ...scope.inherited, ...scope.extracted } : scope.extracted,
               });
             } catch (error) {
               throw new StepExecutionError(`assertEquals: ${error instanceof Error ? error.message : 'could not be evaluated'}`);
@@ -608,7 +632,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             if (step.what.includes('domText')) {
               const domText = await evidence.collectDomText();
               if (domText) {
-                domTextSnapshot = domText;
+                scope.domText.value = domText;
                 session.domTextSnapshot = domText;
               }
             }
@@ -781,7 +805,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             if (step.fixedTime !== undefined) {
               const at = new Date(step.fixedTime);
               await clock.setFixedTime(at);
-              clockEvents.push({ ...(step.id ? { stepId: step.id } : {}), ...(step.actor ? { actor: step.actor } : {}), mode: 'fixed', time: at.toISOString() });
+              scope.clockEvents.push({ ...(step.id ? { stepId: step.id } : {}), ...(step.actor ? { actor: step.actor } : {}), mode: 'fixed', time: at.toISOString() });
             } else {
               if (session.clockInstalled) {
                 throw new StepExecutionError('setClock: installAt can be used once per run (installing again would restart the time); use fixedTime to move the clock');
@@ -790,7 +814,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               await clock.install({ time: at });
               session.clockInstalled = true;
               if (step.fastForwardMs !== undefined) await clock.fastForward(step.fastForwardMs);
-              clockEvents.push({
+              scope.clockEvents.push({
                 ...(step.id ? { stepId: step.id } : {}),
                 ...(step.actor ? { actor: step.actor } : {}),
                 mode: 'install',
@@ -875,19 +899,12 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           type: error instanceof Error ? error.name : 'StepExecutionError',
           message,
         };
-        if (phase === 'steps') {
-          failedStepIndex = index;
-          resultError = {
-            type: stepResult.error.type,
-            message,
-          };
-        }
       } finally {
         const finishedAt = new Date();
         stepResult.finishedAt = finishedAt.toISOString();
         stepResult.durationMs = finishedAt.getTime() - stepStartedAt.getTime();
         session.stepsRun += 1;
-        (phase === 'steps' ? steps : teardownSteps).push(stepResult);
+        scope.results.push(stepResult);
         if (step.id) {
           stepFinishedAt.set(step.id, finishedAt.getTime());
           // T7.2: a fault that was to last "until this step" ends now, pass or fail.
@@ -896,25 +913,106 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       }
 
       // Evidence of the failing state is taken BEFORE teardown runs and changes the page.
+      // Best-effort (T6.5): a screenshot that cannot be taken (the page is gone) must not replace the error of the step, and inside a `parallel`
+      // block it must not reject the block and abandon the other branches. The step's own result is already recorded.
       if (stepFailed && phase === 'steps') {
-        if (screenshotMode === 'onFailure' || screenshotMode === 'always') {
-          await evidence.captureScreenshot('failure');
-        }
-
-        if (request.options.collectDomOnFailure) {
-          const domText = await evidence.collectDomText();
-          if (domText) {
-            domTextSnapshot = domText;
-            session.domTextSnapshot = domText;
+        try {
+          if (screenshotMode === 'onFailure' || screenshotMode === 'always') {
+            await evidence.captureScreenshot('failure');
           }
+
+          if (request.options.collectDomOnFailure) {
+            const domText = await evidence.collectDomText();
+            if (domText) {
+              scope.domText.value = domText;
+              session.domTextSnapshot = domText;
+            }
+          }
+        } catch {
+          // no failure evidence for this step; the failure itself is in stepResult
         }
       }
 
-      return stepFailed;
+      return stepResult;
     };
 
-    for (const [index, step] of request.steps.entries()) {
-      if (await runStep(step, index, 'steps')) {
+    // A step outside any block: the first failure ends the run's steps and is the run's verdict.
+    const runSequential = async (step: RunnableLeaf): Promise<boolean> => {
+      const result = await runStep(step, 'steps', rootScope);
+      if (result.status !== 'failed') return false;
+      failedStepIndex = result.index;
+      resultError = { type: result.error!.type, message: result.error!.message };
+      return true;
+    };
+
+    /**
+     * T6.5: a `parallel` block. Every branch (ONE actor's steps, checked at validation) starts at once and runs at its own pace; a branch stops at its
+     * own first failure and the others carry on to their end, so the evidence of the race is complete. Nothing a branch writes goes into the run
+     * until all have finished; then the results are numbered and the writes merged in BRANCH order, so the result does not depend on who was first:
+     * the block's own result, then branch 0's steps, branch 1's... The run's verdict is the first failed step in that order, not the first in time.
+     */
+    const runParallel = async (block: RunnableParallel): Promise<boolean> => {
+      const startedAt = new Date();
+      const scopes = await Promise.all(
+        block.branches.map(async (branch) => {
+          const scope: StepScope = { results: [], extracted: {}, inherited: rootScope.extracted, clockEvents: [], domText: { value: undefined } };
+          for (const leaf of branch) {
+            if ((await runStep(leaf, 'steps', scope)).status === 'failed') break;
+          }
+          return scope;
+        }),
+      );
+      const finishedAt = new Date();
+
+      const container: StepResult = {
+        index: steps.length,
+        ...(block.id === undefined ? {} : { id: block.id }),
+        ...(block.label === undefined ? {} : { label: block.label }),
+        ...(block.description === undefined ? {} : { description: block.description }),
+        action: block.action,
+        status: 'passed',
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+      };
+      steps.push(container);
+
+      let firstFailed: StepResult | undefined;
+      const summary: NonNullable<StepResult['branches']> = [];
+      for (const [b, scope] of scopes.entries()) {
+        for (const result of scope.results) {
+          result.index = steps.length;
+          result.branch = b;
+          steps.push(result);
+          if (result.status === 'failed') firstFailed ??= result;
+        }
+        Object.assign(rootScope.extracted, scope.extracted);
+        rootScope.clockEvents.push(...scope.clockEvents);
+        if (scope.domText.value !== undefined) rootScope.domText.value = scope.domText.value;
+        summary.push({
+          actor: actorOf(block.branches[b]![0]!),
+          status: scope.results.some((result) => result.status === 'failed') ? 'failed' : 'passed',
+          stepsRun: scope.results.length,
+        });
+      }
+      container.branches = summary;
+
+      if (block.id) {
+        stepFinishedAt.set(block.id, finishedAt.getTime());
+        for (const each of sessions.values()) each.faults?.stepFinished(block.id);
+      }
+
+      if (firstFailed === undefined) return false;
+      const failedBranches = summary.flatMap((item, b) => (item.status === 'failed' ? [`${b} (${item.actor})`] : []));
+      container.status = 'failed';
+      container.error = { type: 'ParallelBranchFailed', message: `${failedBranches.length} of ${summary.length} branches failed: ${failedBranches.join(', ')}` };
+      failedStepIndex = firstFailed.index;
+      resultError = { type: firstFailed.error!.type, message: firstFailed.error!.message };
+      return true;
+    };
+
+    for (const step of request.steps) {
+      if (await (step.action === 'parallel' ? runParallel(step) : runSequential(step))) {
         break;
       }
     }
@@ -928,8 +1026,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // attempted even if an earlier one failed: cleanup is best-effort and independent.
     // T7.2: faults of the steps end here, so the cleanup talks to the application as it really is (a teardown may inject its own).
     for (const each of sessions.values()) each.faults?.clear();
-    for (const [index, step] of (request.teardown ?? []).entries()) {
-      await runStep(step, index, 'teardown');
+    for (const step of request.teardown ?? []) {
+      await runStep(step, 'teardown', teardownScope);
     }
 
     if (request.options.piiScan) {
@@ -972,6 +1070,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
 
   const finishedAt = new Date();
   const status = failedStepIndex === undefined && !resultError ? 'passed' : 'failed';
+  const domTextSnapshot = rootScope.domText.value;
   const maskOptions = { knownSecrets };
   const noiseRules = noiseRulesFor(profile);
   // T7.8: a run that hunts for secrets in URLs must not write the one it found into its own result (finalUrl keeps the query and the fragment).

@@ -6,6 +6,7 @@ import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js
 import { PII_SURFACES } from '../security/piiDetectors.js';
 import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
+import { countSteps, extractedNameOf, leafSteps, PARALLEL_ACTION, someStep, walkSteps, walkWithPath } from './stepTree.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 /** Build/revision label of the application under test, e.g. "rev4519" or "2026.11/rc1". */
@@ -474,7 +475,7 @@ const includeStep = z
   })
   .strict();
 
-export const explorationStepSchema = z.discriminatedUnion('action', [
+const leafStepOptions = [
   includeStep,
   gotoStep,
   reloadStep,
@@ -519,7 +520,35 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   watchStep,
   waitForElapsedStep,
   setViewportSizeStep,
-]);
+] as const;
+
+const NESTED_PARALLEL_MESSAGE =
+  'a parallel block cannot hold another one and is not allowed in a teardown: branches race against each other, each as its own actor, and the teardown cleans up one step after the other';
+
+/** A nested `parallel` gets this message instead of zod's "Invalid input"; any other unknown action keeps zod's own. */
+const stepActionError = (issue: { input?: unknown }): string | undefined =>
+  (issue.input as { action?: unknown } | undefined)?.action === PARALLEL_ACTION ? NESTED_PARALLEL_MESSAGE : undefined;
+
+/**
+ * Every step except `parallel`: what a branch of a parallel block and a teardown may hold. Keeping `parallel` out of this union is what forbids
+ * nesting, and it keeps the schema (and its JSON Schema) flat -- no recursion.
+ */
+export const leafStepSchema = z.discriminatedUnion('action', leafStepOptions, { error: stepActionError });
+
+// T6.5: branches run at the same time (Promise.all), each as ONE actor and each actor in at most one branch, to provoke a real race: a double
+// submit, two users saving the same record. Steps before the block are the setup (sequential, as always); the block holds only the racing part.
+// Not a barrier: every branch starts as soon as the block does and goes at its own pace, so prepare everything first and race the last action.
+const parallelStep = z
+  .object({
+    id: stepId.optional(),
+    label: z.string().min(1).max(160).optional(),
+    description: z.string().min(1).max(500).optional(),
+    action: z.literal(PARALLEL_ACTION),
+    branches: z.array(z.array(leafStepSchema).min(1)).min(2).max(env.MAX_ACTORS_PER_JOB),
+  })
+  .strict();
+
+export const explorationStepSchema = z.discriminatedUnion('action', [parallelStep, ...leafStepOptions], { error: stepActionError });
 
 /**
  * T5.2: what `functional` stands in for. CSS is refused by name: Playwright decides visibility from computed style, so a run
@@ -637,7 +666,7 @@ export const explorationRequestBaseSchema = z
     steps: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB),
     // T1.4: always runs after the steps, pass or fail (like `finally`). Failures here are recorded
     // apart and never replace the failure of the steps. Steps + teardown share MAX_STEPS_PER_JOB.
-    teardown: z.array(explorationStepSchema).min(1).max(env.MAX_STEPS_PER_JOB).optional(),
+    teardown: z.array(leafStepSchema).min(1).max(env.MAX_STEPS_PER_JOB).optional(),
   })
   .strict();
 
@@ -647,7 +676,7 @@ type RoutineForValidation = {
   parameters?: Array<{ name: string }>;
   actors?: Record<string, unknown>;
   steps: Array<z.infer<typeof explorationStepSchema>>;
-  teardown?: Array<z.infer<typeof explorationStepSchema>>;
+  teardown?: Array<z.infer<typeof leafStepSchema>>;
 };
 
 function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
@@ -663,16 +692,24 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
   validateParameterReferences(routine, ctx);
   validateActorReferences(routine, ctx);
 
+  // A `parallel` block counts as one step plus the steps of its branches (each is a result of its own). Without a block this is the array length.
+  const total = countSteps(routine.steps) + countSteps(routine.teardown ?? []);
   if (routine.teardown) {
     validateStepList(routine.teardown, 'teardown', ctx);
 
-    if (routine.steps.length + routine.teardown.length > env.MAX_STEPS_PER_JOB) {
+    if (total > env.MAX_STEPS_PER_JOB) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['teardown'],
         message: `steps + teardown exceed MAX_STEPS_PER_JOB (${env.MAX_STEPS_PER_JOB})`,
       });
     }
+  } else if (total > env.MAX_STEPS_PER_JOB) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['steps'],
+      message: `steps exceed MAX_STEPS_PER_JOB (${env.MAX_STEPS_PER_JOB}); a parallel block counts as one step plus the steps of its branches`,
+    });
   }
 }
 
@@ -682,15 +719,15 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
  */
 function validateParameterReferences(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
   const lists = { steps: routine.steps, ...(routine.teardown ? { teardown: routine.teardown } : {}) };
-  if (Object.values(lists).some((list) => list.some((step) => step.action === 'include'))) return;
+  if (Object.values(lists).some((list) => someStep(list, (step) => step.action === 'include'))) return;
   const declared = new Set((routine.parameters ?? []).map((parameter) => parameter.name));
   for (const [field, list] of Object.entries(lists)) {
-    list.forEach((step, index) => {
+    for (const { step, path } of walkWithPath<object>(list, [field])) {
       const name = (step as { valueFromParameter?: string }).valueFromParameter;
       if (name !== undefined && !declared.has(name)) {
-        ctx.addIssue({ code: 'custom', path: [field, index, 'valueFromParameter'], message: `parameter "${name}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
+        ctx.addIssue({ code: 'custom', path: [...path, 'valueFromParameter'], message: `parameter "${name}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
       }
-    });
+    }
   }
 }
 
@@ -702,62 +739,142 @@ function validateActorReferences(routine: RoutineForValidation, ctx: z.Refinemen
   const declared = new Set([MAIN_ACTOR, ...Object.keys(routine.actors ?? {})]);
   const lists = { steps: routine.steps, ...(routine.teardown ? { teardown: routine.teardown } : {}) };
   for (const [field, list] of Object.entries(lists)) {
-    list.forEach((step, index) => {
+    for (const { step, path } of walkWithPath<object>(list, [field])) {
       const actor = (step as { actor?: string }).actor;
       if (actor !== undefined && !declared.has(actor)) {
         ctx.addIssue({
           code: 'custom',
-          path: [field, index, 'actor'],
+          path: [...path, 'actor'],
           message: `actor "${actor}" is not declared (declared: ${[...declared].join(', ')}); add it to "actors"`,
         });
       }
-    });
+    }
   }
 }
 
-/** Per-list checks: evaluate gating, forward references of waitForElapsed, duplicate ids. */
-function validateStepList(steps: Array<z.infer<typeof explorationStepSchema>>, field: 'steps' | 'teardown', ctx: z.RefinementCtx): void {
-  const previousIds = new Set<string>();
+type AnyStep = z.infer<typeof explorationStepSchema>;
 
-  steps.forEach((step, index) => {
-    if (!env.ALLOW_EVALUATE && (step.action === 'evaluate' || step.action === 'watch')) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [field, index, 'action'],
-        message: 'evaluate/watch are disabled (set ALLOW_EVALUATE=true)',
-      });
-    }
+/**
+ * Per-list checks: evaluate gating, forward references of waitForElapsed, duplicate ids -- and, inside a `parallel` block (T6.5), the rules that
+ * keep a race a race and not a mess.
+ *
+ * Ids are unique across the WHOLE list, branches included (`untilStep`, `waitForElapsed` and the step finish times are keyed by id). What a step
+ * may refer to as "earlier" is what finished before it: the steps before its block and the ones before it in its own branch, never a sibling
+ * branch's (they run at the same time, so their order is a coin toss). After the block, every branch's steps are earlier.
+ */
+function validateStepList(steps: readonly AnyStep[], field: 'steps' | 'teardown', ctx: z.RefinementCtx): void {
+  const seen = new Set<string>();
 
-    if (step.action === 'waitForElapsed' && !previousIds.has(step.sinceStepId)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [field, index, 'sinceStepId'],
-        message: `sinceStepId "${step.sinceStepId}" must match the id of an earlier step`,
-      });
-    }
+  const visit = (list: readonly AnyStep[], path: Array<string | number>, visible: Set<string>): void => {
+    list.forEach((step, index) => {
+      const here = [...path, index];
 
-    if (step.action === 'injectFault' && step.untilStep !== undefined) {
-      // The fault is on while the steps up to `untilStep` run, so that step must come AFTER the fault in the same list.
-      const laterIds = new Set(steps.slice(index + 1).map((later) => later.id));
-      if (!laterIds.has(step.untilStep)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [field, index, 'untilStep'],
-          message: `untilStep "${step.untilStep}" must match the id of a LATER step of the same list (the fault ends when that step finishes)`,
-        });
+      if (!env.ALLOW_EVALUATE && (step.action === 'evaluate' || step.action === 'watch')) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...here, 'action'], message: 'evaluate/watch are disabled (set ALLOW_EVALUATE=true)' });
       }
-    }
 
-    if (step.id) {
-      if (previousIds.has(step.id)) {
+      if (step.action === 'waitForElapsed' && !visible.has(step.sinceStepId)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [field, index, 'id'],
-          message: `duplicate step id "${step.id}"`,
+          path: [...here, 'sinceStepId'],
+          message: `sinceStepId "${step.sinceStepId}" must match the id of an earlier step (inside a parallel branch: before the block, or earlier in the same branch)`,
         });
       }
 
-      previousIds.add(step.id);
+      if (step.action === 'injectFault' && step.untilStep !== undefined) {
+        // The fault is on while the steps up to `untilStep` run, so that step must come AFTER the fault in the same list (a later block's steps count).
+        const laterIds = new Set([...walkSteps(list.slice(index + 1))].map((later) => (later as { id?: string }).id));
+        if (!laterIds.has(step.untilStep)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...here, 'untilStep'],
+            message: `untilStep "${step.untilStep}" must match the id of a LATER step of the same list (the fault ends when that step finishes)`,
+          });
+        }
+      }
+
+      if (step.id) {
+        if (seen.has(step.id)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...here, 'id'], message: `duplicate step id "${step.id}"` });
+        }
+        seen.add(step.id);
+      }
+
+      if (step.action === 'parallel') {
+        validateParallelBlock(step, here, ctx);
+        const finished: string[] = [];
+        step.branches.forEach((branch, b) => {
+          // Each branch starts from what was visible at the block, and sees its own earlier steps as it goes.
+          const own = new Set(visible);
+          visit(branch as readonly AnyStep[], [...here, 'branches', b], own);
+          for (const id of own) if (!visible.has(id)) finished.push(id);
+        });
+        for (const id of finished) visible.add(id);
+      }
+      if (step.id) visible.add(step.id);
+    });
+  };
+
+  visit(steps, [field], new Set());
+}
+
+/**
+ * The rules of one `parallel` block that need only the block itself. A branch is ONE actor's flow and an actor is in at most one branch: two
+ * flows racing on the same page would be a mess, not a race. An `include` that names no actor says nothing about its steps' actors until it is
+ * expanded, so that branch is judged then (the expanded request goes through this same check).
+ */
+function validateParallelBlock(step: Extract<AnyStep, { action: 'parallel' }>, path: Array<string | number>, ctx: z.RefinementCtx): void {
+  const actorOfBranch = new Map<number, string>();
+
+  step.branches.forEach((branch, b) => {
+    const actors = new Set<string>();
+    let unknown = false;
+    for (const leaf of leafSteps(branch as readonly object[])) {
+      const named = (leaf as { actor?: string; action?: string }).actor;
+      if ((leaf as { action?: string }).action === 'include' && named === undefined) unknown = true;
+      else actors.add(named ?? MAIN_ACTOR);
+    }
+    if (actors.size > 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'branches', b],
+        message: `a parallel branch runs as ONE actor but this one uses ${[...actors].join(', ')}; give each actor its own branch`,
+      });
+    } else if (actors.size === 1 && !unknown) {
+      actorOfBranch.set(b, [...actors][0]!);
+    }
+  });
+
+  const firstBranchOf = new Map<string, number>();
+  for (const [b, actor] of actorOfBranch) {
+    const first = firstBranchOf.get(actor);
+    if (first !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'branches', b],
+        message: `branches ${first} and ${b} both run as actor "${actor}": one session cannot race against itself; give each branch its own actor`,
+      });
+    } else {
+      firstBranchOf.set(actor, b);
+    }
+  }
+
+  // Two branches writing the same `extracted` name would leave the value to the race.
+  const writer = new Map<string, number>();
+  step.branches.forEach((branch, b) => {
+    for (const leaf of leafSteps(branch as readonly object[])) {
+      const name = extractedNameOf(leaf);
+      if (name === undefined) continue;
+      const other = writer.get(name);
+      if (other !== undefined && other !== b) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...path, 'branches', b],
+          message: `branches ${other} and ${b} both extract "${name}": the value would depend on which branch finishes last; use a different name in each`,
+        });
+      } else {
+        writer.set(name, b);
+      }
     }
   });
 }
@@ -770,8 +887,15 @@ export const mcpExplorationRequestSchema = explorationRequestBaseSchema.omit({ c
 
 export type ExplorationRequest = z.infer<typeof explorationRequestSchema>;
 export type ExplorationStep = z.infer<typeof explorationStepSchema>;
+/** Every step but `parallel`: what a branch and a teardown hold (T6.5). */
+export type LeafStep = z.infer<typeof leafStepSchema>;
+export type ParallelStep = z.infer<typeof parallelStep>;
+/** A step that acts on a page and can be executed: includes have already been expanded away (T1.4). */
+export type RunnableLeaf = Exclude<LeafStep, { action: 'include' }>;
+/** A `parallel` block once its branches are expanded (T6.5). */
+export type RunnableParallel = Omit<ParallelStep, 'branches'> & { branches: RunnableLeaf[][] };
 /** A step the runner can execute: includes have already been expanded away (T1.4). */
-export type RunnableStep = Exclude<ExplorationStep, { action: 'include' }>;
+export type RunnableStep = RunnableLeaf | RunnableParallel;
 export type ValueSource = z.infer<typeof valueSource>;
 export type Caller = z.infer<typeof callerSchema>;
 export type FrameRef = z.infer<typeof frameRefSchema>;

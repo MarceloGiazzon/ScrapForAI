@@ -12,6 +12,7 @@ import { runLibraryRoutine } from '../library/routineService.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { someStep } from '../schemas/stepTree.js';
 import { type SuiteRequest, type SuiteState, suiteStateSchema, type VariantState } from '../schemas/suiteRequest.schema.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { listItems, recordLastRun } from '../vault/regression/regressionVault.js';
@@ -225,7 +226,8 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
 }
 
 type StepList = Array<Record<string, unknown>>;
-const drawsValues = (steps: StepList): boolean => steps.some((step) => step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined);
+// Inside a `parallel` block too (T6.5).
+const drawsValues = (steps: StepList): boolean => someStep(steps, (step) => step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined);
 
 /** Does running this routine draw any generated value (own parameters, inline generators, or those of an included routine)? */
 async function isParametric(routine: NonNullable<Awaited<ReturnType<typeof getRoutine>>>): Promise<boolean> {
@@ -238,7 +240,7 @@ async function isParametric(routine: NonNullable<Awaited<ReturnType<typeof getRo
   if (drawsValues(steps) || drawsValues(teardown)) {
     return true;
   }
-  if (![...steps, ...teardown].some((step) => step.action === 'include')) {
+  if (!someStep([...steps, ...teardown], (step) => step.action === 'include')) {
     return false;
   }
 

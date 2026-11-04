@@ -27,6 +27,10 @@ export interface ReportStep {
   id?: string;
   /** T6.4: the actor that ran the step, when the step named one. */
   actor?: string;
+  /** T6.5: the branch of a `parallel` block the step ran in. */
+  branch?: number;
+  /** T6.5: on the block's own row, how each branch ended. */
+  branches?: Array<{ actor: string; status: 'passed' | 'failed' | 'skipped'; stepsRun: number }>;
   label?: string;
   description?: string;
   action: string;
@@ -166,8 +170,12 @@ function stepRows(s: Strings, steps: ReportStep[]): string {
   return steps
     .map((step) => {
       const name = step.label ?? step.description ?? step.id ?? '';
-      const detail = step.error ? `<span class="cell-failed">${esc(step.error.type)}</span>: ${esc(clip(step.error.message, 400))}` : '';
-      return `<tr><td>${step.index + 1}</td><td>${step.actor ? `<span class="muted">${esc(step.actor)}</span> ` : ''}<b>${esc(step.action)}</b>${name ? `<br><small>${esc(clip(name, 120))}</small>` : ''}</td><td class="cell-${step.status === 'skipped' ? 'error' : step.status}">${esc(statusLabel(s, step.status))}</td><td>${step.durationMs} ms</td><td>${detail}</td></tr>`;
+      const error = step.error ? `<span class="cell-failed">${esc(step.error.type)}</span>: ${esc(clip(step.error.message, 400))}` : '';
+      // A parallel block's own row says how each branch ended (the steps of the branches follow, branch 0 first, each marked with its number).
+      const branches = step.branches ? `${error ? '<br>' : ''}${step.branches.map((item, b) => `${esc(String(b))}: ${esc(item.actor)} <span class="cell-${item.status === 'skipped' ? 'error' : item.status}">${esc(statusLabel(s, item.status))}</span> (${esc(String(item.stepsRun))})`).join(' · ')}` : '';
+      const detail = `${error}${branches}`;
+      const marker = `${step.branch === undefined ? '' : `<span class="muted">‖${esc(String(step.branch))}</span> `}${step.actor ? `<span class="muted">${esc(step.actor)}</span> ` : ''}`;
+      return `<tr><td>${step.index + 1}</td><td>${marker}<b>${esc(step.action)}</b>${name ? `<br><small>${esc(clip(name, 120))}</small>` : ''}</td><td class="cell-${step.status === 'skipped' ? 'error' : step.status}">${esc(statusLabel(s, step.status))}</td><td>${step.durationMs} ms</td><td>${detail}</td></tr>`;
     })
     .join('');
 }

@@ -58,6 +58,8 @@ const toSteps = (steps: ExplorationResult['steps'] | undefined): ReportStep[] =>
     label: step.label,
     description: step.description,
     ...(step.actor ? { actor: step.actor } : {}),
+    ...(step.branch === undefined ? {} : { branch: step.branch }),
+    ...(step.branches ? { branches: step.branches } : {}),
     action: step.action,
     status: step.status,
     durationMs: step.durationMs,

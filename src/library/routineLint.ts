@@ -1,4 +1,5 @@
 import type { ExplorationStep } from '../schemas/explorationRequest.schema.js';
+import { walkWithPath } from '../schemas/stepTree.js';
 
 export interface LintIssue {
   path: string;
@@ -56,10 +57,11 @@ export function lintParameters(parameters: Array<{ name: string; cases?: string[
  * Refuses routines that embed a secret. Messages name the step and the kind of problem but never
  * echo the offending text, so an error response cannot leak what it is refusing.
  */
-export function lintRoutineSteps(steps: ExplorationStep[], vaultValues: string[]): LintIssue[] {
+export function lintRoutineSteps(steps: readonly ExplorationStep[], vaultValues: string[]): LintIssue[] {
   const issues: LintIssue[] = [];
 
-  steps.forEach((step, index) => {
+  // The steps inside a `parallel` block's branches are routine content like any other (T6.5): a secret in a branch must not slip through.
+  for (const { step, path } of walkWithPath<object>(steps, ['steps'])) {
     for (const property of SCANNED_PROPERTIES) {
       const text = (step as Record<string, unknown>)[property];
       if (typeof text !== 'string') {
@@ -67,9 +69,9 @@ export function lintRoutineSteps(steps: ExplorationStep[], vaultValues: string[]
       }
 
       const problem = secretProblem(text, vaultValues);
-      if (problem) issues.push({ path: `steps.${index}.${property}`, message: problem });
+      if (problem) issues.push({ path: [...path, property].join('.'), message: problem });
     }
-  });
+  }
 
   return issues;
 }

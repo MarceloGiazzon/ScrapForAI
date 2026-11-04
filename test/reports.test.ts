@@ -326,3 +326,24 @@ test('run report (T6.4): the step table and the screenshot captions say which ac
   const plain = (await get('/v1/runs/job_rep1/report?lang=en')).text;
   assert.ok(!plain.includes(' · failure') && !plain.includes('<span class="muted">main'), 'a run without actors is unchanged');
 });
+
+test('run report (T6.5): a parallel block shows how each branch ended and its steps carry the branch number, everything escaped', async () => {
+  await makeJob('job_rep_parallel', {
+    steps: [
+      { index: 0, id: 'race', action: 'parallel', status: 'failed', startedAt: 'x', finishedAt: 'y', durationMs: 900, error: { type: 'ParallelBranchFailed', message: '1 of 2 branches failed: 1 (bob)' },
+        branches: [{ actor: 'alice', status: 'passed', stepsRun: 1 }, { actor: 'bob<i>', status: 'failed', stepsRun: 1 }] },
+      { index: 1, id: 'a-save', actor: 'alice', branch: 0, action: 'click', status: 'passed', startedAt: 'x', finishedAt: 'y', durationMs: 5 },
+      { index: 2, id: 'b-save', actor: 'bob<i>', branch: 1, action: 'click', status: 'failed', startedAt: 'x', finishedAt: 'y', durationMs: 5, error: { type: 'StepExecutionError', message: 'nope' } },
+    ],
+    failedStepIndex: 2,
+  });
+  const html = (await get('/v1/runs/job_rep_parallel/report?lang=en')).text;
+  assert.ok(html.includes('<b>parallel</b>'), 'the block has its own row');
+  assert.ok(html.includes('ParallelBranchFailed'));
+  assert.ok(html.includes('0: alice') && html.includes('1: bob&lt;i&gt;'), 'how each branch ended, by number');
+  assert.ok(html.includes('<span class="muted">‖0</span> <span class="muted">alice</span> <b>click</b>'), 'a step of branch 0 says so');
+  assert.ok(html.includes('<span class="muted">‖1</span> <span class="muted">bob&lt;i&gt;</span> <b>click</b>'));
+  assert.ok(!html.includes('bob<i>'), 'an actor name is text, never markup');
+  const plain = (await get('/v1/runs/job_rep1/report?lang=en')).text;
+  assert.ok(!plain.includes('‖'), 'a run without a block is unchanged');
+});

@@ -2,6 +2,7 @@ import type { BrowserContext, Frame, Page, Response } from 'playwright';
 
 import type { PiiReport } from '../schemas/pii.schema.js';
 import type { PiiPolicy } from '../schemas/piiPolicy.schema.js';
+import { someStep } from '../schemas/stepTree.js';
 import { isSecretName, isSessionCookieName, PII_SURFACES, type PiiSurface, scanText, scanUrl } from '../security/piiDetectors.js';
 import { countFindings, FindingCollector } from '../security/piiFindings.js';
 import { applyPiiPolicy } from '../security/piiPolicy.js';
@@ -23,7 +24,7 @@ const MAX_PENDING_BODIES = 200;
 
 /** A run hunts when it asks for `options.piiScan` or has a `scanForPii` step. Any other run attaches nothing. */
 export function usesPiiScan(request: { options: { piiScan?: boolean | undefined }; steps: readonly { action: string }[]; teardown?: readonly { action: string }[] }): boolean {
-  return request.options.piiScan === true || [...request.steps, ...(request.teardown ?? [])].some((step) => step.action === 'scanForPii');
+  return request.options.piiScan === true || someStep([...request.steps, ...(request.teardown ?? [])], (step) => step.action === 'scanForPii');
 }
 
 export interface PiiScannerOptions {

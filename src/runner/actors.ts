@@ -1,4 +1,5 @@
 import { MAIN_ACTOR } from '../schemas/explorationRequest.schema.js';
+import { leafSteps } from '../schemas/stepTree.js';
 
 /**
  * T6.4 actors. An actor is one isolated browser context (cookies, storage, page) inside the run's single browser. Pure helpers, no I/O,
@@ -20,9 +21,10 @@ export function actorOf(step: ActorStep): string {
  * The actors that run at least one step (steps and teardown), in the order of their first step. Only these get a browser context, so a
  * declared actor nobody uses costs nothing, and a run whose steps all name an actor never opens an idle `main`.
  */
-export function actorsInUse(request: { steps: readonly ActorStep[]; teardown?: readonly ActorStep[] | undefined }): string[] {
+export function actorsInUse(request: { steps: readonly object[]; teardown?: readonly object[] | undefined }): string[] {
   const seen = new Set<string>();
-  for (const step of [...request.steps, ...(request.teardown ?? [])]) seen.add(actorOf(step));
+  // The steps of a `parallel` block's branches count (T6.5), in order: branch 0 first.
+  for (const step of leafSteps([...request.steps, ...(request.teardown ?? [])])) seen.add(actorOf(step as ActorStep));
   return [...seen];
 }
 

@@ -1,3 +1,4 @@
+import { someStep } from '../schemas/stepTree.js';
 import { isAllowedResourceUrl } from '../security/validateTargetUrl.js';
 import type { Decision, Policy, RequestInfo } from './routing.js';
 
@@ -47,7 +48,8 @@ export interface FaultController {
 
 /** True when any step injects a fault. Pass the steps AFTER includes were expanded. */
 export function usesFaults(request: { steps: readonly { action: string }[]; teardown?: readonly { action: string }[] }): boolean {
-  return [...request.steps, ...(request.teardown ?? [])].some((step) => step.action === 'injectFault');
+  // Inside a `parallel` block too (T6.5): a branch can break the network of its own actor.
+  return someStep([...request.steps, ...(request.teardown ?? [])], (step) => step.action === 'injectFault');
 }
 
 function ruleMatches(rule: FaultRule, request: RequestInfo): boolean {

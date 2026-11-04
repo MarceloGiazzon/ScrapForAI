@@ -16,6 +16,7 @@ import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { DiffConfigInput } from '../schemas/diffConfig.schema.js';
 import type { DifferentialCompareRequest, DifferentialRequest, DifferentialTolerance } from '../schemas/differential.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { walkWithPath } from '../schemas/stepTree.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { getTarget } from '../targets/targetStore.js';
 import { compareRuns, describeComparison, describeTiming, type DifferentialComparison } from './compareRuns.js';
@@ -136,10 +137,11 @@ async function validate(request: DifferentialRequest): Promise<{ routines: Pinne
     }
     if (routine.status === 'retired') throw new DifferentialError(409, 'RoutineRetired', `Routine "${routine.id}" v${routine.version} is retired`);
     routines.push({ id: routine.id, version: routine.version, ...(routine.credentialSet ? { credentialSet: routine.credentialSet } : {}), ...(routine.actors ? { actors: routine.actors } : {}) });
-    for (const [index, routineStep] of routine.steps.entries()) {
+    for (const { step: routineStep, path } of walkWithPath(routine.steps, ['steps'])) {
       if (routineStep.action !== 'goto' || routineStep.url === '$targetUrl') continue;
       try {
-        fixedAddresses.push({ routineId: routine.id, stepId: routineStep.id ?? `#${index}`, origin: new URL(routineStep.url).origin });
+        // `#3`, or `#3.branches.1.0` inside a parallel block.
+        fixedAddresses.push({ routineId: routine.id, stepId: routineStep.id ?? `#${path.slice(1).join('.')}`, origin: new URL(routineStep.url).origin });
       } catch {
         // not an absolute address: nothing to say about it
       }

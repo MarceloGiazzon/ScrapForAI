@@ -225,13 +225,45 @@ approval that one user sends and another one approves. Declare `actors` and say 
   and is bound to its origins like any other.
 - `include` takes `actor`: the included steps that name none run as it (`include login` as `seller`). The routine you include
   uses actor names that **you must declare too**; declarations of an included routine are not merged.
-- Steps run one after the other, in the order written (nothing runs in parallel yet). Teardown steps can name an actor.
+- Steps run one after the other, in the order written, unless you put them in a `parallel` block (next section). Teardown steps can name an actor.
 - Several sessions of ONE account need `flags.maxSessionsPerCredential` of the profile to be at least that number; otherwise it
   is a `TooManySessionsForCredential` (400). The run holds every actor's credential at once, so it waits for all of them.
 - Read the result per actor: `result.actors.<name>.evidence` (console, network, screenshots) is that actor's own; `result.evidence`
   is the merged view with an `actor` tag on each item. A failing step says which actor ran it (`steps[].actor`).
 - Do not name an actor (or a credential set) like a value of a credential, say `admin` when the user is `admin`: the redaction
   blanks that text everywhere in the result.
+
+### Racing them: `parallel`
+
+A `parallel` step runs its `branches` **at the same time**, to provoke a real race: a double submit, two users saving the same record.
+Everything before it is the setup, run in order as always; the block holds only the racing part.
+
+```json
+{ "actors": { "alice": { "credentialSet": "app-a" }, "bob": { "credentialSet": "app-b" } },
+  "steps": [ { "id": "a-open", "actor": "alice", "action": "goto", "url": "$targetUrl/record/7" },
+             { "id": "b-open", "actor": "bob",   "action": "goto", "url": "$targetUrl/record/7" },
+             { "id": "race", "action": "parallel", "branches": [
+                 [ { "id": "a-save", "actor": "alice", "action": "click", "selector": "#save" },
+                   { "id": "a-msg",  "actor": "alice", "action": "extractText", "name": "alice-msg", "selector": "#message" } ],
+                 [ { "id": "b-save", "actor": "bob",   "action": "click", "selector": "#save" },
+                   { "id": "b-msg",  "actor": "bob",   "action": "extractText", "name": "bob-msg",   "selector": "#message" } ] ] } ] }
+```
+
+- **A branch is ONE actor's flow, and an actor is in at most one branch.** Two flows racing on one page would be a mess, not a race:
+  it is refused (400) with the branch numbers. A step with no `actor` is `main`, which counts as an actor too. At least two branches.
+- **No barrier.** Every branch starts as soon as the block does and goes at its own pace. To make the race tight, **prepare everything
+  before the block** (open the page, fill the form) and race only the last action. Do not put `waitForTimeout` in a branch to "line them up".
+- A block **cannot hold another block** and **is not allowed in a `teardown`**. It counts as one step plus its branches' steps against
+  `MAX_STEPS_PER_JOB`. `include` works inside a branch (`include login` as `alice`), and step `id`s are unique across the whole list.
+- **A branch stops at its first failure; the other branches carry on to their end**, so the evidence of the race is complete.
+- **A branch reads what was extracted BEFORE the block and its own writes, never a sibling's** (they run at the same time). After the
+  block everything is there. Two branches may not `extract` under the same `name` (400). `waitForElapsed` and `untilStep` may refer to
+  a step before the block or earlier in the same branch, not to a sibling's.
+- **The result does not depend on who was first.** `steps` holds the block's own row (with `branches: [{ actor, status, stepsRun }]`),
+  then branch 0's steps, then branch 1's, each tagged `branch: n`; `steps[i].index === i`. `failedStepIndex` and `error` are the first
+  failed step IN THAT ORDER (not the first in time); every failed step carries its own error. `startedAt`/`finishedAt` show the overlap.
+- What a race proves is what the application did with it: assert the OUTCOME after the block (one record created, the second save got the
+  lock message), not the order. A passing run is a sample, not a proof of no race: repeat it (a suite with `retries`/`samples`, or a schedule).
 
 ## Describing a system's screens (catalogue and evolution)
 

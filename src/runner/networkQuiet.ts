@@ -3,6 +3,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { BrowserContext, Page } from 'playwright';
 
 import type { JsonValue } from '../schemas/explorationResult.schema.js';
+import { someStep } from '../schemas/stepTree.js';
 import { installTrustedInitScript, runTrustedScript } from './trusted/runTrusted.js';
 
 /**
@@ -24,7 +25,7 @@ export interface FrameNetState {
 export type FrameReading = FrameNetState | null | 'unavailable';
 
 export function usesQuiet(request: { steps: readonly object[]; teardown?: readonly object[] }): boolean {
-  return [...request.steps, ...(request.teardown ?? [])].some((step) => {
+  return someStep([...request.steps, ...(request.teardown ?? [])], (step) => {
     const candidate = step as { action?: string; waitFor?: { quiet?: unknown }; afterWaitFor?: { quiet?: unknown } };
     return candidate.action === 'waitForQuiet' || candidate.waitFor?.quiet !== undefined || candidate.afterWaitFor?.quiet !== undefined;
   });
