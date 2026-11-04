@@ -1470,6 +1470,15 @@ lentidão e flakiness.
 Agendamento (T3.2) que gera um resumo: saúde por app, regressões, flaky, alertas de desempenho,
 acessibilidade nova e mudanças de evolução. Entregue por webhook (T3.3) ou como arquivo.
 
+> **Implementada em 2026-11-04** (`src/summary/`, ver AGENTS.md, "Periodic summary"). Um novo alvo de agendamento `{ kind: 'summary', periodDays (7), targets?, lang, file }`, sem navegador:
+> lê o que T3.4/T3.5/T3.7/T4.5/T7.5 já guardam e entrega aos webhooks do `notify` (cada um no seu idioma, pelo mesmo filtro de saída do T3.3) e/ou em
+> `SUMMARY_OUTPUT_DIR/<agendamento>/<data>_<HHMM>.md|.json`. **Regressões** vêm das séries de execução: `broke` (a última falhou depois de um verde, com o build onde quebrou, o último build bom
+> e o step), `fixed`, `still-failing`, `intermittent`; a nova tentativa automática substitui a primeira e amostras paramétricas ficam de fora; quarentena aparece, mas não conta. **Evolução e
+> acessibilidade**: cada snapshot do período é comparado com o anterior, só contagens (o texto das mudanças fica em `evolution diff`). Saúde, flaky e desempenho são o estado no momento do resumo
+> (o resumo diz isso). Resultado `error` se algum webhook não recebeu (o arquivo é escrito mesmo assim). Também sob demanda: `GET /v1/summary`, CLI `summary`, MCP `get_summary`.
+> **Decisões fora do texto:** "regressão" é definida pela série de cada rotina (não há bisect, T3.6); itens do cofre aparecem como a rotina deles; um agendamento de resumo não gera avisos
+> broken/recovered. **Fica de fora:** matriz de permissões e PII no resumo, HTML/PDF, link para a UI (não há URL pública configurada).
+
 ### T9.4 — Painel executivo · M
 
 Visão agregada na UI, para quem não é técnico: quantos testes, quantas regressões evitadas,

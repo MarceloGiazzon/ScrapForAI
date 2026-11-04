@@ -11,6 +11,7 @@ import { someStep } from '../schemas/stepTree.js';
 import type { Schedule } from '../schemas/schedule.schema.js';
 import { type SuiteRequest, suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { attemptMetadata, runAttempts } from '../orchestrator/retry.js';
+import { runSummarySchedule } from '../summary/summarySchedule.js';
 import { getSuite, planSuite, startSuite, waitForSuite } from '../orchestrator/suiteRunner.js';
 import type { Dispatched, Dispatcher, RunRef, Settled, SettledFacts } from './scheduler.js';
 
@@ -175,6 +176,9 @@ export function createDispatcher(): Dispatcher {
           })();
           return { started: true, run: { kind: 'snapshot', id: state.snapshotId }, done };
         }
+        case 'summary':
+          // T9.3: no browser and no queue; it reads the stores, writes the file and tells the webhooks.
+          return { started: true, run: { kind: 'summary', id: `${schedule.id}@${occurrenceIso}` }, done: runSummarySchedule(schedule, occurrenceIso) };
       }
     },
 

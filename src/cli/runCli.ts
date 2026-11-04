@@ -68,6 +68,8 @@ Commands
                                     (how often a routine changes between pass and fail on the same version and build: score over the last 20 runs; it only SUGGESTS quarantine, a person saves the new status; --fail-on-suggestion exits 1)
   health [--target <id>] [--fail-on-red]
                                     (the state of every target profile in one read: routines, trend, flaky, slower, vault, schedules; exit 0 unless --fail-on-red and a target is red)
+  summary [--days N] [--target id[,id]] [--lang en|pt|es] [--out file.md]
+                                    (the periodic summary a summary schedule sends: health, what broke and was fixed, flaky, slower, new accessibility, evolution; exit 0)
   routines list
   routines lint <routineId|file.json|-> [--target id] [--strict]
                                     (the authoring conventions as code: GX001 login submit without a gate (error), GX002 login without logout teardown, WT001 fixed wait, SEL001 positional selector;
@@ -884,6 +886,32 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const exitCode: ExitCode = values['fail-on-red'] === true && body.totals.red! > 0 ? 1 : 0;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'health', exitCode, result: body as never }, `${lines.length === 0 ? 'No target profile yet.' : lines.join('\n')}\n`);
       return exitCode;
+    }
+
+    if (command === 'summary') {
+      // T9.3: read-only. The same summary a `summary` schedule sends; it is information, so the exit code is 0.
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { ...common, days: { type: 'string' }, target: { type: 'string' }, lang: { type: 'string' }, out: { type: 'string' } },
+      });
+      asJson = values.json === true;
+      if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai summary [--days N] [--target id[,id]] [--lang en|pt|es] [--out file.md]');
+      if (values.days !== undefined && !/^\d+$/.test(values.days)) throw new CliError('UsageError', '--days must be a whole number (1-31)');
+      if (values.lang !== undefined && !['en', 'pt', 'es'].includes(values.lang)) throw new CliError('UsageError', '--lang must be en, pt or es');
+      if (values.out && !io.writeFile) throw new CliError('CliFailure', 'writing files is not available here');
+      const query = new URLSearchParams();
+      if (values.days) query.set('days', values.days);
+      if (values.target) query.set('target', values.target);
+      if (values.lang) query.set('lang', values.lang);
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const text = query.toString();
+      const response = await api('GET', `/v1/summary${text ? `?${text}` : ''}`);
+      if (response.status !== 200) throw errorOf(response);
+      const body = response.body as { markdown: string } & Record<string, unknown>;
+      if (values.out) await io.writeFile!(values.out, Buffer.from(body.markdown, 'utf8'));
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'summary', exitCode: 0, result: body as never }, values.out ? `Summary written to ${values.out}\n` : body.markdown);
+      return 0;
     }
 
     if (command === 'webhooks list' || command === 'webhooks show' || command === 'webhooks test') {

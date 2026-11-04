@@ -2310,6 +2310,76 @@
         },
         "command": {
           "type": "string",
+          "const": "summary"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "scrapforai-summary"
+            },
+            "period": {
+              "type": "object",
+              "properties": {
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "from",
+                "to",
+                "days"
+              ],
+              "additionalProperties": {}
+            },
+            "counts": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
+            "markdown": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "period",
+            "counts",
+            "markdown"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "shrink"
         },
         "exitCode": {
@@ -4112,6 +4182,49 @@
                     "targetProfile"
                   ],
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "summary"
+                    },
+                    "periodDays": {
+                      "default": 7,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 31
+                    },
+                    "targets": {
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema4"
+                      }
+                    },
+                    "lang": {
+                      "default": "en",
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "pt",
+                        "es"
+                      ]
+                    },
+                    "file": {
+                      "default": true,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "periodDays",
+                    "lang",
+                    "file"
+                  ],
+                  "additionalProperties": false
                 }
               ]
             },
@@ -4270,7 +4383,8 @@
               "enum": [
                 "run",
                 "suite",
-                "snapshot"
+                "snapshot",
+                "summary"
               ]
             },
             "id": {

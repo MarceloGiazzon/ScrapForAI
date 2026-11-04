@@ -82,6 +82,12 @@ export function evolutionRunsDir(): string {
   return path.join(dataDir(), 'evolution-runs');
 }
 
+/** Summaries written by `summary` schedules (T9.3): <dir>/<scheduleId>/<date>_<HHMM>.md|.json. SUMMARY_OUTPUT_DIR may point elsewhere (a shared folder). */
+export function summariesDir(): string {
+  const override = process.env.SUMMARY_OUTPUT_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'summaries');
+}
+
 /** Suite run states (T1.6): <dataDir>/suites/<suiteRunId>.json. */
 export function suitesDir(): string {
   return path.join(dataDir(), 'suites');

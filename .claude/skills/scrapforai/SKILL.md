@@ -199,6 +199,11 @@ something needs a person, `green`, `empty` = nothing has run), the `reasons`, ev
 `red` targets and the routines listed first. It only reads what the other tools already record: it starts nothing and changes no status, and a quarantined routine never makes a target red. If
 `schedulerRunning` is false, schedules are stored but nothing fires on its own: say so instead of reporting them as healthy. The state is NOW, not a history: use `get_performance` / `get_flakiness` for the series.
 
+For "what happened this week?", call `get_summary` (`days`, default 7; `targets`; `lang`): per target the health status (now), the regressions of the period (`broke` with the build where it broke,
+the last good build and the failing step; `fixed`; `still-failing`; `intermittent`), flaky routines, slower steps, new accessibility findings and screens changed between the evolution snapshots of the
+period (counts only: use `evolution_diff` for the details). Quarantined routines are listed but not counted. `markdown` is the same report as text, ready to paste. A person can schedule it
+(`{ kind: 'summary' }` target, delivered to webhooks or written to a file); you cannot create schedules.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

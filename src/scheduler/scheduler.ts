@@ -12,7 +12,7 @@ import { getSchedule, listSchedules, updateState } from './scheduleStore.js';
  *     with a fake one and a fake clock).
  */
 
-export type RunRef = { kind: 'run' | 'suite' | 'snapshot'; id: string };
+export type RunRef = { kind: 'run' | 'suite' | 'snapshot' | 'summary'; id: string };
 
 /** What a notification may say about the run, in plain strings and numbers (T3.3). The notifier cleans every string before it leaves. */
 export interface SettledFacts {

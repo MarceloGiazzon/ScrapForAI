@@ -168,6 +168,16 @@ export const cliHealthSchema = z
   })
   .passthrough();
 
+/** `summary` (T9.3): passed through as the API returns it (shape: summary/summaryAnalysis.ts, SummaryReport, plus `markdown`). */
+export const cliSummarySchema = z
+  .object({
+    kind: z.literal('scrapforai-summary'),
+    period: z.object({ from: z.string(), to: z.string(), days: z.number() }).passthrough(),
+    counts: z.record(z.string(), z.number()),
+    markdown: z.string(),
+  })
+  .passthrough();
+
 /** `differential --no-wait`. */
 export const cliDifferentialStartedSchema = z.object({ differentialId: z.string() }).strict();
 
@@ -263,6 +273,7 @@ export const cliOutputSchema = z.union([
   success('flaky list', cliFlakyListSchema),
   success('flaky show', cliFlakyShowSchema),
   success('health', cliHealthSchema),
+  success('summary', cliSummarySchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('differential', z.union([cliDifferentialStateSchema, cliDifferentialCompareSchema, cliDifferentialStartedSchema])),
   success('evolution list', cliEvolutionListSchema),

@@ -4,8 +4,8 @@ import { buildIdSchema, safeName } from './explorationRequest.schema.js';
 import { suiteRequestSchema } from './suiteRequest.schema.js';
 
 /**
- * T3.2 (Appendix A.9): a schedule says WHEN (cron + time zone) and WHAT (a routine, a suite, the regression vault or a system-evolution
- * snapshot). `overlap: skip` is the only policy: a tick that finds the previous run still going is recorded as skipped, never queued.
+ * T3.2 (Appendix A.9): a schedule says WHEN (cron + time zone) and WHAT (a routine, a suite, the regression vault, a system-evolution
+ * snapshot or a summary). `overlap: skip` is the only policy: a tick that finds the previous run still going is recorded as skipped, never queued.
  */
 export const scheduleTargetSchema = z.discriminatedUnion('kind', [
   z
@@ -24,6 +24,22 @@ export const scheduleTargetSchema = z.discriminatedUnion('kind', [
   /** Every ACTIVE regression-vault item (optionally only these tags), as a suite. */
   z.object({ kind: z.literal('vault'), tags: z.array(z.string().min(1)).min(1).optional(), buildId: buildIdSchema.optional() }).strict(),
   z.object({ kind: z.literal('evolutionSnapshot'), targetProfile: safeName, buildId: buildIdSchema.optional() }).strict(),
+  /**
+   * T9.3: no browser. Builds the summary of the last `periodDays` (health per target, regressions, flaky, performance alerts, new accessibility
+   * findings, evolution changes) from what the other pieces store, sends it to the schedule's `notify` webhooks (each in its own language) and,
+   * with `file`, writes `<SUMMARY_OUTPUT_DIR>/<scheduleId>/<local date>_<HHMM>.md|.json` in `lang`.
+   */
+  z
+    .object({
+      kind: z.literal('summary'),
+      periodDays: z.number().int().min(1).max(31).default(7),
+      /** Only these target profiles (absent = all). */
+      targets: z.array(safeName).min(1).max(50).optional(),
+      /** Language of the file (webhooks use their own). */
+      lang: z.enum(['en', 'pt', 'es']).default('en'),
+      file: z.boolean().default(true),
+    })
+    .strict(),
 ]);
 
 export const scheduleSchema = z
@@ -84,7 +100,7 @@ export const scheduleHistoryEntrySchema = z
     manual: z.boolean().optional(),
     /** How many occurrences this entry stands for (`missed` entries that summarize a longer gap). */
     count: z.number().int().optional(),
-    run: z.object({ kind: z.enum(['run', 'suite', 'snapshot']), id: z.string() }).strict().optional(),
+    run: z.object({ kind: z.enum(['run', 'suite', 'snapshot', 'summary']), id: z.string() }).strict().optional(),
     message: z.string().optional(),
     /** T3.5: every attempt of a routine run, when there was more than one (the first failed). `run` and `outcome` are those of the last. */
     attempts: z.array(z.object({ attempt: z.number().int().positive(), jobId: z.string(), status: z.enum(['passed', 'failed']) }).strict()).optional(),
@@ -98,7 +114,7 @@ export const scheduleStateSchema = z
     scheduleId: z.string(),
     /** Every occurrence up to here has been handled (run, skipped or recorded as missed). */
     cursor: z.string(),
-    running: z.object({ kind: z.enum(['run', 'suite', 'snapshot']), id: z.string(), startedAt: z.string(), at: z.string() }).strict().optional(),
+    running: z.object({ kind: z.enum(['run', 'suite', 'snapshot', 'summary']), id: z.string(), startedAt: z.string(), at: z.string() }).strict().optional(),
     history: z.array(scheduleHistoryEntrySchema),
   })
   .strict();

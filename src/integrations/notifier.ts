@@ -40,6 +40,8 @@ export function targetLabel(schedule: Schedule): string {
       return target.tags ? `regression vault (${target.tags.join(', ')})` : 'regression vault';
     case 'evolutionSnapshot':
       return `evolution snapshot ${target.targetProfile}`;
+    case 'summary':
+      return `summary (${target.periodDays} day(s)${target.targets ? `, ${target.targets.join(', ')}` : ''})`;
   }
 }
 
@@ -78,7 +80,8 @@ async function send(stored: StoredWebhook, message: Message, kind: Delivery['kin
 
 export async function notifySettled(event: SettledEvent, deps: NotifyDeps = {}): Promise<Delivery[]> {
   const verdict = verdictOf(event.outcome);
-  if (!verdict || event.schedule.notify.length === 0) return [];
+  // T9.3: a summary schedule's message IS the summary (sent by the schedule itself); "the summary is broken" is not news for a channel.
+  if (!verdict || event.schedule.notify.length === 0 || event.schedule.target.kind === 'summary') return [];
 
   const subject = `${SUBJECT_PREFIX}${event.schedule.id}`;
   const sent: Delivery[] = [];
@@ -211,6 +214,26 @@ export async function sendDueSummaries(deps: NotifyDeps = {}): Promise<Delivery[
     }
   }
   return sent;
+}
+
+// ---- periodic summary (T9.3) -----------------------------------------------------------------------------------------------------------------
+
+/**
+ * Sends a `summary` schedule's report to every enabled webhook it names, each in the webhook's own language (`build(lang)` makes the message).
+ * Goes through the same cleaning, leak check and egress policy as every other message. Disabled or deleted webhooks are skipped, not failed.
+ */
+export async function sendSummaryReport(schedule: Schedule, build: (lang: Webhook['lang']) => Message, deps: NotifyDeps = {}): Promise<Array<{ webhookId: string; delivery: Delivery }>> {
+  const out: Array<{ webhookId: string; delivery: Delivery }> = [];
+  for (const webhookId of new Set(schedule.notify)) {
+    try {
+      const stored = await getWebhook(webhookId);
+      if (!stored || !stored.webhook.enabled) continue;
+      out.push({ webhookId, delivery: await send(stored, build(stored.webhook.lang), 'summary', `summary:${schedule.id}`, deps) });
+    } catch (error) {
+      out.push({ webhookId, delivery: { at: new Date((deps.now ?? Date.now)()).toISOString(), kind: 'summary', status: 'failed', reason: error instanceof Error ? error.name : 'error' } });
+    }
+  }
+  return out;
 }
 
 // ---- test message ---------------------------------------------------------------------------------------------------------------------------

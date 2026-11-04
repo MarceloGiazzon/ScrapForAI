@@ -242,6 +242,35 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_summary',
+  {
+    title: 'Get the periodic summary',
+    description:
+      'The summary a `summary` schedule sends (weekly by default), on demand: per target the health status and reasons (the state now); regressions of the period from the run ' +
+      'series of library routines (broke = the last run failed after a pass, with the build where it broke and the last good build and the failing step; fixed; still failing; ' +
+      'failed now and then), flaky routines and quarantine suggestions, steps slower than their baseline, new/fixed accessibility findings and screens changed between the ' +
+      'evolution snapshots taken in the period (counts only; use evolution_diff for the details). Quarantined routines are listed but not counted. Ids, statuses, builds and counts ' +
+      'only, never extracted values. `markdown` holds the same report as text in `lang`. Read-only: it starts no run.',
+    inputSchema: z
+      .object({ days: z.number().int().min(1).max(31).optional(), targets: z.array(safeName).min(1).max(50).optional(), lang: z.enum(['en', 'pt', 'es']).optional() })
+      .strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ days, targets, lang }) => {
+    try {
+      const query = new URLSearchParams();
+      if (days !== undefined) query.set('days', String(days));
+      if (targets) query.set('target', targets.join(','));
+      if (lang) query.set('lang', lang);
+      const text = query.toString();
+      return toToolResult(await getJson(`/v1/summary${text ? `?${text}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
   'get_flakiness',
   {
     title: 'Get flakiness',

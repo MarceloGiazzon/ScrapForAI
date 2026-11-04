@@ -87,6 +87,14 @@ export async function saveScheduleDefinition(id: string, body: unknown, nowMs = 
       break;
     case 'vault':
       break;
+    case 'summary': {
+      // T9.3: a summary that goes nowhere is a mistake, not a choice.
+      if (!target.file && schedule.notify.length === 0) throw new ScheduleError(400, 'SummaryHasNoOutput', 'A summary schedule needs `file: true` or at least one webhook in `notify`');
+      for (const profile of target.targets ?? []) {
+        if (!(await getTarget(profile))) throw new ScheduleError(404, 'TargetProfileNotFound', `Target profile "${profile}" does not exist`);
+      }
+      break;
+    }
   }
 
   const { stored, created } = await putSchedule(schedule, new Date(nowMs).toISOString());

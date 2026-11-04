@@ -81,7 +81,7 @@ export interface ScheduleInput {
   enabled: boolean;
   cron: string;
   timezone: string;
-  target: { kind: 'routine' | 'suite' | 'vault' | 'evolutionSnapshot'; routineId?: string; targetProfile?: string };
+  target: { kind: 'routine' | 'suite' | 'vault' | 'evolutionSnapshot' | 'summary'; routineId?: string; targetProfile?: string };
   next: string[];
   running?: boolean;
   lastRun?: { outcome: string; at: string; passedOnRetry?: boolean };

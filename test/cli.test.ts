@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 37);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 38);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1034,6 +1034,35 @@ test('health: one block per target with the reasons and the routines that need a
 
   handler = (_req, respond) => respond(200, healthBody({ totals: { targets: 0, red: 0, yellow: 0, green: 0, empty: 0 }, targets: [], schedulerRunning: true }));
   assert.match((await cli(['health'])).stdout, /No target profile yet/);
+});
+
+// T9.3: `scrapforai summary`
+const summaryBody = () => ({
+  kind: 'scrapforai-summary', generatedAt: '2026-11-09T11:00:00.000Z', period: { from: '2026-11-02T11:00:00.000Z', to: '2026-11-09T11:00:00.000Z', days: 7 },
+  counts: { red: 1, broke: 1, fixed: 0, stillFailing: 0, flaky: 0, perfAlerts: 0, snapshots: 0, screensChanged: 0, unexpectedChanges: 0, a11yNew: 0 },
+  markdown: '# ScrapForAI summary, 2026-11-02 to 2026-11-09\n\n- cart [app-dev]: broke\n',
+});
+
+test('summary: prints the markdown, passes the filters, --out writes the file, --json matches the contract, exit 0', async () => {
+  handler = (_req, respond) => respond(200, summaryBody());
+  const out = await cli(['summary']);
+  assert.equal(out.code, 0);
+  assert.match(out.stdout, /^# ScrapForAI summary/);
+  assert.equal(seen.at(-1)!.url, '/v1/summary');
+
+  await cli(['summary', '--days', '14', '--target', 'app-dev,app-qa', '--lang', 'pt']);
+  assert.equal(seen.at(-1)!.url, '/v1/summary?days=14&target=app-dev%2Capp-qa&lang=pt');
+
+  const written: Array<{ path: string; data: string }> = [];
+  const toFile = await cli(['summary', '--out', 'week.md'], { writeFile: async (file: string, data: Buffer) => void written.push({ path: file, data: data.toString('utf8') }) });
+  assert.equal(toFile.code, 0);
+  assert.match(toFile.stdout, /Summary written to week\.md/);
+  assert.deepEqual(written, [{ path: 'week.md', data: summaryBody().markdown }]);
+
+  assert.equal(validJson((await cli(['summary', '--json'])).stdout).command, 'summary');
+  assert.equal((await cli(['summary', '--lang', 'fr'])).code, 2);
+  assert.equal((await cli(['summary', '--days', 'week'])).code, 2);
+  assert.equal(seen.length, 0, 'bad usage never reaches the API');
 });
 
 test('health: an unknown target is exit 2 with its type; bad usage never reaches the API', async () => {
