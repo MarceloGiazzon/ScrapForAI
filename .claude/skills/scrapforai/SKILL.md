@@ -264,6 +264,11 @@ Everything before it is the setup, run in order as always; the block holds only 
   failed step IN THAT ORDER (not the first in time); every failed step carries its own error. `startedAt`/`finishedAt` show the overlap.
 - What a race proves is what the application did with it: assert the OUTCOME after the block (one record created, the second save got the
   lock message), not the order. A passing run is a sample, not a proof of no race: repeat it (a suite with `retries`/`samples`, or a schedule).
+- **Don't start from a blank page: copy a template** from `templates/routines/concurrency-*.routine.json` (status `draft`, every `REPLACE_*` to fill; `templates/routines/README.md`
+  has the table). `concurrency-simultaneous-edit` (two users save one record: a counter on the page must go up by exactly one), `concurrency-double-submit` (two sessions submit the same unique
+  value: exactly one row), `concurrency-single-session` (the SAME user logs in twice: the newest session wins; needs the profile flag `maxSessionsPerCredential >= 2`) and `concurrency-approval-flow`
+  (one user sends, another approves, the first sees the decision; in order, no race). They give the routine NO `credentialSet` of its own (each actor has one) and `include` the pinned login as each actor. They
+  change data: use a disposable record or add `teardown` steps that delete what they created.
 
 ## Describing a system's screens (catalogue and evolution)
 

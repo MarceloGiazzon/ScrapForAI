@@ -1197,6 +1197,15 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 
 ### T6.6 — Cenários de concorrência prontos · M
 
+> **Implementada em 2026-11-04** (`templates/routines/concurrency-*.routine.json`, ver AGENTS.md, "Concurrency templates"). Desvios e acréscimos em relação ao texto: (1) **as rotinas-modelo ficam em `templates/routines/`** (como as `chaos-` e a de login), não dentro da biblioteca: a
+> biblioteca é de rotinas prontas, e um modelo tem `REPLACE_*` a preencher; quem adapta salva com `PUT /v1/routines/:id`; (2) **o veredito de "edição simultânea" e "duplo submit" não depende de quem ganhou a corrida**, e sim do que a aplicação GUARDOU: um contador que a página mostra
+> e que sobe exatamente 1 por save aceito (+2 = atualização perdida, +0 = nenhum salvou), e a contagem de linhas da grade para o valor único; a mensagem de bloqueio otimista que cada usuário recebeu fica em `extracted` (`outcome_first/second`), mas não é o critério, porque quem perde não é decidido;
+> (3) o "duplo submit" usa **dois usuários** (a regra de sessão única encerraria um segundo login do mesmo usuário); para o duplo clique de UMA sessão basta trocar o bloco por um `doubleClick`; (4) a "sessão única" usa a **mesma credencial em dois atores**, o que exige `flags.maxSessionsPerCredential >= 2` no perfil,
+> e assume a política "o login mais novo vence" (as convenções §2 também descrevem uma app que recusa o login NOVO: o README diz como inverter as metades); (5) o "fluxo de aprovação" é **em ordem, sem corrida** (solicitante, aprovador, solicitante) e prova as duas pontas da entrega: o item CHEGA à caixa do aprovador e a decisão VOLTA para o solicitante;
+> (6) nenhuma das quatro tem `credentialSet` próprio, todo step nomeia um ator (o `main` nunca abre um contexto) e o login entra pinado, uma vez por ator, com o logout no teardown (GX002 suprimido, com o motivo escrito). **Fica de fora:** rodar contra uma app GeneXus/NPDev de verdade (só a fixture), checagem de segregação de função
+> (o solicitante não aprova o próprio pedido), corrida entre dois aprovadores, limpeza do que os modelos criam. Aceite: os quatro salvam sem achado de lint, cabem em 50 steps com os logins expandidos (31 a 43), e `test/concurrency-templates.smoke.ts` roda cada um num Chromium real contra uma fixture, medindo no servidor as duas requisições em voo,
+> e prova que cada modelo fica **vermelho no step certo** quando o defeito é ligado (`exactly-one-saved`, `exactly-one-record`, `first-ended`).
+
 Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 - **edição simultânea** do mesmo registro (espera a mensagem de bloqueio otimista);
 - **duplo submit** (espera um único registro criado);

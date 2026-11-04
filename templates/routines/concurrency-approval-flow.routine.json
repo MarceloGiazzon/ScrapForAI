@@ -1,0 +1,46 @@
+{
+  "title": "Multi-user flow: one user sends a request, another approves it",
+  "description": "Template (T6.6). The requester sends a request with a unique subject; the approver finds it in the approvals inbox, opens it and approves it; the requester then sees the state change. The steps alternate between two browser contexts in order (a GXflow or equivalent workflow, it does not race). It proves the hand-over between two users and two roles: that the item REACHES the approver, and that the decision comes BACK to the requester. The request it creates is NOT removed: use a disposable data set or add teardown steps. Add a fill step for every other required field of your form. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["actors", "workflow", "approval", "multi-user"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine, which runs once for each actor." }],
+  "actors": {
+    "requester": { "credentialSet": "REPLACE_CREDENTIAL_SET" },
+    "approver": { "credentialSet": "REPLACE_CREDENTIAL_SET_B" }
+  },
+  "parameters": [
+    { "name": "subject", "generator": { "type": "string", "minLength": 10, "maxLength": 10, "charset": "alnum" }, "includeBoundaries": false }
+  ],
+  "steps": [
+    { "id": "login-requester", "label": "The requester logs in", "action": "include", "routineId": "login", "version": 1, "actor": "requester" },
+    { "id": "login-approver", "label": "The approver logs in", "action": "include", "routineId": "login", "version": 1, "actor": "approver" },
+
+    { "id": "request-open", "label": "The requester opens the request form", "actor": "requester", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "request-ready", "label": "The form is on screen", "actor": "requester", "action": "waitForSelector", "selector": "REPLACE_FIELD_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "request-subject", "label": "The requester types a subject that only this run uses", "actor": "requester", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "subject", "timeoutMs": 10000 },
+    { "id": "request-blur", "label": "Leave the field (GeneXus validates on blur)", "actor": "requester", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+    { "id": "request-send", "label": "The requester sends it for approval", "actor": "requester", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+    { "id": "request-sent", "label": "The page confirms the request was sent", "actor": "requester", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+
+    { "id": "inbox-open", "label": "The approver opens the approvals inbox", "actor": "approver", "action": "goto", "url": "REPLACE_INBOX_URL", "timeoutMs": 30000 },
+    { "id": "inbox-ready", "label": "The search field is on screen", "actor": "approver", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "inbox-search", "label": "The approver looks for the subject", "actor": "approver", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "subject", "timeoutMs": 10000 },
+    { "id": "inbox-run", "label": "Run the search (or click your search button instead)", "actor": "approver", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Enter", "timeoutMs": 10000 },
+    { "id": "inbox-settled", "label": "Wait for the grid to refresh", "actor": "approver", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "inbox-arrived", "label": "The request REACHED the approver's inbox", "actor": "approver", "action": "waitForSelector", "selector": "REPLACE_ITEM_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "item-open", "label": "The approver opens the request", "actor": "approver", "action": "click", "selector": "REPLACE_ITEM_SELECTOR", "timeoutMs": 10000 },
+    { "id": "approve-ready", "label": "The approve control is available to the approver", "actor": "approver", "action": "waitForSelector", "selector": "REPLACE_APPROVE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "approve", "label": "The approver approves", "actor": "approver", "action": "click", "selector": "REPLACE_APPROVE_SELECTOR", "timeoutMs": 10000 },
+    { "id": "approved", "label": "The page confirms the decision", "actor": "approver", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+
+    { "id": "status-open", "label": "The requester opens the page where the state of the request is shown", "actor": "requester", "action": "goto", "url": "REPLACE_STATUS_URL", "timeoutMs": 30000 },
+    { "id": "status-ready", "label": "The search field is on screen", "actor": "requester", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "status-search", "label": "The requester looks for the same subject", "actor": "requester", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "subject", "timeoutMs": 10000 },
+    { "id": "status-run", "label": "Run the search (or click your search button instead)", "actor": "requester", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Enter", "timeoutMs": 10000 },
+    { "id": "status-settled", "label": "Wait for the grid to refresh", "actor": "requester", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "status-approved", "label": "The decision came BACK: the requester sees the request approved", "actor": "requester", "action": "assertTextContains", "selector": "REPLACE_STATUS_SELECTOR", "text": "REPLACE_APPROVED_TEXT", "timeoutMs": 15000 },
+    { "id": "shot", "label": "Evidence", "actor": "requester", "action": "screenshot", "name": "request-approved" }
+  ]
+}

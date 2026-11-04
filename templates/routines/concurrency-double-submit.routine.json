@@ -1,0 +1,57 @@
+{
+  "title": "Concurrency: the same new record is submitted twice at once",
+  "description": "Template (T6.6). Two sessions fill the same creation form with the SAME unique value (a code, a document number) and press the submit button at the same instant, like a double click, a retry or two tabs. Exactly ONE record must exist afterwards; the other submit gets the application's 'already exists' answer, never a second row and never a stack trace. Two users are used because the single-session rule would end a second login of the same user. For a literal double click of ONE session, replace the parallel block with a single doubleClick step. Add a fill step for every other required field of your form. The record it creates is NOT removed: use a disposable data set or add teardown steps that delete it. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["concurrency", "actors", "parallel", "double-submit"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine, which runs once for each actor." }],
+  "actors": {
+    "first": { "credentialSet": "REPLACE_CREDENTIAL_SET" },
+    "second": { "credentialSet": "REPLACE_CREDENTIAL_SET_B" }
+  },
+  "parameters": [
+    { "name": "code", "generator": { "type": "string", "minLength": 10, "maxLength": 10, "charset": "alnum" }, "includeBoundaries": false }
+  ],
+  "steps": [
+    { "id": "login-first", "label": "The first user logs in", "action": "include", "routineId": "login", "version": 1, "actor": "first" },
+    { "id": "login-second", "label": "The second user logs in", "action": "include", "routineId": "login", "version": 1, "actor": "second" },
+
+    { "id": "first-open", "label": "The first user opens the creation form", "actor": "first", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "second-open", "label": "The second user opens the creation form", "actor": "second", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "first-form-ready", "label": "The form is on screen (first)", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_FIELD_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "second-form-ready", "label": "The form is on screen (second)", "actor": "second", "action": "waitForSelector", "selector": "REPLACE_FIELD_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "first-types", "label": "First: the unique value (the same one for both)", "actor": "first", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "first-blur", "label": "Leave the field (GeneXus validates on blur)", "actor": "first", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+    { "id": "second-types", "label": "Second: the SAME unique value", "actor": "second", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "second-blur", "label": "Leave the field", "actor": "second", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+
+    {
+      "id": "race",
+      "label": "Both press submit at the same time (everything above is the setup; only the last action races)",
+      "action": "parallel",
+      "branches": [
+        [
+          { "id": "first-submit", "label": "First: submit", "actor": "first", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+          { "id": "first-answer", "label": "First: the page answers (created, or already exists)", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+          { "id": "first-outcome", "label": "First: keep what the page said", "actor": "first", "action": "extractText", "selector": "REPLACE_MESSAGE_SELECTOR", "name": "outcome_first", "timeoutMs": 10000 },
+          { "id": "first-no-leak", "label": "First: no stack trace or SQL error on screen (a duplicate-key error must not reach the user raw)", "actor": "first", "action": "assertNoTextMatches" }
+        ],
+        [
+          { "id": "second-submit", "label": "Second: submit", "actor": "second", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+          { "id": "second-answer", "label": "Second: the page answers (created, or already exists)", "actor": "second", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+          { "id": "second-outcome", "label": "Second: keep what the page said", "actor": "second", "action": "extractText", "selector": "REPLACE_MESSAGE_SELECTOR", "name": "outcome_second", "timeoutMs": 10000 },
+          { "id": "second-no-leak", "label": "Second: no stack trace or SQL error on screen", "actor": "second", "action": "assertNoTextMatches" }
+        ]
+      ]
+    },
+
+    { "id": "open-list", "label": "Open the list of records", "actor": "first", "action": "goto", "url": "REPLACE_LIST_URL", "timeoutMs": 30000 },
+    { "id": "search-ready", "label": "The search field is on screen", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "search-code", "label": "Search for the value both users submitted", "actor": "first", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "search-run", "label": "Run the search (or click your search button instead)", "actor": "first", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Enter", "timeoutMs": 10000 },
+    { "id": "search-settled", "label": "Wait for the grid to refresh", "actor": "first", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "exactly-one-record", "label": "Exactly ONE record exists for that value", "actor": "first", "action": "assertCount", "selector": "REPLACE_ROW_SELECTOR", "operator": "=", "count": 1 },
+    { "id": "shot", "label": "Evidence", "actor": "first", "action": "screenshot", "name": "after-double-submit" }
+  ]
+}

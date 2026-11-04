@@ -1,0 +1,33 @@
+{
+  "title": "Concurrency: a second login of the same user ends the first session",
+  "description": "Template (T6.6). The same user logs in twice, in two browser contexts that share no cookie. Expected policy (GeneXus conventions, section 2): the NEWEST session wins and the older one is sent back to the login page the next time it asks the server for a page. If your application refuses the NEW login instead, the login gate of the second user fails: invert the two halves (see templates/routines/README.md). Needs the target profile flag maxSessionsPerCredential >= 2, otherwise the run is refused with 400 TooManySessionsForCredential (the lock exists to stop two runs from kicking each other out; this routine is the one that does it on purpose). Replace every REPLACE_* value.",
+  "tags": ["concurrency", "actors", "single-session", "genexus"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine, which runs once for each actor." }],
+  "actors": {
+    "first": { "credentialSet": "REPLACE_CREDENTIAL_SET" },
+    "second": { "credentialSet": "REPLACE_CREDENTIAL_SET" }
+  },
+  "steps": [
+    { "id": "login-first", "label": "The first session logs in", "action": "include", "routineId": "login", "version": 1, "actor": "first" },
+    { "id": "first-open", "label": "The first session opens a page of the app", "actor": "first", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "first-url", "label": "The first session is on the page, not bounced to the login", "actor": "first", "action": "assertUrlContains", "value": "REPLACE_PAGE_URL_TOKEN" },
+    { "id": "first-visible", "label": "The first session sees the page", "actor": "first", "action": "assertVisible", "selector": "REPLACE_MAIN_SELECTOR", "timeoutMs": 10000 },
+
+    { "id": "login-second", "label": "The SAME user logs in again, in another session", "action": "include", "routineId": "login", "version": 1, "actor": "second" },
+    { "id": "second-open", "label": "The second session opens the page", "actor": "second", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "second-url", "label": "The second session is on the page", "actor": "second", "action": "assertUrlContains", "value": "REPLACE_PAGE_URL_TOKEN" },
+    { "id": "second-visible", "label": "The second session sees the page", "actor": "second", "action": "assertVisible", "selector": "REPLACE_MAIN_SELECTOR", "timeoutMs": 10000 },
+
+    { "id": "first-asks-again", "label": "The first session asks the server for the page again", "actor": "first", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "first-ended", "label": "The first session was ended: it is back at the login page", "actor": "first", "action": "waitForUrlContains", "value": "REPLACE_LOGIN_URL_TOKEN", "timeoutMs": 10000 },
+    { "id": "first-shot", "label": "Evidence: the first session after the second login", "actor": "first", "action": "screenshot", "name": "first-session-ended" },
+
+    { "id": "second-asks-again", "label": "The newest session is not affected: it asks for the page again", "actor": "second", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "second-still-in", "label": "The newest session is still on the page", "actor": "second", "action": "assertUrlContains", "value": "REPLACE_PAGE_URL_TOKEN" },
+    { "id": "second-still-visible", "label": "The newest session still sees the page", "actor": "second", "action": "assertVisible", "selector": "REPLACE_MAIN_SELECTOR", "timeoutMs": 10000 },
+    { "id": "second-shot", "label": "Evidence: the newest session", "actor": "second", "action": "screenshot", "name": "second-session-alive" }
+  ]
+}

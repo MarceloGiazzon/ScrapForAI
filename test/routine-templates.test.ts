@@ -12,6 +12,7 @@ process.env.MAX_STEPS_PER_JOB = '50';
 
 const { mcpSaveRoutineSchema } = await import('../src/schemas/libraryRoutine.schema.js');
 const { lintRoutineSteps } = await import('../src/library/routineLint.js');
+const { leafSteps } = await import('../src/schemas/stepTree.js');
 
 const dir = path.resolve(import.meta.dirname, '..', 'templates', 'routines');
 const readme = readFileSync(path.join(dir, 'README.md'), 'utf8');
@@ -30,6 +31,20 @@ const DUMMIES: Record<string, string> = {
   REPLACE_TRIGGER_SELECTOR: '#BTNSAVE',
   REPLACE_MESSAGE_SELECTOR: '#message',
   REPLACE_LOADING_SELECTOR: '#loading',
+  // T6.6 (concurrency-*)
+  REPLACE_CREDENTIAL_SET_B: 'gam-user',
+  REPLACE_LOGIN_URL_TOKEN: 'wblogin',
+  REPLACE_FIELD_SELECTOR: '#vNOTE',
+  REPLACE_COUNTER_SELECTOR: '#vVERSION',
+  REPLACE_LIST_URL: 'https://dev.example.com/app/hlist',
+  REPLACE_SEARCH_SELECTOR: '#vFILTER',
+  REPLACE_ROW_SELECTOR: 'table#GridContainerTbl tr.gx-row',
+  REPLACE_INBOX_URL: 'https://dev.example.com/app/hinbox',
+  REPLACE_ITEM_SELECTOR: '#vOPEN_0001',
+  REPLACE_APPROVE_SELECTOR: '#BTNAPPROVE',
+  REPLACE_STATUS_URL: 'https://dev.example.com/app/hmyrequests',
+  REPLACE_STATUS_SELECTOR: '#vSTATUS_0001',
+  REPLACE_APPROVED_TEXT: 'Approved',
 };
 
 const files = readdirSync(dir).filter((f) => f.endsWith('.routine.json'));
@@ -61,10 +76,13 @@ for (const file of files) {
     assert.deepEqual(lintRoutineSteps(steps, []), [], 'a template must not carry anything that looks like a secret');
   });
 
-  test(`${file}: credentials only by name (valueFromCredential), no literal value`, () => {
-    const body = JSON.parse(raw) as { steps: Array<Record<string, unknown>> };
-    for (const step of body.steps.filter((s) => s.action === 'fill')) {
-      assert.ok(typeof step.valueFromCredential === 'string' && step.value === undefined, `fill step ${String(step.id)} must use valueFromCredential`);
+  test(`${file}: typed values come from the vault or from a generated parameter, never a literal`, () => {
+    const body = JSON.parse(raw) as { steps: object[]; teardown?: object[] };
+    // Read through the step-tree helpers: a fill inside a `parallel` branch is a fill too.
+    for (const step of leafSteps([...body.steps, ...(body.teardown ?? [])]) as Iterable<Record<string, unknown>>) {
+      if (step.action !== 'fill') continue;
+      const named = typeof step.valueFromCredential === 'string' || typeof step.valueFromParameter === 'string';
+      assert.ok(named && step.value === undefined, `fill step ${String(step.id)} must use valueFromCredential or valueFromParameter`);
     }
   });
 }

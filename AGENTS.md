@@ -344,6 +344,21 @@ step limits, artifact retention, etc.).
   `‖n` marker on each branch step. Not done: a barrier / start gate inside a branch, nesting, a block in a teardown, cancelling siblings when one branch fails, repeating a block N times to catch a rare race (use a suite with
   `retries`/`samples` or a schedule), a branch with several actors. A passing run is one sample of a race, not a proof there is none. `test/parallel.test.ts` (helpers, validation, every walker, include expansion; the report is in `reports.test.ts`),
   `test/parallel.smoke.ts` (Chromium: a record with optimistic locking whose save is held 400 ms; the SERVER counts requests in flight, so overlap is measured, not assumed; one winner; order independent of speed; failure semantics; per-branch sessions and faults).
+- **Concurrency templates** (`templates/routines/concurrency-*.routine.json`, T6.6): four routines in `draft` to adapt, built on actors (T6.4) and `parallel` (T6.5). `concurrency-simultaneous-edit`: two users open the same record,
+  type different generated values and press save in a `parallel` block; the verdict is a COUNTER the page shows (`REPLACE_COUNTER_SELECTOR`, an element whose text is only a number that goes up by one per accepted save), read before
+  and after: `assertEquals counter_after = counter_first + 1` (+2 = lost update, +0 = neither saved), plus a check that both started from the same counter. `concurrency-double-submit`: two sessions submit the SAME generated unique value
+  together; afterwards the grid, searched for that value, has exactly one row (`assertCount = 1`). `concurrency-single-session`: the SAME credential set on two actors, the second login ends the first (the first, asking again, is sent
+  to the login URL; the newest stays on the page); it needs `flags.maxSessionsPerCredential >= 2` on the profile or the run is refused (400 `TooManySessionsForCredential`). `concurrency-approval-flow`: requester, approver, requester in
+  order over one generated subject (the item REACHES the approver's inbox; the decision COMES BACK), no race. Rules shared by the four: the routine has **no** `credentialSet` (each actor has its own; a routine-level one would take
+  another session lock for a user nobody uses), **every** step names an actor (so `main` never gets a browser context; an `assertEquals` carries `actor` for that reason), the login is `include`d pinned (`version: 1`) once per actor and
+  its logout teardown runs per actor (so GX002 is suppressed, with that reason, in `lintSuppress`), typed data is `valueFromParameter` with `includeBoundaries: false` (never a literal), and everything that can be done before the
+  race (login, open, type) is OUTSIDE the block: only the last action races. The two races decide on what the application STORED, not on who won (each user's answer is only kept in `extracted` as `outcome_first/second`). Budget:
+  the templates are 31-43 steps once the logins (8 + 1 teardown each) are expanded, against `MAX_STEPS_PER_JOB` 50. They change data (the edit leaves the winner's value; the other two create a record) and do not clean up: a disposable
+  data set or added `teardown` steps. **Not done / not known:** run against a real GeneXus or NPDev application (only the fixture); the counter needs an app that shows a number moving with an accepted save; the single-session template
+  assumes "newest login wins", while conventions section 2 also describes an app that refuses the NEW login (the README says how to swap the halves); no approval flow with a segregation-of-duties check (the requester cannot approve
+  their own request), no race between two approvers. `test/concurrency-templates.test.ts` (fill, SAVE through the real routine service, expand with the login, step budget, main never opened, the race shape, the verdict formulas
+  fed with the numbers of a lost update / no save / a good run), `test/concurrency-templates.smoke.ts` (Chromium against a fixture with a 400 ms optimistic lock, a unique check, a newest-wins session and an inbox: each template passes, the SERVER
+  counts two saves in flight, and a control with the defect switched on turns the template red at the step that names it: `exactly-one-saved`, `exactly-one-record`, `first-ended`).
 - **Scheduler** (`src/scheduler/`, T3.2): `PUT /v1/schedules/:id` (bearer only: it makes the server start browsers on its own) stores `{ cron, timezone (default
   America/Montevideo), target, enabled, overlap: 'skip', jitterSeconds, notify }` in `<dataDir>/schedules/<id>.json`; the cursor, the run in progress and the last 100 outcomes live in
   `schedules/state/<id>.json`. `target` = `{ kind: 'routine', routineId, version?, credentialSet?, targetProfile?, profile?, buildId? }` | `{ kind: 'suite', suite }` | `{ kind: 'vault', tags? }`
@@ -632,7 +647,7 @@ key comes from `.env`, never from the command line. Fields are only ever added t
 
 `scripts/ops/` has the habit-forming wrappers: `Invoke-VaultPreMerge.ps1` (vault by impact for an app repo's diff, build id `<branch>.<sha>`),
 `Invoke-VaultNightly.ps1` (dated JSON log, never starts the server) and `Register-VaultNightlyTask.ps1` (daily Windows task, `-WhatIf` supported).
-`templates/routines/` holds the login and smoke-page routine templates (checked by `test/routine-templates.test.ts`).
+`templates/routines/` holds the login and smoke-page routine templates, the `chaos-` ones (T7.2) and the `concurrency-` ones (T6.6) (checked by `test/routine-templates.test.ts`, `test/concurrency-templates.test.ts`).
 **PowerShell gotcha:** do not pipe into `npm run cli -- ...` (npm drops the flags); write the list to a file, or splat as the scripts do.
 Put the command first and global options (`--json`, `--url`) after it.
 
@@ -649,6 +664,7 @@ Put the command first and global options (`--json`, `--url`) after it.
   `test/routine-library.smoke.ts` (pinned versions, history tagging, saving a run without its secret), all
   against a real headless Chromium instance. Tests must set `ARTIFACT_DIR` to a temp dir: `.env` may pin it.
 - `test/actors.smoke.ts` (also in `test:smoke`): two actors against a fixture with a server-side session.
+- `test/concurrency-templates.smoke.ts` (also in `test:smoke`): the four T6.6 templates against a fixture, each with a control that has the defect on.
 - `test/inspect-dom.smoke.ts` spins up a local HTTP fixture and asserts `inspectDom` returns a correct
   snapshot; it isn't currently wired into an npm script, so run it directly with
   `tsx --test test/inspect-dom.smoke.ts` if you touch DOM-snapshot code.

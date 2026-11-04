@@ -1,0 +1,60 @@
+{
+  "title": "Concurrency: two users save the same record at the same time",
+  "description": "Template (T6.6). Two users open the SAME record, each types a different value, and both press save at the same instant. The application must not lose one of the edits silently: exactly ONE save is accepted (the other user gets the optimistic-lock message). The oracle is a counter the page shows (version, revision, 'times edited', rows of an audit grid) that goes up by exactly one per accepted save: +2 means a lost update, +0 means neither saved. Use a record made for this test: it is left with the winner's value. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["concurrency", "actors", "parallel", "optimistic-lock"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine, which runs once for each actor." }],
+  "actors": {
+    "first": { "credentialSet": "REPLACE_CREDENTIAL_SET" },
+    "second": { "credentialSet": "REPLACE_CREDENTIAL_SET_B" }
+  },
+  "parameters": [
+    { "name": "noteFirst", "generator": { "type": "string", "minLength": 8, "maxLength": 12, "charset": "alnum" }, "includeBoundaries": false },
+    { "name": "noteSecond", "generator": { "type": "string", "minLength": 8, "maxLength": 12, "charset": "alnum" }, "includeBoundaries": false }
+  ],
+  "steps": [
+    { "id": "login-first", "label": "The first user logs in", "action": "include", "routineId": "login", "version": 1, "actor": "first" },
+    { "id": "login-second", "label": "The second user logs in", "action": "include", "routineId": "login", "version": 1, "actor": "second" },
+
+    { "id": "first-open", "label": "The first user opens the record", "actor": "first", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "second-open", "label": "The second user opens the SAME record", "actor": "second", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "first-counter-ready", "label": "The counter is on screen (first)", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_COUNTER_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "second-counter-ready", "label": "The counter is on screen (second)", "actor": "second", "action": "waitForSelector", "selector": "REPLACE_COUNTER_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "first-counter", "label": "Read the counter the first user was shown", "actor": "first", "action": "extractText", "selector": "REPLACE_COUNTER_SELECTOR", "name": "counter_first", "timeoutMs": 10000 },
+    { "id": "second-counter", "label": "Read the counter the second user was shown", "actor": "second", "action": "extractText", "selector": "REPLACE_COUNTER_SELECTOR", "name": "counter_second", "timeoutMs": 10000 },
+    { "id": "same-start", "label": "Both users started from the same state (otherwise this is not a race)", "actor": "first", "action": "assertEquals", "actual": { "extracted": "counter_second" }, "expected": { "expr": "counter_first" } },
+
+    { "id": "first-types", "label": "The first user types a new value", "actor": "first", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "noteFirst", "timeoutMs": 10000 },
+    { "id": "first-blur", "label": "Leave the field (GeneXus validates on blur)", "actor": "first", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+    { "id": "second-types", "label": "The second user types a different value", "actor": "second", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "noteSecond", "timeoutMs": 10000 },
+    { "id": "second-blur", "label": "Leave the field", "actor": "second", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+
+    {
+      "id": "race",
+      "label": "Both press save at the same time (everything above is the setup; only the last action races)",
+      "action": "parallel",
+      "branches": [
+        [
+          { "id": "first-save", "label": "First: save", "actor": "first", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+          { "id": "first-answer", "label": "First: the page answers (saved, or the lock message)", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+          { "id": "first-outcome", "label": "First: keep what the page said", "actor": "first", "action": "extractText", "selector": "REPLACE_MESSAGE_SELECTOR", "name": "outcome_first", "timeoutMs": 10000 },
+          { "id": "first-no-leak", "label": "First: no stack trace or SQL error on screen", "actor": "first", "action": "assertNoTextMatches" }
+        ],
+        [
+          { "id": "second-save", "label": "Second: save", "actor": "second", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+          { "id": "second-answer", "label": "Second: the page answers (saved, or the lock message)", "actor": "second", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+          { "id": "second-outcome", "label": "Second: keep what the page said", "actor": "second", "action": "extractText", "selector": "REPLACE_MESSAGE_SELECTOR", "name": "outcome_second", "timeoutMs": 10000 },
+          { "id": "second-no-leak", "label": "Second: no stack trace or SQL error on screen", "actor": "second", "action": "assertNoTextMatches" }
+        ]
+      ]
+    },
+
+    { "id": "reopen", "label": "Open the record again to read what was stored", "actor": "first", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "after-ready", "label": "The counter is on screen", "actor": "first", "action": "waitForSelector", "selector": "REPLACE_COUNTER_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "after-counter", "label": "Read the counter after the race", "actor": "first", "action": "extractText", "selector": "REPLACE_COUNTER_SELECTOR", "name": "counter_after", "timeoutMs": 10000 },
+    { "id": "exactly-one-saved", "label": "Exactly ONE save was accepted (+2 = lost update: the lock is missing; +0 = neither saved)", "actor": "first", "action": "assertEquals", "actual": { "extracted": "counter_after" }, "expected": { "expr": "counter_first + 1" } },
+    { "id": "shot", "label": "Evidence", "actor": "first", "action": "screenshot", "name": "after-race" }
+  ]
+}

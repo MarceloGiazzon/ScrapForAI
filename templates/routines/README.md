@@ -12,7 +12,45 @@ Starting points for the routines the regression vault needs. They are **template
 | `chaos-search-slow.routine.json` | The search call arrives 10 s late (the real request goes through); the page must show a loading state and recover. |
 | `chaos-json-corrupt.routine.json` | The API answers 200 with a truncated JSON body (the server is not called); the page must neither crash nor print a parser error. |
 
+| `concurrency-simultaneous-edit.routine.json` | Two users open the same record and press save together (`parallel`). Exactly ONE save must be accepted: a counter on the page goes up by one (+2 = lost update, +0 = neither saved). |
+| `concurrency-double-submit.routine.json` | Two sessions submit the same new record, with the same unique value, together. Exactly ONE row must exist afterwards, and no raw error reaches the screen. |
+| `concurrency-single-session.routine.json` | The same user logs in twice. The newest session wins; the first is sent back to the login page. Needs `maxSessionsPerCredential >= 2` (see below). |
+| `concurrency-approval-flow.routine.json` | A requester sends a request, an approver finds it in the inbox and approves it, the requester sees the state change. Two users in order, no race. |
+
 The three `chaos-` templates use `injectFault`, which only touches allowlisted origins and is refused on a `staging` target profile unless it sets `flags.allowFaults`.
+
+## The `concurrency-` templates (T6.6)
+
+They use actors (T6.4) and, for the two races, `parallel` (T6.5). Things to know before adapting one:
+
+- **Two credential sets.** Each user is an actor with its own set (`REPLACE_CREDENTIAL_SET` and `REPLACE_CREDENTIAL_SET_B`, both in the
+  profile's `credentialSets`). The routine has **no** `credentialSet` of its own on purpose: `main` is never used, and a `credentialSet` on the routine
+  would still take a session lock for a user nobody logs in as (a third session, or a second one for the same user). The login is `include`d once per
+  actor (`"actor": "first"`), with its pinned `version`; its logout `teardown` runs for each actor too, which is why the convention warning GX002
+  ("logs in and has no teardown") is suppressed in these templates, with that reason written in `lintSuppress`.
+- **Only the last action races.** There is no barrier: the branches start together when the block starts, so everything that can be done before
+  (login, open the page, type) is outside the block. Reading the clock is not a synchronisation: a green run is ONE sample of a race, not proof that
+  there is none. Repeat it with a suite (`retries`/`samples`) or a schedule to give a rare race a chance.
+- **Who wins is not decided.** Each user's answer is kept in `extracted` (`outcome_first`, `outcome_second`) so the report shows what each was told, but
+  the verdict does not depend on which one won. It rests on what the application STORED: a counter (edit) or a count of rows (double submit). If your
+  application has no number that moves with an accepted save, an audit/history grid with one row per save does (the text of the element must be only
+  the number, nothing else, because the formula oracle parses it).
+- **They change data.** The edit leaves the record with the winner's value; the double submit and the approval create a record. Point them at a
+  disposable record or data set, or add `teardown` steps that delete what was created (a teardown runs even after a failure, and its failure never
+  replaces the verdict).
+- **Typed data is generated** (`parameters`, no seed needed: a fresh one is recorded in `result.parameters`), so two runs never collide on a leftover.
+  `includeBoundaries: false` keeps the edge values (empty string, one too long) out: this is not a validation test. Add a `fill` for every other
+  required field of your form, with `valueFromParameter` or `valueFromCredential` (never a literal that looks like a secret; the save lint refuses it).
+- **`single-session` needs a deliberate setting.** Both actors use the SAME credential set, which the single-session lock forbids unless the profile says
+  `"flags": { "maxSessionsPerCredential": 2 }` (`PUT /v1/targets/<id>`); without it the run is refused with 400 `TooManySessionsForCredential`. The flag
+  applies to every run on that profile, so use a dev profile, or a profile of its own with a dedicated test user. The routine assumes the policy of
+  the GeneXus conventions (section 2): the newest login wins. If your application refuses the NEW login instead, the second login gate fails, so
+  swap the halves: after `login-second` assert that the second session is at `REPLACE_LOGIN_URL_TOKEN` and that the first one is still on the page.
+- **Do not name an actor like a secret.** Redaction blanks a vault value wherever it appears, so an actor called `admin` next to a user `admin` shows
+  as `[REDACTED]`. The templates use `first`, `second`, `requester` and `approver`.
+- **Step budget.** `MAX_STEPS_PER_JOB` (50) counts the steps AFTER the includes are expanded: each login is 8 steps plus 1 of teardown, a
+  `parallel` block counts as 1 plus the steps of its branches. The templates stay at 31-43; an added step or two is fine, a long form is not
+  (raise `MAX_STEPS_PER_JOB`, or put the form filling in a routine of its own and `include` it as the actor).
 
 ## Using one
 
@@ -28,11 +66,24 @@ The three `chaos-` templates use `injectFault`, which only touches allowlisted o
 | `REPLACE_POST_LOGIN_URL_TOKEN` | A token that appears only in the URL after a successful login (GeneXus: the page name, e.g. `hwbwkw01`) |
 | `REPLACE_LOGOUT_URL` | The URL that ends the session. Without it a second run bounces to `wblogin` (single session per user) |
 | `REPLACE_SURFACE` | The area this proves, e.g. `checkout`. Impact ordering matches on it |
-| `REPLACE_PAGE_URL`, `REPLACE_PAGE_URL_TOKEN`, `REPLACE_MAIN_SELECTOR` | The page under test, a token of its URL, a stable selector |
+| `REPLACE_PAGE_URL`, `REPLACE_PAGE_URL_TOKEN`, `REPLACE_MAIN_SELECTOR` | The page under test, a token of its URL, a stable selector. In the `concurrency-` templates the page is the one where the users act: the record being edited, the creation form, the request form |
 | `REPLACE_API_PATH` | A fragment of the URL of the call to break, e.g. `/api/orders` (find it in the run's `network` evidence). Matched as a substring of the full URL |
-| `REPLACE_TRIGGER_SELECTOR` | The control that makes the page call that API (the save button, the search button) |
-| `REPLACE_MESSAGE_SELECTOR` | Where the page shows its error message to the user |
+| `REPLACE_TRIGGER_SELECTOR` | The control that makes the page call that API (the save button, the search button); in the `concurrency-` templates, the save / submit / send button |
+| `REPLACE_MESSAGE_SELECTOR` | Where the page shows its error message to the user; in the `concurrency-` templates, where it shows the answer to a save (saved, lock message, already exists) |
 | `REPLACE_LOADING_SELECTOR` | The loading indicator the page shows while it waits |
+| `REPLACE_CREDENTIAL_SET_B` | `concurrency-`: the credential set of the SECOND user (another user of the same profile, so two sessions never share a login). `single-session` is the exception: it logs the SAME user in twice and uses only `REPLACE_CREDENTIAL_SET` |
+| `REPLACE_LOGIN_URL_TOKEN` | A token that appears only in the URL of the login page (GeneXus: `wblogin`) |
+| `REPLACE_FIELD_SELECTOR` | The field the scenario types into: the field being edited, the unique code of the new record, or the subject of the request |
+| `REPLACE_COUNTER_SELECTOR` | An element whose text is only a number that goes up by exactly one for every ACCEPTED save (version, revision, "times edited", rows of an audit grid) |
+| `REPLACE_LIST_URL` | The list (grid) of the records the scenario creates |
+| `REPLACE_SEARCH_SELECTOR` | The filter field of that grid (the scenario types the unique value and presses Enter; use your search button if Enter does not search) |
+| `REPLACE_ROW_SELECTOR` | A row of that grid. After the search only the rows with the unique value remain, so their count is the number of records created |
+| `REPLACE_INBOX_URL` | The approver's inbox: the page where requests waiting for approval are listed |
+| `REPLACE_ITEM_SELECTOR` | The control that opens the (first) request of that list |
+| `REPLACE_APPROVE_SELECTOR` | The control that approves the open request |
+| `REPLACE_STATUS_URL` | The page where the requester sees the state of requests ("my requests") |
+| `REPLACE_STATUS_SELECTOR` | The element that shows the state of the request after the search |
+| `REPLACE_APPROVED_TEXT` | The text of the approved state, as the page writes it (e.g. `Approved`) |
 
 3. Save it, with the credentials only by name:
    ```powershell
