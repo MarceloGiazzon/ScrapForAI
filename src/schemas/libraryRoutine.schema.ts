@@ -116,6 +116,8 @@ export const routineRunBodySchema = z
     retention: z.enum(['ephemeral', 'standard']).optional(),
     // T5.2: `functional` = stand-ins for images/media/fonts, no screenshots, no trace. Default: what the routine says (full).
     profile: z.enum(['full', 'functional']).optional(),
+    // T6.3: also record the requests that succeeded (see options.recordTraffic).
+    recordTraffic: z.boolean().optional(),
     // T5.3: replay a run's generated values (the seed is in its result.parameters) or take another sample.
     seed: seedSchema.optional(),
     sample: sampleIndexSchema.optional(),

@@ -260,11 +260,12 @@ export async function runLibraryRoutine(
     parameterValues: body.parameterValues,
     caller: body.caller,
     options:
-      body.retention || body.profile
+      body.retention || body.profile || body.recordTraffic
         ? {
             ...(routine.options ?? explorationRequestSchema.shape.options.parse(undefined)),
             ...(body.retention ? { retention: body.retention } : {}),
             ...(body.profile ? { profile: body.profile } : {}),
+            ...(body.recordTraffic ? { recordTraffic: true } : {}),
           }
         : routine.options,
     steps: routine.steps,

@@ -2577,6 +2577,222 @@
         },
         "command": {
           "type": "string",
+          "const": "differential"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "differentialId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "running",
+                    "completed",
+                    "cancelled",
+                    "interrupted"
+                  ]
+                },
+                "labels": {
+                  "type": "object",
+                  "properties": {
+                    "left": {
+                      "type": "string"
+                    },
+                    "right": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "left",
+                    "right"
+                  ],
+                  "additionalProperties": false
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "number"
+                    },
+                    "same": {
+                      "type": "number"
+                    },
+                    "different": {
+                      "type": "number"
+                    },
+                    "infraError": {
+                      "type": "number"
+                    },
+                    "notRun": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "same",
+                    "different",
+                    "infraError",
+                    "notRun"
+                  ],
+                  "additionalProperties": false
+                },
+                "pairs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "routineId": {
+                        "type": "string"
+                      },
+                      "version": {
+                        "type": "number"
+                      },
+                      "state": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "routineId",
+                      "version",
+                      "state"
+                    ],
+                    "additionalProperties": {}
+                  }
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "same",
+                    "different",
+                    "infra-error"
+                  ]
+                },
+                "exitCode": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "const": 0
+                    },
+                    {
+                      "type": "number",
+                      "const": 1
+                    },
+                    {
+                      "type": "number",
+                      "const": 2
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "differentialId",
+                "status",
+                "labels",
+                "counts",
+                "pairs"
+              ],
+              "additionalProperties": {}
+            },
+            {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "jobId"
+                  ],
+                  "additionalProperties": {}
+                },
+                "right": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "jobId"
+                  ],
+                  "additionalProperties": {}
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": [
+                    "same",
+                    "different"
+                  ]
+                },
+                "comparison": {
+                  "type": "object",
+                  "properties": {
+                    "equivalent": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "equivalent"
+                  ],
+                  "additionalProperties": {}
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "left",
+                "right",
+                "verdict",
+                "comparison",
+                "notes"
+              ],
+              "additionalProperties": {}
+            },
+            {
+              "type": "object",
+              "properties": {
+                "differentialId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "differentialId"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "evolution list"
         },
         "exitCode": {

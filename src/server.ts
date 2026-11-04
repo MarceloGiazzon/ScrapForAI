@@ -11,6 +11,7 @@ import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
 import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
 import { verifyTrustedScripts } from './runner/trusted/registry.js';
 import { recoverSuites } from './orchestrator/suiteRunner.js';
+import { recoverDifferentials } from './differential/differentialService.js';
 import { recoverShrinks } from './shrink/shrinkService.js';
 import { recoverMatrixRuns } from './permissions/matrixRunner.js';
 import { authRouter } from './routes/auth.routes.js';
@@ -26,6 +27,7 @@ import { runsRouter } from './routes/runs.routes.js';
 import { schemaRouter } from './routes/schema.routes.js';
 import { statusRouter } from './routes/status.routes.js';
 import { schedulesRouter } from './routes/schedules.routes.js';
+import { differentialsRouter } from './routes/differentials.routes.js';
 import { shrinksRouter } from './routes/shrinks.routes.js';
 import { startScheduler } from './scheduler/runtime.js';
 import { suitesRouter } from './routes/suites.routes.js';
@@ -143,6 +145,8 @@ app.post('/v1/suites', explorationLimiter); // starting a suite drives browsers,
 app.use('/v1/suites', suitesRouter);
 app.post('/v1/shrinks', explorationLimiter); // a shrink drives browsers, like a suite
 app.use('/v1/shrinks', shrinksRouter);
+app.post('/v1/differentials', explorationLimiter); // a differential run drives browsers, twice per routine
+app.use('/v1/differentials', differentialsRouter);
 app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/webhooks', webhooksRouter);
 app.use('/v1/metrics', metricsRouter);
@@ -208,6 +212,11 @@ async function start(): Promise<void> {
   const recoveredShrinks = await recoverShrinks();
   if (recoveredShrinks.interrupted > 0 || recoveredShrinks.pruned > 0) {
     logger.info(recoveredShrinks, 'Recovered shrink run states');
+  }
+
+  const recoveredDifferentials = await recoverDifferentials();
+  if (recoveredDifferentials.interrupted > 0 || recoveredDifferentials.pruned > 0) {
+    logger.info(recoveredDifferentials, 'Recovered differential run states');
   }
 
   const recoveredSnapshots = await recoverSnapshotRuns();

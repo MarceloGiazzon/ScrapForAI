@@ -309,7 +309,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       ...(faults ? { faults: faults.policy } : {}),
       ...(usesQuiet(request) ? { networkTracker: true } : {}),
     });
-    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
+    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled, request.options.recordTraffic === true);
 
     // The profile is read once: its platform and noise filters (T8.1) and its PII policy (T7.9) are used below.
     profile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
@@ -945,6 +945,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       ...(noiseFiltered.length > 0 ? { noiseFiltered } : {}),
       unexpectedExternalRequests: evidence?.unexpectedExternalRequests ?? [],
       ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
+      ...(evidence?.traffic ? { traffic: evidence.traffic, ...(evidence.trafficTruncated ? { trafficTruncated: true } : {}) } : {}),
       domTextSnapshot: domTextEvidence,
       finalUrl: recordedUrl,
     },

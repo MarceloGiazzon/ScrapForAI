@@ -161,3 +161,8 @@ export function logsDir(): string {
 export function publicDir(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'public');
 }
+
+/** Differential runs (T6.3): <dataDir>/differentials/<differentialId>.json. */
+export function differentialsDir(): string {
+  return path.join(dataDir(), 'differentials');
+}

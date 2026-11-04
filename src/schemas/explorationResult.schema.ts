@@ -66,6 +66,10 @@ export const networkEvidenceSchema = z.object({
 });
 export type NetworkEvidence = z.infer<typeof networkEvidenceSchema>;
 
+/** T6.3: one distinct request the page made (same method, origin, path, type and status), with how many times. Only with `options.recordTraffic`. */
+export const trafficEvidenceSchema = networkEvidenceSchema.extend({ count: z.number().int().positive() });
+export type TrafficEvidence = z.infer<typeof trafficEvidenceSchema>;
+
 /** T5.1: a request a routing policy touched (aborted or answered) and which policy did. */
 export const routingEvidenceSchema = z.object({
   origin: z.string(),
@@ -136,6 +140,9 @@ export const explorationResultSchema = z.object({
     pageErrors: z.array(z.string()),
     network: z.array(networkEvidenceSchema),
     networkFailures: z.array(networkEvidenceSchema),
+    // T6.3: every distinct request, successful or not, when the run asked for `options.recordTraffic`; `trafficTruncated` when the distinct ones went past the cap.
+    traffic: z.array(trafficEvidenceSchema).optional(),
+    trafficTruncated: z.boolean().optional(),
     // T8.1: failures left OUT of `networkFailures` as known noise (platform rule or the profile's noiseFilters). `network` keeps every one of them.
     noiseFiltered: z.array(z.object({ reason: z.string(), count: z.number().int().positive() })).optional(),
     unexpectedExternalRequests: z.array(networkEvidenceSchema),

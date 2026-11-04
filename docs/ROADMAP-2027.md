@@ -1140,6 +1140,12 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 
 ### T6.3 — Execução diferencial · G
 
+> **Implementada em 2026-11-04** (`src/differential/`, ver AGENTS.md, "Differential execution"). `POST /v1/differentials` (202 + polling), `POST /v1/differentials/compare` (duas runs já feitas), MCP
+> `run_differential` / `get_differential_result` / `compare_runs`, CLI `scrapforai differential`. Desvios do texto: o lado esquerdo é a base e o direito o candidato; a comparação de rede exigiu um registro
+> novo de tráfego (`options.recordTraffic`, `evidence.traffic`), porque `evidence.network` só guardava FALHAS; por padrão só document/xhr/fetch entram na forma da rede (arquivos com hash mudam a cada build);
+> o tempo é só informação e nunca torna um par "diferente". Fica de fora: o diff visual (D6, adiado de propósito), relatório HTML/PDF, diferencial como variante de suíte e a validação contra um par GeneXus
+> 17 x 18 de verdade (só há a fixture `test/differential.smoke.ts`).
+
 **Especificação:**
 - A mesma rotina contra dois perfis de alvo: dev × staging, gerador Java × .NET, GeneXus 17 × 18,
   antes × depois de um deploy.

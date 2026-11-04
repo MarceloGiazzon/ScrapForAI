@@ -561,6 +561,9 @@ export const explorationOptionsSchema = z
     // T7.8: hunt for personal data and secrets during the whole run (URLs, console, bodies without credentials) and, at the end of the steps, in
     // storage, cookies and hidden inputs. The result carries `pii`. Optional with no default, so a saved routine keeps its digest.
     piiScan: z.boolean().optional(),
+    // T6.3: also record the requests that SUCCEEDED (method, path, status, type; deduplicated, never a body or a query), in `evidence.traffic`. By default the
+    // network evidence only holds failures. Differential runs ask for it; optional with no default, so a saved routine keeps its digest.
+    recordTraffic: z.boolean().optional(),
     // T8.1: `false` turns off the automatic login of a `genexus` target profile for this run (its login routine is not included for you).
     autoLogin: z.boolean().optional(),
     collectDomOnFailure: z.boolean().default(false),

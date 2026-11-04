@@ -162,6 +162,12 @@ The formula may use the run's parameters and extracted values by name, `+ - * / 
 no code runs. Say the page's number format with `locale` (`en` 1,234.56; `pt`/`es` 1.234,56): it is never guessed. A failure reports the difference and the inputs. Use `tolerance`
 only for a gap you have decided to accept.
 
+**Same flow on two environments or builds** (dev x staging, GeneXus 17 x 18, Java x .NET): `run_differential { routines: [{ routineId }], left: { targetProfile }, right: { targetProfile } }` (left = baseline,
+right = candidate; each side may name its own `credentialSet` and `buildId`) returns a `differentialId` at once; follow with `get_differential_result` (`waitSeconds`). The routine MUST open its target with
+`goto "$targetUrl"`, or both sides open the same address (the response warns). It compares step status, extracted values (with tolerance), console errors that are NEW on the right, the shape of the
+network (method + path with ids masked + status, never the origin) and time per step (information only). Verdict `same` / `different` / `infra-error`; each different pair has `lines` in plain words. For
+"before and after a deploy" run the routine, deploy, run again and `compare_runs { leftJobId, rightJobId }` (nothing runs; the evidence must still exist).
+
 When a sample FAILS, do not guess the limit: `shrink_failure { fromJobId }` (or `routineId` + `seed` + `sample`) replays it with smaller inputs and returns the exact edge ("fails with
 qty=1000, passes with qty=999") and which parameters matter, within `maxShrinkRuns` (default 30). Follow with `get_shrink_result` (`waitSeconds`); a `budget`/`timeout` outcome is still a failing
 input, just not proven minimal. To keep it: `vault_add_from_run` with `result.minimalJobId` and `type: "SCENARIO"` (the values are saved fixed), while the evidence still exists, and only for

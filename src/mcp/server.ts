@@ -8,6 +8,7 @@ import { mcpExplorationRequestSchema, safeName } from '../schemas/explorationReq
 import { mcpSaveRoutineSchema, routineRunBodySchema } from '../schemas/libraryRoutine.schema.js';
 import { addFromRunSchema, confirmGreenSchema, ITEM_ID_PATTERN, itemStatusSchema, itemTypeSchema } from '../schemas/regressionItem.schema.js';
 import { matrixRunBodySchema, permissionMatrixObjectSchema } from '../schemas/permissionMatrix.schema.js';
+import { differentialCompareRequestSchema, differentialRequestSchema } from '../schemas/differential.schema.js';
 import { shrinkRequestSchema } from '../schemas/shrink.schema.js';
 import { suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { getJson, inspectDom, postJson, putJson, runExploration, ScrapForAiRequestError } from './client.js';
@@ -330,6 +331,68 @@ server.registerTool(
   async ({ id, waitSeconds }) => {
     try {
       return toToolResult(await getJson(`/v1/shrinks/${encodeURIComponent(id)}${waitSeconds ? `?wait=${waitSeconds}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'run_differential',
+  {
+    title: 'Run routines against two targets and compare',
+    description:
+      'The same library routines against TWO target profiles (dev x staging, Java x .NET generator, GeneXus 17 x 18, a canary x production) and what differs. ' +
+      'left is the baseline, right the candidate. Each side may name its own credentialSet (a set of the profile of THAT side) and buildId. Compared: the status of each step, ' +
+      'extracted values (with tolerance, via tolerance.diff), console errors NEW on the right, the SHAPE of the network (method + path with ids masked + status; never the origin) ' +
+      'and the time per step (information only, never a difference). The routine must open its target with goto "$targetUrl" so each side follows the baseUrl of its own profile ' +
+      '(a fixed address is opened on both sides; the response warns). The version of each routine is pinned when it starts. Returns a differentialId AT ONCE; follow with ' +
+      'get_differential_result (waitSeconds). Verdict: same, different (a routine behaves differently on the two sides) or infra-error (a side could not run).',
+    inputSchema: differentialRequestSchema,
+    annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  },
+  async (args) => {
+    try {
+      return toToolResult(await postJson('/v1/differentials', args));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'get_differential_result',
+  {
+    title: 'Get a differential run',
+    description:
+      'State of a run started with run_differential: per routine the two run ids and, once both ended, the comparison (steps, extracted, console, network, timing) with a ' +
+      'headline; and the verdict (same, different, infra-error) with a reason. waitSeconds (max 55) blocks until it ends. Evidence of each run stays under its run id (get_run) while it exists.',
+    inputSchema: z.object({ id: z.string().regex(/^diff_[A-Za-z0-9_-]{1,40}$/), waitSeconds: z.number().int().min(0).max(55).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id, waitSeconds }) => {
+    try {
+      return toToolResult(await getJson(`/v1/differentials/${encodeURIComponent(id)}${waitSeconds ? `?wait=${waitSeconds}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'compare_runs',
+  {
+    title: 'Compare two runs that already happened',
+    description:
+      'Compares two past runs of the same routine whose evidence still exists, for example before and after a deploy: run it, deploy, run it again, compare the two job ids. ' +
+      'leftJobId is the baseline. Same comparison as run_differential (steps, extracted values, new console errors, network shape, time). Nothing runs. ' +
+      'It says so when the two runs are not of the same routine version.',
+    inputSchema: differentialCompareRequestSchema,
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async (args) => {
+    try {
+      return toToolResult(await postJson('/v1/differentials/compare', args));
     } catch (error) {
       return toErrorResult(error);
     }

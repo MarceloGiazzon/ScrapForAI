@@ -1,11 +1,13 @@
 import type { Request, Response, Page } from 'playwright';
 
 import type { ArtifactStore } from '../artifacts/artifactStore.js';
-import type { ConsoleEvidence, NetworkEvidence, ScreenshotEvidence } from '../schemas/explorationResult.schema.js';
+import type { ConsoleEvidence, NetworkEvidence, ScreenshotEvidence, TrafficEvidence } from '../schemas/explorationResult.schema.js';
 import { isAllowedResourceUrl, validateTargetUrl } from '../security/validateTargetUrl.js';
 
 const MAX_EVENT_ITEMS = 200;
 const MAX_DOM_TEXT_CHARS = 20000;
+/** Distinct requests kept when a run records its traffic (T6.3). Repeats only raise a count, so a chatty page does not push a request out. */
+const MAX_TRAFFIC_ENTRIES = 2000;
 
 export interface EvidenceCollector {
   screenshots: ScreenshotEvidence[];
@@ -13,6 +15,9 @@ export interface EvidenceCollector {
   pageErrors: string[];
   network: NetworkEvidence[];
   unexpectedExternalRequests: NetworkEvidence[];
+  /** Present only when the run records its traffic. */
+  traffic?: TrafficEvidence[];
+  trafficTruncated: boolean;
   getDisallowedNavigationError(): string | undefined;
   captureScreenshot(name: string): Promise<ScreenshotEvidence>;
   collectDomText(): Promise<string | undefined>;
@@ -81,6 +86,7 @@ export function registerEvidenceCollectors(
   artifactStore: ArtifactStore,
   // T5.1: a request a policy aborted or answered on purpose is not a failure of the application (a stand-in 204 for media makes Chromium cancel the load, which would otherwise show up as ERR_ABORTED).
   isHandledByPolicy: (request: Request) => boolean = () => false,
+  recordTraffic = false,
 ): EvidenceCollector {
   const screenshots: ScreenshotEvidence[] = [];
   const consoleEvents: ConsoleEvidence[] = [];
@@ -88,6 +94,9 @@ export function registerEvidenceCollectors(
   const network: NetworkEvidence[] = [];
   const unexpectedExternalRequests: NetworkEvidence[] = [];
   let disallowedNavigationError: string | undefined;
+  const traffic: TrafficEvidence[] = [];
+  const trafficIndex = new Map<string, TrafficEvidence>();
+  let trafficTruncated = false;
 
   page.on('console', (message) => {
     pushCapped(consoleEvents, {
@@ -136,6 +145,20 @@ export function registerEvidenceCollectors(
   });
 
   page.on('response', (response) => {
+    if (recordTraffic && !isHandledByPolicy(response.request())) {
+      const seen = networkEvidenceFromResponse(response);
+      const key = [seen.method, seen.origin, seen.pathname, seen.resourceType ?? '', seen.status ?? ''].join(' ');
+      const known = trafficIndex.get(key);
+      if (known) {
+        known.count += 1;
+      } else if (traffic.length < MAX_TRAFFIC_ENTRIES) {
+        const entry: TrafficEvidence = { ...seen, count: 1 };
+        traffic.push(entry);
+        trafficIndex.set(key, entry);
+      } else {
+        trafficTruncated = true;
+      }
+    }
     // A 4xx/5xx a policy wrote on purpose (T7.2 fault) is not the application failing: routing evidence lists it.
     if (response.status() < 400 || isHandledByPolicy(response.request())) {
       return;
@@ -163,6 +186,10 @@ export function registerEvidenceCollectors(
     pageErrors,
     network,
     unexpectedExternalRequests,
+    ...(recordTraffic ? { traffic } : {}),
+    get trafficTruncated() {
+      return trafficTruncated;
+    },
     getDisallowedNavigationError() {
       return disallowedNavigationError;
     },

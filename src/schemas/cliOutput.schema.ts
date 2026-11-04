@@ -168,6 +168,27 @@ export const cliHealthSchema = z
   })
   .passthrough();
 
+/** `differential --no-wait`. */
+export const cliDifferentialStartedSchema = z.object({ differentialId: z.string() }).strict();
+
+/** `differential` (T6.3): the state of a differential run, passed through as the API returns it (shape: differential/differentialService.ts). */
+export const cliDifferentialStateSchema = z
+  .object({
+    differentialId: z.string(),
+    status: z.enum(['running', 'completed', 'cancelled', 'interrupted']),
+    labels: z.object({ left: z.string(), right: z.string() }).strict(),
+    counts: z.object({ total: z.number(), same: z.number(), different: z.number(), infraError: z.number(), notRun: z.number() }).strict(),
+    pairs: z.array(z.object({ routineId: z.string(), version: z.number(), state: z.string() }).passthrough()),
+    verdict: z.enum(['same', 'different', 'infra-error']).optional(),
+    exitCode: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  })
+  .passthrough();
+
+/** `differential --from-jobs`: two runs that already happened, compared. */
+export const cliDifferentialCompareSchema = z
+    .object({ left: z.object({ jobId: z.string() }).passthrough(), right: z.object({ jobId: z.string() }).passthrough(), verdict: z.enum(['same', 'different']), comparison: z.object({ equivalent: z.boolean() }).passthrough(), notes: z.array(z.string()) })
+  .passthrough();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -243,6 +264,7 @@ export const cliOutputSchema = z.union([
   success('flaky show', cliFlakyShowSchema),
   success('health', cliHealthSchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
+  success('differential', z.union([cliDifferentialStateSchema, cliDifferentialCompareSchema, cliDifferentialStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),
   success('evolution timeline', cliEvolutionTimelineSchema),

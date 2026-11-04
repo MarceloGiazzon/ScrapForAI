@@ -462,6 +462,9 @@
         "piiScan": {
           "type": "boolean"
         },
+        "recordTraffic": {
+          "type": "boolean"
+        },
         "autoLogin": {
           "type": "boolean"
         },

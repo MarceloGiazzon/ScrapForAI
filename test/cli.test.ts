@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 36);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 37);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1067,4 +1067,83 @@ test('suite text: quarantined runs and the failed attempt of a retried run are v
   assert.match(out.stdout, /1 passed, 0 failed, 0 error, 0 not run\n/);
   assert.match(out.stdout, /quarantined, not in the verdict: 1 ran - 0 passed, 1 failed, 0 error/);
   validJson((await cli(['suite', 'nightly.json', '--json'], { readFile: async () => JSON.stringify(suiteBody) })).stdout);
+});
+
+// T6.3: `scrapforai differential`
+
+const differentialState = (verdict: 'same' | 'different' | 'infra-error', exitCode: 0 | 1 | 2) => ({
+  differentialId: 'diff_abc',
+  status: 'completed',
+  createdAt: '2026-11-04T10:00:00.000Z',
+  request: {},
+  labels: { left: 'GX17', right: 'GX18' },
+  counts: { total: 2, same: 1, different: verdict === 'different' ? 1 : 0, infraError: verdict === 'infra-error' ? 1 : 0, notRun: 0 },
+  pairs: [
+    { routineId: 'crud', version: 1, state: 'done', outcome: 'same' },
+    verdict === 'different'
+      ? { routineId: 'orders', version: 3, state: 'done', outcome: 'different', comparison: { headline: '1 new console error(s)' }, lines: ['console, new on GX18: boom'], timeLines: ['save: slower on GX18 (GX17 100 ms, GX18 900 ms, x9)'] }
+      : { routineId: 'orders', version: 3, state: 'done', outcome: verdict === 'same' ? 'same' : 'infra-error', error: 'right: CredentialSetNotFound' },
+  ],
+  verdict,
+  exitCode,
+  reason: 'reason',
+});
+
+test('differential: sends both sides, waits, prints the differences, and the exit code is the verdict (0 same, 1 different, 2 could not run)', async () => {
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, { differentialId: 'diff_abc', status: 'running', counts: {}, warnings: ['a fixed address'] }) : respond(200, differentialState('different', 1)));
+  const different = await cli(['differential', 'crud', 'orders', '--left', 'gx17', '--right', 'gx18', '--left-credential', 'a17', '--right-credential', 'a18', '--right-build', 'b2', '--right-label', 'GX18', '--var', 'k=v', '--profile', 'functional', '--time-ratio', '3', '--json']);
+  assert.equal(different.code, 1);
+  assert.deepEqual(seen[0]!.body, {
+    routines: [{ routineId: 'crud' }, { routineId: 'orders' }],
+    left: { targetProfile: 'gx17', credentialSet: 'a17' },
+    right: { targetProfile: 'gx18', credentialSet: 'a18', buildId: 'b2', label: 'GX18' },
+    variables: { k: 'v' },
+    profile: 'functional',
+    tolerance: { timeRatio: 3 },
+  });
+  assert.equal(validJson(different.stdout).command, 'differential');
+  assert.match(different.stderr, /warning: a fixed address/);
+
+  const text = await cli(['differential', 'crud', '--left', 'gx17', '--right', 'gx18']);
+  assert.match(text.stdout, /orders@v3: DIFFERENT - 1 new console error/);
+  assert.match(text.stdout, /console, new on GX18: boom/);
+  assert.match(text.stdout, /time: save: slower on GX18/);
+
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, { differentialId: 'diff_abc', status: 'running' }) : respond(200, differentialState('same', 0)));
+  assert.equal((await cli(['differential', 'crud', '--left', 'a', '--right', 'b'])).code, 0);
+  handler = (req, respond) => (req.method === 'POST' ? respond(202, { differentialId: 'diff_abc', status: 'running' }) : respond(200, differentialState('infra-error', 2)));
+  assert.equal((await cli(['differential', 'crud', '--left', 'a', '--right', 'b'])).code, 2);
+
+  const started = await cli(['differential', 'crud', '--left', 'a', '--right', 'b', '--no-wait', '--json']);
+  assert.equal(started.code, 0);
+  assert.equal(validJson(started.stdout).result.differentialId, 'diff_abc');
+});
+
+test('differential --from-jobs: compares two past runs; 0 when the same, 1 when different; bad usage never reaches the API', async () => {
+  const compared = (verdict: string) => ({
+    left: { jobId: 'job_l', label: 'dev', status: 'passed' },
+    right: { jobId: 'job_r', label: 'qa', status: 'passed' },
+    verdict,
+    comparison: { equivalent: verdict === 'same', headline: verdict === 'same' ? '' : '1 extracted value(s)' },
+    lines: verdict === 'same' ? [] : ['extracted ~ total changed'],
+    timeLines: [],
+    notes: ['the runs used different versions of crud'],
+  });
+  handler = (_req, respond) => respond(200, compared('different'));
+  const different = await cli(['differential', '--from-jobs', 'job_l', 'job_r', '--json']);
+  assert.equal(different.code, 1);
+  assert.deepEqual(seen[0]!.body, { leftJobId: 'job_l', rightJobId: 'job_r' });
+  assert.equal(validJson(different.stdout).command, 'differential');
+  const text = await cli(['differential', '--from-jobs', 'job_l', 'job_r']);
+  assert.match(text.stdout, /extracted ~ total changed/);
+  assert.match(text.stdout, /note: the runs used different versions/);
+
+  handler = (_req, respond) => respond(200, compared('same'));
+  assert.equal((await cli(['differential', '--from-jobs', 'job_l', 'job_r'])).code, 0);
+
+  seen.length = 0;
+  assert.equal((await cli(['differential', '--from-jobs', 'job_l'])).code, 2);
+  assert.equal((await cli(['differential', 'crud', '--left', 'a'])).code, 2);
+  assert.equal((await cli(['differential', 'crud', '--left', 'a', '--right', 'b', '--time-ratio', '1'])).code, 2);
+  assert.equal(seen.length, 0, 'usage errors are caught before any request');
 });

@@ -55,6 +55,11 @@ Commands
   suite <file.json|-> [--timeout-seconds N] [--no-wait]
   shrink --from-job <jobId> | <routineId> --seed s --sample N  [--max-runs N] [--max-seconds N] [--profile functional] [--no-wait]
                                     (smallest input that still fails; exit 0 when found, 2 otherwise)
+  differential <routineId>... --left <targetProfile> --right <targetProfile> [--left-credential set] [--right-credential set] [--left-build b] [--right-build b]
+               [--left-label l] [--right-label l] [--var k=v]... [--profile functional] [--retention standard] [--time-ratio N] [--no-wait] [--timeout-seconds N]
+  differential --from-jobs <leftJobId> <rightJobId> [--time-ratio N]
+                                    (the same routines against two targets, or two runs that already happened, and what differs: step status, extracted values,
+                                     new console errors, network shape, time. Exit 0 same, 1 different, 2 a side could not run. The routine must open its target with goto "$targetUrl")
   schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
   webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
   perf list | alerts | show <routineId> [--version N] [--profile full|functional] [--fail-on-alert]
@@ -232,6 +237,33 @@ function formatShrink(state: Record<string, any>): string {
   if (state.result?.minimalJobId) lines.push(`  proof: ${state.result.minimalJobId} (save it with: vault add-from-run, type SCENARIO)`);
   if (state.replay) lines.push(`  replay: run ${state.replay.routineId} --version ${state.replay.version} with parameterValues ${JSON.stringify(state.replay.parameterValues)}`);
   if (state.error) lines.push(`  error: ${state.error}`);
+  return `${lines.join('\n')}\n`;
+}
+
+function formatDifferential(state: Record<string, any>): string {
+  const labels = (state.labels ?? { left: 'left', right: 'right' }) as { left: string; right: string };
+  const lines = [`Differential ${state.differentialId}: ${labels.left} x ${labels.right} - ${state.verdict ?? state.status}`];
+  if (state.reason) lines.push(`  ${state.reason}`);
+  for (const warning of (state.warnings ?? []) as string[]) lines.push(`  warning: ${warning}`);
+  for (const pair of (state.pairs ?? []) as Array<Record<string, any>>) {
+    const head = `  ${pair.routineId}@v${pair.version}: `;
+    if (pair.outcome === 'same') lines.push(`${head}same`);
+    else if (pair.outcome === 'infra-error') lines.push(`${head}could not run - ${pair.error ?? ''}`);
+    else if (pair.outcome === 'different') {
+      lines.push(`${head}DIFFERENT - ${pair.comparison?.headline ?? ''}`);
+      for (const line of (pair.lines ?? []) as string[]) lines.push(`      ${line}`);
+      for (const line of (pair.timeLines ?? []) as string[]) lines.push(`      time: ${line}`);
+    } else lines.push(`${head}not run`);
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function formatCompare(result: Record<string, any>): string {
+  const lines = [`Compared ${result.left.jobId} (${result.left.status}) with ${result.right.jobId} (${result.right.status}): ${result.verdict}`];
+  if (result.comparison?.headline) lines.push(`  ${result.comparison.headline}`);
+  for (const line of (result.lines ?? []) as string[]) lines.push(`    ${line}`);
+  for (const line of (result.timeLines ?? []) as string[]) lines.push(`    time: ${line}`);
+  for (const note of (result.notes ?? []) as string[]) lines.push(`  note: ${note}`);
   return `${lines.join('\n')}\n`;
 }
 
@@ -898,6 +930,124 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const exitCode: ExitCode = sent.status === 200 ? 0 : 2;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'webhooks test', exitCode, result: delivery as never }, `${delivery.status}${delivery.httpStatus ? ` (HTTP ${delivery.httpStatus})` : ''}${delivery.reason ? `: ${delivery.reason}` : ''}\n`);
       return exitCode;
+    }
+
+    if (command === 'differential') {
+      // T6.3: the same routines on two targets (or two runs already made) and what differs. Exit 0 same, 1 different, 2 anything else.
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          ...common,
+          left: { type: 'string' },
+          right: { type: 'string' },
+          'left-credential': { type: 'string' },
+          'right-credential': { type: 'string' },
+          'left-build': { type: 'string' },
+          'right-build': { type: 'string' },
+          'left-label': { type: 'string' },
+          'right-label': { type: 'string' },
+          var: { type: 'string', multiple: true },
+          profile: { type: 'string' },
+          retention: { type: 'string' },
+          'time-ratio': { type: 'string' },
+          'from-jobs': { type: 'boolean' },
+          'timeout-seconds': { type: 'string' },
+          'no-wait': { type: 'boolean' },
+        },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+
+      let tolerance: Record<string, unknown> = {};
+      if (values['time-ratio'] !== undefined) {
+        const timeRatio = Number(values['time-ratio']);
+        if (!Number.isFinite(timeRatio) || timeRatio < 1.1 || timeRatio > 100) throw new CliError('UsageError', '--time-ratio must be a number from 1.1 to 100');
+        tolerance = { tolerance: { timeRatio } };
+      }
+
+      if (values['from-jobs']) {
+        if (positionals.length !== 2) throw new CliError('UsageError', 'usage: scrapforai differential --from-jobs <leftJobId> <rightJobId>');
+        const compared = await api('POST', '/v1/differentials/compare', { leftJobId: positionals[0], rightJobId: positionals[1], ...tolerance });
+        if (compared.status !== 200) throw errorOf(compared);
+        const result = compared.body as Record<string, any>;
+        const exitCode: ExitCode = result.verdict === 'same' ? 0 : 1;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'differential', exitCode, result: result as never }, formatCompare(result));
+        return exitCode;
+      }
+
+      if (positionals.length === 0 || !values.left || !values.right) {
+        throw new CliError('UsageError', 'usage: scrapforai differential <routineId>... --left <targetProfile> --right <targetProfile>   or   scrapforai differential --from-jobs <leftJobId> <rightJobId>');
+      }
+      if (values.profile !== undefined && values.profile !== 'full' && values.profile !== 'functional') throw new CliError('UsageError', '--profile must be full or functional');
+      if (values.retention !== undefined && values.retention !== 'ephemeral' && values.retention !== 'standard') throw new CliError('UsageError', '--retention must be ephemeral or standard');
+      const variables: Record<string, string> = {};
+      for (const pair of values.var ?? []) {
+        const at = pair.indexOf('=');
+        if (at < 1) throw new CliError('UsageError', `--var expects name=value, got "${pair}"`);
+        variables[pair.slice(0, at)] = pair.slice(at + 1);
+      }
+      const side = (which: 'left' | 'right') => {
+        const credential = which === 'left' ? values['left-credential'] : values['right-credential'];
+        const build = which === 'left' ? values['left-build'] : values['right-build'];
+        const label = which === 'left' ? values['left-label'] : values['right-label'];
+        return {
+          targetProfile: which === 'left' ? values.left! : values.right!,
+          ...(credential ? { credentialSet: credential } : {}),
+          ...(build ? { buildId: build } : {}),
+          ...(label ? { label } : {}),
+        };
+      };
+      const body = {
+        routines: positionals.map((routineId) => ({ routineId })),
+        left: side('left'),
+        right: side('right'),
+        ...(Object.keys(variables).length > 0 ? { variables } : {}),
+        ...(values.profile ? { profile: values.profile } : {}),
+        ...(values.retention ? { retention: values.retention } : {}),
+        ...tolerance,
+      };
+
+      const started = await api('POST', '/v1/differentials', body);
+      if (started.status !== 202) throw errorOf(started);
+      const { differentialId } = started.body as { differentialId: string };
+      if (values['no-wait']) {
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'differential', exitCode: 0, result: { differentialId } as never }, `Differential run started: ${differentialId}. Poll with: GET /v1/differentials/${differentialId}\n`);
+        return 0;
+      }
+
+      for (const warning of ((started.body as Record<string, any>).warnings ?? []) as string[]) io.err(`warning: ${warning}\n`);
+      io.err(`[${differentialId}] started\n`);
+      const timeoutSeconds = values['timeout-seconds'] === undefined ? 3600 : Number(values['timeout-seconds']);
+      if (!Number.isFinite(timeoutSeconds) || timeoutSeconds < 1) throw new CliError('UsageError', '--timeout-seconds must be a positive number');
+      const deadline = Date.now() + timeoutSeconds * 1000;
+      let lastLine = '';
+      for (;;) {
+        if (io.signal?.aborted) {
+          const cancelled = await api('POST', `/v1/differentials/${differentialId}/cancel`).catch(() => undefined);
+          const final = cancelled?.status === 200 ? (cancelled.body as Record<string, any>) : undefined;
+          if (final) emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'differential', exitCode: 2, result: final as never }, formatDifferential(final));
+          else throw new CliError('Cancelled', `interrupted; the differential run ${differentialId} may still be running`);
+          return 2;
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new CliError('DifferentialWaitTimeout', `the differential run ${differentialId} did not finish within ${timeoutSeconds}s; it keeps running (GET /v1/differentials/${differentialId})`);
+
+        const poll = await api('GET', `/v1/differentials/${differentialId}?wait=${Math.min(50, Math.max(1, Math.floor(remaining / 1000)))}`, undefined, 70_000);
+        if (poll.status !== 200) throw errorOf(poll);
+        const state = poll.body as Record<string, any>;
+        if (state.status !== 'running') {
+          const exitCode = (state.exitCode ?? 2) as ExitCode;
+          emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'differential', exitCode, result: state as never }, formatDifferential(state));
+          return exitCode;
+        }
+        const c = state.counts as Record<string, number>;
+        const line = `[${differentialId}] ${c.same} same, ${c.different} different, ${c.infraError} could not run, ${c.notRun} to go`;
+        if (line !== lastLine) {
+          io.err(`${line}\n`);
+          lastLine = line;
+        }
+      }
     }
 
     if (command === 'shrink') {
