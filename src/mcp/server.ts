@@ -218,6 +218,29 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_health',
+  {
+    title: 'Get health by target',
+    description:
+      'The state of every target profile in one read, to answer "where do things stand?" before choosing what to run. Per target: status (red = something that counts failed in its last ' +
+      'run, a failing vault item or a schedule that failed; yellow = nothing failed but something needs a person: flaky, slower than its baseline, a quarantine suggestion, a schedule that ' +
+      'cannot fire; green; empty = nothing has run yet) with the reasons; each library routine with its last run, streak, trend (older vs newer half of the last runs), flaky score and ' +
+      'slower series; the regression vault (active passing/failing/not run; quarantined items are reported apart); and its schedules (state, last outcome, next occurrence). A quarantined ' +
+      'routine never turns a target red. Schedules that start a suite or the whole vault are listed under `unscoped`. `schedulerRunning=false` means schedules are stored but nothing fires. ' +
+      'It reads what other tools already record: it starts no run and changes no status. Pass `target` for one profile.',
+    inputSchema: z.object({ target: safeName.optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ target }) => {
+    try {
+      return toToolResult(await getJson(`/v1/health${target ? `?target=${encodeURIComponent(target)}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
   'get_flakiness',
   {
     title: 'Get flakiness',

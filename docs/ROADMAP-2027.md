@@ -858,6 +858,12 @@ homologação útil.
 
 ### T3.7 — Painel de saúde · M
 
+> **Implementada em 2026-11-03** (`src/health/`, `public/health.html|js`, ver AGENTS.md, "Health panel"). `GET /v1/health[?target=]`, tela **Health** no console, CLI `scrapforai health [--fail-on-red]` e MCP `get_health`.
+> Só **lê** o que as outras peças já guardam (séries T3.4/T3.5, cofre, agendamentos) e agrupa por perfil de alvo; não inicia execução nem muda status. Estado da rotina: `failing` (a ÚLTIMA execução falhou), `flaky`, `slower`,
+> `passing`, `never-run`, `quarantined` e `inactive` à parte; tendência = fatia de falhas da metade antiga vs a recente da janela. Alvo: vermelho (algo que conta falhou), amarelo (nada falhou, mas algo pede uma pessoa),
+> verde, vazio. Rotina ou item em quarentena **nunca** deixa o alvo vermelho. Agendamentos de suíte/cofre aparecem fora de um alvo específico (`unscoped`). **Desvio:** a tela não edita nada (agendamentos, webhooks, status):
+> o roadmap pede o painel, e escrever pela UI exigiria decidir permissões que hoje são só do bearer. **Não feito:** histórico do status do alvo no tempo, link da linha para execução/relatório/evidência, limiares por alvo.
+
 UI por perfil de alvo: último estado de cada rotina, tendência, flaky, alertas de desempenho,
 estado do cofre e próximos agendamentos.
 

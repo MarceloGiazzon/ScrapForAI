@@ -61,6 +61,8 @@ Commands
                                     (how long each step takes over time: baseline = median of the last 20 green runs, alert when the last 3 are >30% slower; --fail-on-alert exits 1)
   flaky list | show <routineId> [--version N] [--profile full|functional] [--fail-on-suggestion]
                                     (how often a routine changes between pass and fail on the same version and build: score over the last 20 runs; it only SUGGESTS quarantine, a person saves the new status; --fail-on-suggestion exits 1)
+  health [--target <id>] [--fail-on-red]
+                                    (the state of every target profile in one read: routines, trend, flaky, slower, vault, schedules; exit 0 unless --fail-on-red and a target is red)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -816,6 +818,31 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       ];
       const exitCode: ExitCode = failOnSuggestion && body.suggestion ? 1 : 0;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'flaky show', exitCode, result: body as never }, `${lines.join('\n')}\n`);
+      return exitCode;
+    }
+
+    if (command === 'health') {
+      // T3.7: read-only. The same report the web console shows; a red target is information unless the guard opts in with --fail-on-red.
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, target: { type: 'string' }, 'fail-on-red': { type: 'boolean' } } });
+      asJson = values.json === true;
+      if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai health [--target <id>] [--fail-on-red]');
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const response = await api('GET', `/v1/health${values.target ? `?target=${encodeURIComponent(values.target)}` : ''}`);
+      if (response.status !== 200) throw errorOf(response);
+      const body = response.body as { schedulerRunning: boolean; totals: Record<string, number>; targets: Array<Record<string, any>> };
+      const lines: string[] = [];
+      for (const target of body.targets) {
+        lines.push(`${String(target.status).toUpperCase().padEnd(5)} ${target.id}${target.environment ? ` (${target.environment})` : ''}`);
+        const counts = Object.entries(target.routines.counts as Record<string, number>).filter(([, count]) => count > 0).map(([state, count]) => `${count} ${state}`);
+        lines.push(`        routines: ${target.routines.total === 0 ? 'none' : counts.join(', ')}; vault: ${target.vault.total === 0 ? 'none' : `${target.vault.passing} passing, ${target.vault.failing} failing, ${target.vault.notRun} not run`}; schedules: ${target.schedules.length}`);
+        for (const reason of target.reasons as string[]) lines.push(`        - ${reason}`);
+        for (const routine of (target.routines.list as Array<Record<string, any>>).filter((item) => item.state === 'failing' || item.state === 'flaky' || item.state === 'slower')) {
+          lines.push(`        ${String(routine.state).padEnd(8)} ${routine.id} v${routine.version}${routine.trend && routine.trend !== 'unknown' ? ` (${routine.trend})` : ''}`);
+        }
+      }
+      if (!body.schedulerRunning) lines.push('Scheduler: NOT running in this server (SCHEDULER_ENABLED=false)');
+      const exitCode: ExitCode = values['fail-on-red'] === true && body.totals.red! > 0 ? 1 : 0;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'health', exitCode, result: body as never }, `${lines.length === 0 ? 'No target profile yet.' : lines.join('\n')}\n`);
       return exitCode;
     }
 

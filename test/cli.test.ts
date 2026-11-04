@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 34);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 35);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -946,6 +946,72 @@ test('flaky show: an unknown routine is exit 2 with its type; bad usage never re
     assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
   }
+});
+
+// T3.7: `scrapforai health`
+
+const healthTarget = (over: Record<string, unknown> = {}) => ({
+  id: 'app-dev',
+  environment: 'dev',
+  known: true,
+  status: 'red',
+  reasons: ['1 routine failing in the last run', '1 flaky routine'],
+  routines: {
+    total: 3,
+    counts: { failing: 1, flaky: 1, slower: 0, passing: 1, 'never-run': 0, quarantined: 0, inactive: 0 },
+    list: [
+      { id: 'crud', version: 2, state: 'failing', trend: 'worsening' },
+      { id: 'search', version: 1, state: 'flaky', trend: 'unknown' },
+      { id: 'login', version: 1, state: 'passing', trend: 'steady' },
+    ],
+  },
+  vault: { total: 2, passing: 1, failing: 0, notRun: 1 },
+  schedules: [{ id: 'nightly' }],
+  ...over,
+});
+
+const healthBody = (over: Record<string, unknown> = {}) => ({
+  generatedAt: '2026-11-03T12:00:00.000Z',
+  schedulerRunning: true,
+  totals: { targets: 1, red: 1, yellow: 0, green: 0, empty: 0 },
+  targets: [healthTarget()],
+  unscoped: { vault: {}, schedules: [] },
+  ...over,
+});
+
+test('health: one block per target with the reasons and the routines that need a look; --json matches the contract; exit 0 unless --fail-on-red', async () => {
+  handler = (_req, respond) => respond(200, healthBody());
+  const out = await cli(['health']);
+  assert.equal(out.code, 0, 'a red target is information, not a failed test');
+  assert.match(out.stdout, /RED {3}app-dev \(dev\)/);
+  assert.match(out.stdout, /routines: 1 failing, 1 flaky, 1 passing; vault: 1 passing, 0 failing, 1 not run; schedules: 1/);
+  assert.match(out.stdout, /- 1 routine failing in the last run/);
+  assert.match(out.stdout, /failing {2}crud v2 \(worsening\)/);
+  assert.match(out.stdout, /flaky {4}search v1\n/);
+  assert.ok(!/login v1/.test(out.stdout), 'a passing routine is not listed');
+  assert.equal(seen.at(-1)!.url, '/v1/health');
+  assert.equal(validJson((await cli(['health', '--json'])).stdout).command, 'health');
+  assert.equal((await cli(['health', '--fail-on-red'])).code, 1, 'a guard that opted in');
+
+  handler = (_req, respond) => respond(200, healthBody({ schedulerRunning: false, totals: { targets: 1, red: 0, yellow: 0, green: 1, empty: 0 }, targets: [healthTarget({ status: 'green', reasons: [] })] }));
+  const green = await cli(['health', '--fail-on-red', '--target', 'app-dev']);
+  assert.equal(green.code, 0);
+  assert.equal(seen.at(-1)!.url, '/v1/health?target=app-dev');
+  assert.match(green.stdout, /Scheduler: NOT running/);
+
+  handler = (_req, respond) => respond(200, healthBody({ totals: { targets: 0, red: 0, yellow: 0, green: 0, empty: 0 }, targets: [], schedulerRunning: true }));
+  assert.match((await cli(['health'])).stdout, /No target profile yet/);
+});
+
+test('health: an unknown target is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(404, { error: { type: 'TargetNotFound', message: 'no such target' } });
+  const missing = await cli(['health', '--target', 'ghost']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, /TargetNotFound/);
+
+  seen.length = 0;
+  assert.equal((await cli(['health', 'extra'])).code, 2);
+  assert.equal(seen.length, 0);
 });
 
 test('suite text: quarantined runs and the failed attempt of a retried run are visible, and the counts are those of the runs that count', async () => {

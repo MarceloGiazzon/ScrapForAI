@@ -300,7 +300,7 @@ step limits, artifact retention, etc.).
   (running) -> `passed`/`failed`/`error`, `skipped-overlap`, `skipped-evaluate`, `missed`. `POST /v1/schedules/:id/run-now` (bearer) starts one outside the clock (honors overlap, does not move the
   cursor). `GET /v1/schedules[/:id]` return the next 3 occurrences, the run in progress, the last run and counts; MCP `list_schedules` (read-only: schedules are a person's decision); CLI
   `scrapforai schedules list|show|run-now`. `notify` lists webhook ids (T3.3, next bullet; an unknown id is a 404 at save). **Limit (D5)**: a scheduler inside the server only works while the process is up; on a dev machine
-  register a Windows task that calls the CLI instead (`scripts/ops/Register-VaultNightlyTask.ps1`) or run the server somewhere always on. Not done: schedule editing in the web UI (T3.7). **Retry (T3.5)**: `retries` (0|1, default **1**) on the schedule: a routine run that FAILED is tried once more, and for `suite`/`vault`
+  register a Windows task that calls the CLI instead (`scripts/ops/Register-VaultNightlyTask.ps1`) or run the server somewhere always on. Not done: schedule editing in the web UI (the Health screen, T3.7, only shows them). **Retry (T3.5)**: `retries` (0|1, default **1**) on the schedule: a routine run that FAILED is tried once more, and for `suite`/`vault`
   targets the schedule's `retries` is passed to the suite (a suite's own `retries` wins). See Flakiness. `test/cron.test.ts` (case table, DST), `test/scheduler.test.ts` (fake clock and dispatcher), `test/scheduler.smoke.ts` (Chromium, HTTP).
 - **Webhook notifications** (`src/integrations/`, T3.3): a webhook is a channel a schedule's `notify` names. It hears about a **CHANGE** of the
   schedule's verdict, never about every run: `passed` -> `failed`/`error`/`skipped-evaluate` is **broken**, the way back is **recovered**, red -> red is silence
@@ -338,7 +338,7 @@ step limits, artifact retention, etc.).
   `GET /v1/metrics/routines/:id[?limit=&version=&profile=&env=]` (points per series, baseline, recent, ratio, thresholds), `GET /v1/metrics/alerts` (all read-only, session ok), CLI
   `scrapforai perf list|alerts|show <routine>` (**exit 0 unless `--fail-on-alert`**: a slower step is a signal, not a failed test, so a guard opts in), MCP `get_performance`, and the **Performance**
   screen of the web console (`public/performance.html|js`: SVG sparklines per run and per step with the dashed baseline, a tick where the build changed and the recent dots in red on an alert; classes only,
-  because of the CSP). Not done: notifying a webhook of a new alert (T3.3 only tells about verdict changes), `perf.json` in the evolution snapshot, alerts per target-profile thresholds (env only), the T3.7 health panel.
+  because of the CSP). Not done: notifying a webhook of a new alert (T3.3 only tells about verdict changes), `perf.json` in the evolution snapshot, alerts per target-profile thresholds (env only). The alerts also feed the Health panel (T3.7).
   `test/performance.test.ts` (rule, populations, privacy of a record, store cap), `test/ui-performance.test.ts` (CSP guards), `test/performance.smoke.ts` (Chromium: a slower navigation after a "new build" alerts on `open`
   and names `r101`; the screen renders under the server's CSP).
 - **Flakiness, retry and quarantine** (`src/metrics/flakyAnalysis.ts` pure, `flakyService.ts`, `src/orchestrator/retry.ts`, T3.5): it reads the SAME series as the performance
@@ -355,9 +355,24 @@ step limits, artifact retention, etc.).
   sample, and not after a cancel. **The retry never hides the failure**: both attempts are runs of their own (own job id and evidence; the second has `caller.metadata.attempt/retryOf`), both are in the series, the schedule history
   entry carries `attempts[]` and `passedOnRetry`, the suite variant carries `attempts[]` (its own fields are those of the LAST attempt) and `passedOnRetry`, the suite has `passedOnRetry` (count), the verdict reason says
   "N passed only on a new attempt", and the suite report lists every attempt with its run id. A pass on the second attempt IS a pass (verdict green, schedule outcome `passed`, so a webhook is not told it broke); if the second
-  attempt cannot run at all, the first failure stands and the error says why. **Quarantine in suites**: see Suites. Not done: a quarantined routine scheduled on its own still notifies webhooks of its breaks, the flakiness
-  of a routine in the web UI / health panel (T3.7), applying a suggestion with one call, flakiness per vault item or per step, and retries of more than one attempt. `test/flaky.test.ts` (score, builds, populations, suggestions, retry
+  attempt cannot run at all, the first failure stands and the error says why. **Quarantine in suites**: see Suites. Not done: a quarantined routine scheduled on its own still notifies webhooks of its breaks, a flakiness
+  screen of its own in the web UI (the score, strip and suggestion are in the Health panel, T3.7), applying a suggestion with one call, flakiness per vault item or per step, and retries of more than one attempt. `test/flaky.test.ts` (score, builds, populations, suggestions, retry
   helper, service), `test/suite-plan.test.ts` (quarantine and retry in the verdict), `test/flaky-retry.smoke.ts` (Chromium: a page that fails its first N loads, counted server-side).
+- **Health panel** (`src/health/`, `src/routes/health.routes.ts`, `public/health.html|js`, T3.7): `GET /v1/health[?target=<id>]` (read-only, session ok) answers the state of every target profile in one read.
+  It only RE-READS what the other pieces store and groups it by target profile: the routines of the library (`targetProfile`), their series (T3.4/T3.5), the vault items (through the profile of their routine) and
+  the schedules (`target.targetProfile`, else the profile of the routine; `evolutionSnapshot` by its profile). **Nothing new is decided**: no run is started, no status changed, no suggestion made that T3.5 did not.
+  `healthAnalysis.ts` is pure (no I/O, no configuration), `healthService.ts` does the reading. **Routine state**: `failing` = its LAST run failed (a run that passed only on the automatic new attempt is a pass);
+  else `flaky` (T3.5 flagged it or proposes quarantine); else `slower` (a T3.4 alert); else `passing`; `never-run`; `quarantined` and `inactive` (draft/retired) are counted apart. Each routine also carries
+  the `streak` (trailing runs with the last result), the `trend` (share of failures in the older half vs the newer half of the window, `worsening`/`improving` at a 25-point change, `unknown` under 6 runs) and the
+  strip of results. **Target status**: `red` when something that counts failed (a failing routine, an ACTIVE vault item whose last run failed, a schedule whose last occurrence failed); `yellow` when nothing
+  failed but something needs a person (flaky, slower, a quarantine/release suggestion, an enabled schedule while the scheduler is not running); `green`; `empty` when nothing has ever run. `reasons[]` says why, red first.
+  A quarantined routine or item **never turns a target red** (as in suites); an ACTIVE vault item that never ran is listed ("not run") but is not a warning by itself. A schedule that starts a suite or the whole
+  vault is not tied to one profile: it is in `unscoped`, with the vault items whose routine no longer exists. `schedulerRunning=false` is shown as a banner: schedules are stored but nothing fires. A profile
+  that routines still point at but is not stored gets a card with `known: false`. The report carries ids, statuses, times, build ids and reasons: no extracted value, no typed text. Web console **Health** screen
+  (classes only, because of the CSP: badges map data to fixed class names, the strip is SVG), CLI `scrapforai health [--target id] [--fail-on-red]` (**exit 0 unless `--fail-on-red`**: a red target is information),
+  MCP `get_health`. Not done: editing schedules, webhooks or statuses from the screen (it only reads; T3.7 asked for the panel, not for write paths), links from a row to the run/report/evidence, a history of
+  the target's status over time (each read is the state NOW), per-target thresholds, a webhook for "target turned red". `test/health.test.ts` (rules), `test/health-service.test.ts` (real stores + route),
+  `test/ui-health.test.ts` (CSP guards), `test/health.smoke.ts` (Chromium under the CSP).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 
@@ -376,6 +391,7 @@ Core endpoints, all behind `Authorization: Bearer <SCRAPFORAI_API_KEY>`:
   `GET /v1/schedules[/:id]`, `PUT|DELETE /v1/schedules/:id`, `POST /v1/schedules/:id/run-now` (bearer for writes) — schedules.
   `GET /v1/webhooks[/:id]`, `PUT|DELETE /v1/webhooks/:id`, `POST /v1/webhooks/:id/test` (bearer for writes) — notification channels.
   `GET /v1/metrics/{routines[/:id],alerts}` — performance series of library routines; `GET /v1/metrics/flaky[/:id]` — flakiness and quarantine suggestions.
+  `GET /v1/health[?target=<id>]` — the health of every target profile (routines, trend, flaky, slower, vault, schedules) in one read.
   `POST /v1/shrinks`, `GET /v1/shrinks/:id`, `POST /v1/shrinks/:id/cancel` — shrinking a failing sample.
   `GET /v1/runs/:jobId/{manifest,export,report}`, `GET /v1/evidence/{chain,public-key}`, `GET /v1/suites/:id/report`.
   `GET /v1/vault[/:id|/export]`, `PUT /v1/vault/:id`, `POST /v1/vault/{add-from-run,plan,:id/run,:id/confirm-green}` — regression vault.
@@ -395,7 +411,7 @@ fetch these instead of hand-writing a request body against the schema files dire
 
 `src/mcp/server.ts` is a stdio MCP server exposing the same two capabilities as MCP tools: `inspect_dom`
 and `run_exploration`, plus `list_credential_sets`, `list_targets`, and the routine library tools `list_routines`, `get_routine`,
-`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, `list_schedules` and `list_webhooks` (both read-only), `get_performance` (step times, baseline and alerts; read-only), `get_flakiness` (pass/fail strip, score and quarantine suggestion; read-only), and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
+`save_routine` and `run_routine`, for suites `run_suite` (returns the id at once) and `get_suite_result`, for shrinking a failure `shrink_failure` and `get_shrink_result`, `list_schedules` and `list_webhooks` (both read-only), `get_performance` (step times, baseline and alerts; read-only), `get_flakiness` (pass/fail strip, score and quarantine suggestion; read-only), `get_health` (state of every target profile; read-only), and `get_run` (a past run by jobId), for system evolution `evolution_diff` (two builds; with `narrative` it stores the agent's summary in CHANGES.md) and `evolution_query` (when did X appear), the prompt `propose_screen_catalog` (the agent proposes a screen catalogue, a human approves), and for the regression vault `vault_list`, `vault_show`, `vault_add_from_run`, `vault_confirm_green`, `vault_run`, and for permission
 matrices `list_permission_matrices`, `save_permission_matrix`, `run_permission_matrix`, `get_permission_matrix_result`. Their `inputSchema`s are the Zod
 schemas from `src/schemas/`, imported directly rather than hand-copied, so they can never drift from what the
 REST API actually accepts (`run_exploration` uses `mcpExplorationRequestSchema`: the same request minus inline
@@ -425,7 +441,7 @@ just a thin proxy over it.
 
 ## Web console
 
-The UI (`UI_ENABLED=true`, `public/`) has History, **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
+The UI (`UI_ENABLED=true`, `public/`) has History, **Health** (one card per target profile: status and reasons, each routine's state, streak, trend and result strip, the vault and the schedules; read-only), **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
 "Run", and "Run by impact": paste changed files, see the order and reasons, run the vault as a suite and open its report),
 Configuration and Status. It authenticates with a session cookie, so it can only use endpoints a session may call: capturing
 evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-only. `test/ui-vault.test.ts` guards the CSP rules.
@@ -434,7 +450,7 @@ evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-
 
 `npm run cli -- <command>` (or `scrapforai` once installed: `bin` → `dist/cli.js`) is a thin REST client for terminals, CI and
 ledger guards: `run <routineId> [--version N] [--target id] [--credential set] [--var k=v]`, `suite <file.json|->`,
-`routines list`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `perf list|alerts|show <routine> [--fail-on-alert]`, `flaky list|show <routine> [--fail-on-suggestion]`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
+`routines list`, `schedules list|show <id>|run-now <id>`, `webhooks list|show <id>|test <id>`, `perf list|alerts|show <routine> [--fail-on-alert]`, `flaky list|show <routine> [--fail-on-suggestion]`, `health [--target id] [--fail-on-red]`, `shrink --from-job <id>|<routine> --seed s --sample N`, `runs show <jobId>`, `pin <jobId> --reason ...`, `report <id> --out file`, `evidence verify|export|chain`, `vault list|show|export|run|confirm-green` (`vault run --impact --changed-files <file|->` runs the whole vault as an impact-ordered suite),
 `permissions run <matrixId> [--build-id b] [--no-wait]` and `permissions show <runId>` (role x probe table, alerts, verdict),
 `evolution snapshot <target> [--build-id b] [--screens a,b] [--no-screenshots] [--force] [--allow-partial] [--no-wait]`, `evolution list <target>`,
 `evolution diff <target> [--from r] [--to r] [--write] [--narrative-file f|-]` (exit 1 on an unexpected change of a build that declared its changes),

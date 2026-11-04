@@ -2100,6 +2100,106 @@
         },
         "command": {
           "type": "string",
+          "const": "health"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "generatedAt": {
+              "type": "string"
+            },
+            "schedulerRunning": {
+              "type": "boolean"
+            },
+            "totals": {
+              "type": "object",
+              "properties": {
+                "targets": {
+                  "type": "number"
+                },
+                "red": {
+                  "type": "number"
+                },
+                "yellow": {
+                  "type": "number"
+                },
+                "green": {
+                  "type": "number"
+                },
+                "empty": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "targets",
+                "red",
+                "yellow",
+                "green",
+                "empty"
+              ],
+              "additionalProperties": {}
+            },
+            "targets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "red",
+                      "yellow",
+                      "green",
+                      "empty"
+                    ]
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "reasons"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "generatedAt",
+            "schedulerRunning",
+            "totals",
+            "targets"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "shrink"
         },
         "exitCode": {

@@ -50,7 +50,7 @@ export interface PerfSummary {
   alerts: PerfAlert[];
 }
 
-function alertsOf(routineId: string, analysis: RoutineAnalysis): PerfAlert[] {
+export function alertsOf(routineId: string, analysis: RoutineAnalysis): PerfAlert[] {
   const { population } = analysis;
   if (!population) return [];
   const series = [analysis.run, ...analysis.steps].filter((item): item is SeriesAnalysis => item !== undefined);

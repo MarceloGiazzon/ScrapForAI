@@ -136,3 +136,15 @@ pre { overflow-x: auto; background: var(--bg); padding: 10px; border-radius: 6px
 .spark-dot { fill: var(--accent); }
 .spark-dot.spark-alert { fill: var(--fail); }
 tr.static { cursor: default; }
+
+/* Health panel (T3.7): classes only, the CSP forbids inline style. */
+.badge.warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.badge.neutral { background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); }
+.card-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.card-head h2 { margin: 0; }
+.card h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 6px; }
+.reasons { margin: 8px 0 0; padding-left: 20px; }
+td.wrap { white-space: normal; min-width: 220px; }
+.strip { display: block; }
+.strip-pass { fill: var(--pass); }
+.strip-fail { fill: var(--fail); }

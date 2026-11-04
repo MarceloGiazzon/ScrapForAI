@@ -153,6 +153,16 @@ export const cliFlakyListSchema = z
   .passthrough();
 export const cliFlakyShowSchema = z.object({ routineId: z.string(), runs: z.number(), transitions: z.number(), flaky: z.boolean(), results: z.array(z.unknown()) }).passthrough();
 
+/** `health` (T3.7): passed through as the API returns it (shape: health/healthAnalysis.ts, HealthReport). */
+export const cliHealthSchema = z
+  .object({
+    generatedAt: z.string(),
+    schedulerRunning: z.boolean(),
+    totals: z.object({ targets: z.number(), red: z.number(), yellow: z.number(), green: z.number(), empty: z.number() }).passthrough(),
+    targets: z.array(z.object({ id: z.string(), status: z.enum(['red', 'yellow', 'green', 'empty']), reasons: z.array(z.string()) }).passthrough()),
+  })
+  .passthrough();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -225,6 +235,7 @@ export const cliOutputSchema = z.union([
   success('perf show', cliPerfShowSchema),
   success('flaky list', cliFlakyListSchema),
   success('flaky show', cliFlakyShowSchema),
+  success('health', cliHealthSchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),

@@ -183,6 +183,11 @@ drew generated values are left out. A scheduled run that fails is tried **once m
 quarantined routine whose last 10 runs all passed); it never changes a status. If the user agrees, save the routine again with `status: "quarantined"` (or `"active"`) and say why. Do not quarantine a routine that
 simply fails every time: that is broken, not flaky, and the failure should stay visible in the verdict.
 
+To see where things stand before deciding what to run, call `get_health` (optionally `target`): one entry per target profile with a status (`red` = something that counts failed, `yellow` = nothing failed but
+something needs a person, `green`, `empty` = nothing has run), the `reasons`, every routine's last run, streak, trend and flaky/slower flags, the vault (failing and not-run items) and the schedules. Start from the
+`red` targets and the routines listed first. It only reads what the other tools already record: it starts nothing and changes no status, and a quarantined routine never makes a target red. If
+`schedulerRunning` is false, schedules are stored but nothing fires on its own: say so instead of reporting them as healthy. The state is NOW, not a history: use `get_performance` / `get_flakiness` for the series.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge
