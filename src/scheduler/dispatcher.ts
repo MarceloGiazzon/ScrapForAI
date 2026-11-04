@@ -5,8 +5,10 @@ import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { snapshotBodySchema } from '../schemas/evolution.schema.js';
+import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import type { Schedule } from '../schemas/schedule.schema.js';
 import { type SuiteRequest, suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
+import { attemptMetadata, runAttempts } from '../orchestrator/retry.js';
 import { getSuite, planSuite, startSuite, waitForSuite } from '../orchestrator/suiteRunner.js';
 import type { Dispatched, Dispatcher, RunRef, Settled, SettledFacts } from './scheduler.js';
 
@@ -101,37 +103,57 @@ export function createDispatcher(): Dispatcher {
 
           const credentialSet = target.credentialSet ?? routine.credentialSet;
           const maxPerLock = await maxSessionsFor(target.targetProfile ?? routine.targetProfile);
-          const run = jobQueue.run(
-            () =>
-              runLibraryRoutine(routine.id, routine.version, {
-                ...(target.credentialSet ? { credentialSet: target.credentialSet } : {}),
-                ...(target.targetProfile ? { targetProfile: target.targetProfile } : {}),
-                ...(target.profile ? { profile: target.profile } : {}),
-                ...(target.buildId ? { buildId: target.buildId } : {}),
-                caller: { source: 'schedule', correlationId: schedule.id, metadata: { occurrence: occurrenceIso } },
-              }),
-            { priority: 'scheduled', lockKey: credentialSet, maxPerLock },
+          // T3.5: a run that failed is tried once more (the schedule's `retries`). The second attempt goes back through the queue, like any run.
+          const run = runAttempts<ExplorationResult>(
+            (attempt, previous) =>
+              jobQueue.run(
+                () =>
+                  runLibraryRoutine(routine.id, routine.version, {
+                    ...(target.credentialSet ? { credentialSet: target.credentialSet } : {}),
+                    ...(target.targetProfile ? { targetProfile: target.targetProfile } : {}),
+                    ...(target.profile ? { profile: target.profile } : {}),
+                    ...(target.buildId ? { buildId: target.buildId } : {}),
+                    caller: { source: 'schedule', correlationId: schedule.id, metadata: { occurrence: occurrenceIso, ...attemptMetadata(attempt, previous) } },
+                  }),
+                { priority: 'scheduled', lockKey: credentialSet, maxPerLock },
+              ),
+            { retries: schedule.retries },
           );
           // The job id is only known when the run ends; until then the schedule id identifies it.
           const ref: RunRef = { kind: 'run', id: `${label}` };
-          const done = run.then((result): Settled => {
+          const done = run.then(({ results, retryError }): Settled => {
+            const result = results[results.length - 1]!;
+            const first = results[0]!;
             ref.id = result.jobId;
             const failedStep = result.failedStepIndex === undefined ? undefined : result.steps[result.failedStepIndex];
             const failure = result.error ? `${failedStep?.id ? `step ${failedStep.id}` : failedStep ? `step ${failedStep.index}` : 'run'}: ${result.error.type}: ${result.error.message}` : undefined;
+            const passed = result.status === 'passed';
+            const passedOnRetry = passed && results.length > 1;
+            const note = retryError === undefined ? '' : ` [the new attempt could not run: ${retryError instanceof Error ? retryError.message : String(retryError)}]`.slice(0, 300);
             return {
-              outcome: result.status === 'passed' ? 'passed' : 'failed',
-              message: result.status === 'passed' ? result.jobId : `${result.jobId}: ${result.error?.type ?? 'failed'}`,
-              facts: { runId: result.jobId, ...(result.buildId ? { buildId: result.buildId } : {}), ...(failure && result.status !== 'passed' ? { failures: [failure] } : {}) },
+              outcome: passed ? 'passed' : 'failed',
+              message: passedOnRetry
+                ? `${result.jobId} (passed on a new attempt; ${first.jobId} failed: ${first.error?.type ?? 'failed'})`
+                : passed
+                  ? result.jobId
+                  : `${result.jobId}: ${result.error?.type ?? 'failed'}${results.length > 1 ? ` (failed again; first attempt ${first.jobId})` : ''}${note}`,
+              facts: { runId: result.jobId, ...(result.buildId ? { buildId: result.buildId } : {}), ...(failure && !passed ? { failures: [failure] } : {}) },
+              ...(results.length > 1
+                ? { attempts: results.map((attempt, index) => ({ attempt: index + 1, jobId: attempt.jobId, status: attempt.status === 'passed' ? ('passed' as const) : ('failed' as const) })) }
+                : {}),
+              ...(passedOnRetry ? { passedOnRetry: true } : {}),
             };
           });
           return { started: true, run: ref, done };
         }
         case 'suite':
-          return startSuiteTarget(suiteRequestSchema.parse({ ...target.suite, name: target.suite.name }));
+          // T3.5: a suite's own `retries` wins; otherwise the schedule's.
+          return startSuiteTarget(suiteRequestSchema.parse({ ...target.suite, name: target.suite.name, retries: target.suite.retries ?? schedule.retries }));
         case 'vault':
           return startSuiteTarget(
             suiteRequestSchema.parse({
               name: `vault (${schedule.id})`,
+              retries: schedule.retries,
               items: [{ vault: { status: ['ACTIVE'], ...(target.tags ? { tags: target.tags } : {}) } }],
               ...(target.buildId ? { buildId: target.buildId } : {}),
             }),

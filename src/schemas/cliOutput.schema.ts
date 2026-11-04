@@ -147,6 +147,12 @@ export const cliPerfShowSchema = z
   .object({ routineId: z.string(), runs: z.number(), greenRuns: z.number(), steps: z.array(z.object({ id: z.string(), alert: z.boolean() }).passthrough()), alerts: z.array(z.string()) })
   .passthrough();
 
+/** `flaky list|show` (T3.5): passed through as the API returns them (shapes: metrics/flakyAnalysis.ts, flakyService.ts). */
+export const cliFlakyListSchema = z
+  .object({ count: z.number(), suggestions: z.number(), routines: z.array(z.object({ routineId: z.string(), runs: z.number(), transitions: z.number(), flaky: z.boolean() }).passthrough()) })
+  .passthrough();
+export const cliFlakyShowSchema = z.object({ routineId: z.string(), runs: z.number(), transitions: z.number(), flaky: z.boolean(), results: z.array(z.unknown()) }).passthrough();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -217,6 +223,8 @@ export const cliOutputSchema = z.union([
   success('perf list', cliPerfListSchema),
   success('perf alerts', cliPerfAlertsSchema),
   success('perf show', cliPerfShowSchema),
+  success('flaky list', cliFlakyListSchema),
+  success('flaky show', cliFlakyShowSchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),

@@ -93,6 +93,10 @@ export interface SuiteReportData {
     errorType?: string;
     errorMessage?: string;
     notRunReason?: string;
+    /** T3.5 */
+    quarantined?: boolean;
+    passedOnRetry?: boolean;
+    attempts?: Array<{ attempt: number; jobId: string; status: string; errorType?: string; errorMessage?: string }>;
   }>;
   keyId?: string;
   generatedAt: string;
@@ -257,12 +261,31 @@ export function renderSuiteReport(data: SuiteReportData, lang: ReportLang): stri
   const s = STRINGS[lang];
   const verdict = data.verdict ?? 'infra-error';
 
-  const rows = data.variants
-    .map((variant) => {
-      const detail = variant.errorType ? `${esc(variant.errorType)}: ${esc(clip(variant.errorMessage ?? '', 300))}` : variant.notRunReason ? `<span class="muted">${esc(clip(variant.notRunReason, 200))}</span>` : '';
-      return `<tr><td class="mono">${esc(variant.variantKey)}<br><small>${esc(variant.routineId)} v${variant.routineVersion}</small></td><td class="cell-${variant.status === 'passed' ? 'passed' : variant.status === 'failed' ? 'failed' : 'error'}">${esc(statusLabel(s, variant.status))}</td><td>${esc(seconds(variant.durationMs))}</td><td class="mono">${esc(variant.jobId ?? '')}</td><td>${detail}</td></tr>`;
-    })
-    .join('');
+  const variantRows = (variants: SuiteReportData['variants']): string =>
+    variants
+      .map((variant) => {
+        const detail = variant.errorType ? `${esc(variant.errorType)}: ${esc(clip(variant.errorMessage ?? '', 300))}` : variant.notRunReason ? `<span class="muted">${esc(clip(variant.notRunReason, 200))}</span>` : '';
+        const tag = variant.passedOnRetry ? ` <small class="muted">(${esc(s.passedOnRetryTag)})</small>` : '';
+        // Every attempt is shown, with its own run id: the new attempt does not replace the failure, it sits next to it.
+        const attempts =
+          variant.attempts && variant.attempts.length > 1
+            ? variant.attempts
+                .map(
+                  (attempt) =>
+                    `<tr><td class="muted" style="padding-left:18px"><small>${esc(s.attempt)} ${attempt.attempt}</small></td><td class="cell-${attempt.status === 'passed' ? 'passed' : 'failed'}"><small>${esc(statusLabel(s, attempt.status))}</small></td><td></td><td class="mono"><small>${esc(attempt.jobId)}</small></td><td><small>${attempt.errorType ? `${esc(attempt.errorType)}: ${esc(clip(attempt.errorMessage ?? '', 200))}` : ''}</small></td></tr>`,
+                )
+                .join('')
+            : '';
+        return `<tr><td class="mono">${esc(variant.variantKey)}<br><small>${esc(variant.routineId)} v${variant.routineVersion}</small></td><td class="cell-${variant.status === 'passed' ? 'passed' : variant.status === 'failed' ? 'failed' : 'error'}">${esc(statusLabel(s, variant.status))}${tag}</td><td>${esc(seconds(variant.durationMs))}</td><td class="mono">${esc(variant.jobId ?? '')}</td><td>${detail}</td></tr>${attempts}`;
+      })
+      .join('');
+  const header = `<tr><th>${esc(s.variant)}</th><th>${esc(s.status)}</th><th>${esc(s.duration)}</th><th>${esc(s.run)}</th><th>${esc(s.detail)}</th></tr>`;
+
+  // T3.5: quarantined variants ran but do not count: they get a table of their own, and the summary counts only the ones that do.
+  const counted = data.variants.filter((variant) => !variant.quarantined);
+  const quarantined = data.variants.filter((variant) => variant.quarantined);
+  const countOf = (status: string): number => counted.filter((variant) => variant.status === status).length;
+  const retried = counted.filter((variant) => variant.passedOnRetry).length;
 
   const body = `
 <h1>${esc(s.suiteTitle)}</h1>
@@ -275,12 +298,21 @@ ${metaRow(s.build, data.buildId ? esc(data.buildId) : undefined, s.unknown)}
 ${metaRow(s.date, esc(data.createdAt), s.unknown)}
 ${metaRow(s.executor, esc(data.executor), s.unknown)}
 ${metaRow(s.verdict, esc(`${statusLabel(s, verdict)}${data.exitCode === undefined ? '' : ` (exit ${data.exitCode})`}${data.verdictReason ? ` - ${data.verdictReason}` : ''}`), s.unknown)}
-${metaRow(s.totalRuns, esc(`${data.total}: ${data.counts.passed} ${s.passed}, ${data.counts.failed} ${s.failed}, ${data.counts.error} ${s.error}, ${data.counts.notRun} ${s.notRun}`), s.unknown)}
+${metaRow(s.totalRuns, esc(`${counted.length}: ${countOf('passed')} ${s.passed}, ${countOf('failed')} ${s.failed}, ${countOf('error')} ${s.error}, ${countOf('notRun')} ${s.notRun}${quarantined.length ? ` (+ ${quarantined.length} ${s.quarantinedTag})` : ''}`), s.unknown)}
 </table>
 ${data.teardownFailures ? `<div class="warn">${esc(s.teardownFailed)} (${data.teardownFailures})</div>` : ''}
+${retried > 0 ? `<div class="warn"><b>${retried}</b> ${esc(s.passedOnRetryTag)}. ${esc(s.passedOnRetryNote)}</div>` : ''}
 
 <h2>${esc(s.variants)}</h2>
-<table><tr><th>${esc(s.variant)}</th><th>${esc(s.status)}</th><th>${esc(s.duration)}</th><th>${esc(s.run)}</th><th>${esc(s.detail)}</th></tr>${rows}</table>
+<table>${header}${variantRows(counted)}</table>
+
+${
+  quarantined.length > 0
+    ? `<h2>${esc(s.quarantineTitle)}</h2>
+<div class="warn">${esc(s.quarantineNote)}</div>
+<table>${header}${variantRows(quarantined)}</table>`
+    : ''
+}
 
 <div class="footer">
 <h2 style="margin-top:0">${esc(s.integrity)}</h2>

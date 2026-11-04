@@ -217,17 +217,23 @@ test('a run that cannot execute is an infrastructure error (exit 2), not a red t
   assert.deepEqual([state.verdict, state.exitCode], ['infra-error', 2]);
 });
 
-test('quarantined routines are listed as not run; a suite where nothing ran is never green', async () => {
+test('T3.5: a quarantined routine runs but is not in the verdict; asking for active only lists it as not run; a suite where nothing counted is never green', async () => {
   const mixed = await finished((await call('POST', '/v1/suites', { name: 'mixed', items: [{ routineId: 'ok' }, { routineId: 'quarantined' }] })).json.suiteRunId);
-  assert.deepEqual(statuses(mixed), ['passed', 'notRun']);
-  assert.match(mixed.variants[1].notRunReason, /quarantined/);
+  assert.deepEqual(statuses(mixed), ['passed', 'passed']);
+  assert.equal(mixed.variants[1].quarantined, true);
   assert.equal(mixed.verdict, 'green');
+  assert.deepEqual(mixed.quarantine, { total: 1, passed: 1, failed: 0, error: 0, notRun: 0 });
 
+  const activeOnly = await finished((await call('POST', '/v1/suites', { name: 'active only', items: [{ routineId: 'ok' }, { routineId: 'quarantined' }], statuses: ['active'] })).json.suiteRunId);
+  assert.deepEqual(statuses(activeOnly), ['passed', 'notRun']);
+  assert.match(activeOnly.variants[1].notRunReason, /quarantined/);
+  assert.equal(activeOnly.verdict, 'green');
+
+  // It ran and passed, but a pass that does not count verifies nothing.
   const nothing = await finished((await call('POST', '/v1/suites', { name: 'nothing', items: [{ routineId: 'quarantined' }] })).json.suiteRunId);
+  assert.deepEqual(statuses(nothing), ['passed']);
   assert.deepEqual([nothing.verdict, nothing.exitCode], ['infra-error', 2]);
-
-  const optIn = await finished((await call('POST', '/v1/suites', { name: 'opt in', items: [{ routineId: 'quarantined' }], statuses: ['quarantined'] })).json.suiteRunId);
-  assert.deepEqual(statuses(optIn), ['passed']);
+  assert.match(nothing.verdictReason, /only quarantined/);
 });
 
 test('unknown routine: 404 and nothing is started', async () => {

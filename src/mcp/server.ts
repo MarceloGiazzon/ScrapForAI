@@ -218,6 +218,31 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_flakiness',
+  {
+    title: 'Get flakiness',
+    description:
+      'How often a library routine changes between pass and fail when nothing else changed. Score = pass<->fail changes between consecutive runs of the same routine version, ' +
+      'profile and origin (a pair across a new build is NOT counted: that is a regression or a fix, not flakiness) / comparable pairs, over the last 20 runs; runs that drew generated ' +
+      'values are left out. Without routineId: every routine with a series, the ones with a suggestion first. With routineId: the pass/fail strip (oldest first), the counts, how many ' +
+      'times a failure was followed by a pass on the automatic new attempt of a scheduled run, and the suggestion. A suggestion is `quarantine` (a score at or above the threshold ' +
+      'with at least 10 runs) or `release` (a quarantined routine whose last 10 runs all passed). It is only a suggestion: moving a routine to or from `quarantined` is a new ' +
+      'version saved with save_routine by a person. A quarantined routine still runs in suites, but its result does not count towards the verdict. Read-only.',
+    inputSchema: z.object({ routineId: safeName.optional(), version: z.number().int().positive().optional(), profile: z.enum(['full', 'functional']).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ routineId, version, profile }) => {
+    try {
+      if (!routineId) return toToolResult(await getJson('/v1/metrics/flaky'));
+      const query = new URLSearchParams({ ...(version === undefined ? {} : { version: String(version) }), ...(profile ? { profile } : {}) });
+      return toToolResult(await getJson(`/v1/metrics/flaky/${encodeURIComponent(routineId)}${query.size > 0 ? `?${query.toString()}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
   'get_performance',
   {
     title: 'Get performance',

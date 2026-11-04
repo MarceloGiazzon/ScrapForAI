@@ -130,7 +130,7 @@ POST /v1/routines/crud-sales/run?version=2</code></pre>
 <ul>
   <li><strong>Segredos são recusados.</strong> Um literal igual a um valor do cofre, ou com formato de chave de API, JWT ou token, é rejeitado ao salvar (422).</li>
   <li><strong><code>fromJobId</code></strong> salva os steps de uma execução que passou, enquanto a evidência ainda existe.</li>
-  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Mudá-lo é uma nova versão. As suítes rodam só <code>active</code> por padrão.</li>
+  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Mudá-lo é uma nova versão. As suítes rodam <code>active</code> e <code>quarantined</code> por padrão: uma rotina em quarentena roda e é reportada à parte, mas nunca muda o veredito.</li>
   <li>Aponte <code>ROUTINE_LIBRARY_DIR</code> para dentro de um repositório git para revisar rotinas em pull requests.</li>
 </ul>
 

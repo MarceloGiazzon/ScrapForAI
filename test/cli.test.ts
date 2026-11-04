@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 32);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 34);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -877,4 +877,95 @@ test('perf show: an unknown routine is exit 2 with its type; bad usage never rea
     assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
   }
+});
+
+// T3.5: `scrapforai flaky list|show`
+
+const flakyDetail = (extra: Record<string, unknown> = {}) => ({
+  routineId: 'crud',
+  status: 'active',
+  thresholds: { window: 20, minRuns: 10, threshold: 0.2 },
+  population: { version: 2, profile: 'full', env: 'https://dev.example.com', runs: 20, lastAt: '2026-11-03T12:00:00.000Z' },
+  populations: [],
+  runs: 20,
+  passed: 17,
+  failed: 3,
+  transitions: 6,
+  comparablePairs: 19,
+  skippedAtBuildChange: 0,
+  score: 0.316,
+  recoveredOnRetry: 2,
+  flaky: true,
+  results: [...'PPFPPPPFPPPPPFPPPPPP'].map((letter, index) => ({ jobId: `job_${index}`, at: '2026-11-03T12:00:00.000Z', status: letter === 'P' ? 'passed' : 'failed' })),
+  suggestion: { action: 'quarantine', reason: '6 state change(s) in 19 comparable pair(s) over the last 20 run(s) (score 0.316, threshold 0.2)' },
+  ...extra,
+});
+
+test('flaky show/list: score, the pass/fail strip and the suggestion; --json matches the contract; exit 0 unless --fail-on-suggestion', async () => {
+  handler = (_req, respond) => respond(200, flakyDetail());
+  const show = await cli(['flaky', 'show', 'crud', '--version', '2']);
+  assert.equal(show.code, 0, 'a suggestion is information, not a failed test');
+  assert.match(show.stdout, /crud \(active\): version 2, full, https:\/\/dev.example.com/);
+  assert.match(show.stdout, /score 0.32 {2}\(6 change\(s\) in 19 comparable pair\(s\), 20 run\(s\), 3 failed; threshold 0.2\)/);
+  assert.match(show.stdout, /runs \(oldest first\): \.\.X\.{5}X\.{5}X\.{6} /.test(show.stdout) ? /./ : /runs \(oldest first\): [.X]{20}/);
+  assert.match(show.stdout, /2 time\(s\) failed and then passed on the automatic new attempt/);
+  assert.match(show.stdout, /QUARANTINE: 6 state change/);
+  assert.equal(seen.at(-1)!.url, '/v1/metrics/flaky/crud?version=2');
+  assert.equal(validJson((await cli(['flaky', 'show', 'crud', '--json'])).stdout).command, 'flaky show');
+  assert.equal((await cli(['flaky', 'show', 'crud', '--fail-on-suggestion'])).code, 1, 'a guard that opted in');
+  handler = (_req, respond) => respond(200, flakyDetail({ suggestion: undefined, flaky: false }));
+  assert.equal((await cli(['flaky', 'show', 'crud', '--fail-on-suggestion'])).code, 0);
+
+  handler = (_req, respond) =>
+    respond(200, {
+      count: 2,
+      suggestions: 1,
+      thresholds: { window: 20, minRuns: 10, threshold: 0.2 },
+      routines: [
+        { routineId: 'crud', status: 'active', runs: 20, transitions: 6, flaky: true, score: 0.316, suggestion: { action: 'quarantine', reason: 'unstable' } },
+        { routineId: 'new', status: 'active', runs: 3, transitions: 1, flaky: false, score: 0.5, note: '3 of the 10 runs needed before anything is suggested' },
+      ],
+    });
+  const list = await cli(['flaky', 'list']);
+  assert.match(list.stdout, /SUGGEST {2}0.32 {2}active {6}crud {2}6 change\(s\) in 20 run\(s\) {2}-> QUARANTINE: unstable/);
+  assert.match(list.stdout, /new {2}1 change\(s\) in 3 run\(s\) {2}\(3 of the 10 runs needed/);
+  assert.equal(validJson((await cli(['flaky', 'list', '--json'])).stdout).command, 'flaky list');
+  assert.equal((await cli(['flaky', 'list', '--fail-on-suggestion'])).code, 1);
+  handler = (_req, respond) => respond(200, { count: 0, suggestions: 0, thresholds: {}, routines: [] });
+  assert.match((await cli(['flaky', 'list'])).stdout, /No runs recorded yet/);
+});
+
+test('flaky show: an unknown routine is exit 2 with its type; bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(404, { error: { type: 'NoRunData', message: 'no runs yet' } });
+  const missing = await cli(['flaky', 'show', 'ghost']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, /NoRunData/);
+
+  for (const args of [['flaky'], ['flaky', 'show'], ['flaky', 'list', 'x'], ['flaky', 'show', 'a', 'b'], ['flaky', 'show', 'a', '--profile', 'x'], ['flaky', 'show', 'a', '--version', '0']]) {
+    seen.length = 0;
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
+  }
+});
+
+test('suite text: quarantined runs and the failed attempt of a retried run are visible, and the counts are those of the runs that count', async () => {
+  const state = suiteState({
+    verdict: 'green', exitCode: 0, verdictReason: '1 of 1 run(s) passed (1 passed only on a new attempt)',
+    counts: { pending: 0, running: 0, passed: 1, failed: 1, error: 0, notRun: 0 },
+    quarantine: { total: 1, passed: 0, failed: 1, error: 0, notRun: 0 },
+    variants: [
+      { variantKey: 'a', routineId: 'a', routineVersion: 1, status: 'passed', jobId: 'job_2', passedOnRetry: true, attempts: [{ attempt: 1, jobId: 'job_1', status: 'failed', errorType: 'Timeout' }, { attempt: 2, jobId: 'job_2', status: 'passed' }] },
+      { variantKey: 'b', routineId: 'b', routineVersion: 1, status: 'failed', jobId: 'job_3', quarantined: true },
+    ],
+  });
+  handler = (req, respond) => respond(req.method === 'POST' ? 202 : 200, req.method === 'POST' ? { suiteRunId: 'suite_abc', status: 'running', total: 2 } : state);
+  const out = await cli(['suite', 'nightly.json'], { readFile: async () => JSON.stringify(suiteBody) });
+
+  assert.equal(out.code, 0, 'the quarantined failure is not in the verdict');
+  assert.match(out.stdout, /PASS {3}a {2}job_2 {2}\[passed on a new attempt\]/);
+  assert.match(out.stdout, /attempt 1: failed {2}job_1 {2}Timeout/);
+  assert.match(out.stdout, /FAIL {3}b {2}job_3 {2}\[quarantined: not counted\]/);
+  assert.match(out.stdout, /1 passed, 0 failed, 0 error, 0 not run\n/);
+  assert.match(out.stdout, /quarantined, not in the verdict: 1 ran - 0 passed, 1 failed, 0 error/);
+  validJson((await cli(['suite', 'nightly.json', '--json'], { readFile: async () => JSON.stringify(suiteBody) })).stdout);
 });

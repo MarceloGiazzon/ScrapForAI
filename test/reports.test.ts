@@ -205,3 +205,37 @@ test('renderers work from plain data, with nothing optional present', () => {
   const suite = renderSuiteReport({ suiteRunId: 'suite_min', name: 'n', status: 'completed', createdAt: 'a', counts: { passed: 0, failed: 0, error: 0, notRun: 0 }, total: 0, executor: 'ScrapForAI', variants: [], generatedAt: 'now' }, 'es');
   assert.ok(suite.includes('ERROR DE INFRAESTRUCTURA'), 'no verdict recorded is never presented as a pass');
 });
+
+test('T3.5: the suite report shows quarantined routines in a block apart and every attempt of a retried run, in every language, escaped', () => {
+  const data = {
+    suiteRunId: 'suite_q', name: 'nightly', status: 'completed', verdict: 'green' as const, verdictReason: '1 of 1 run(s) passed', exitCode: 0, createdAt: '2026-11-03T03:00:00.000Z',
+    counts: { passed: 3, failed: 1, error: 0, notRun: 0 }, total: 4, executor: 'ScrapForAI', generatedAt: 'now',
+    variants: [
+      {
+        variantKey: 'steady', routineId: 'steady', routineVersion: 1, status: 'passed', jobId: 'job_second', passedOnRetry: true,
+        attempts: [
+          { attempt: 1, jobId: 'job_first', status: 'failed', errorType: 'AssertionFailed', errorMessage: 'saw <b>x</b>' },
+          { attempt: 2, jobId: 'job_second', status: 'passed' },
+        ],
+      },
+      { variantKey: 'wobbly<script>', routineId: 'wobbly', routineVersion: 2, status: 'failed', jobId: 'job_q', quarantined: true, errorType: 'Timeout', errorMessage: 'slow' },
+    ],
+  };
+
+  for (const lang of REPORT_LANGS) {
+    const html = renderSuiteReport(data, lang);
+    const s = STRINGS[lang];
+    assert.ok(html.includes(s.quarantineTitle), `${lang}: quarantine block`);
+    assert.ok(html.includes(s.passedOnRetryNote), `${lang}: retry note`);
+    assert.ok(html.includes('job_first') && html.includes('job_second'), `${lang}: both attempts keep their own run id`);
+    assert.ok(!html.includes('<script>') && !html.includes('<b>x</b>'), `${lang}: everything from a run is escaped`);
+
+    // The summary counts what counts: the quarantined failure is not in it, and the quarantined run sits AFTER the quarantine heading.
+    assert.ok(html.includes(`1: 1 ${s.passed}, 0 ${s.failed}`), `${lang}: counted variants only`);
+    assert.ok(html.indexOf('wobbly') > html.indexOf(s.quarantineTitle), `${lang}: the quarantined run is listed under its own heading`);
+    assert.ok(html.indexOf('steady') < html.indexOf(s.quarantineTitle));
+  }
+
+  const plain = renderSuiteReport({ ...data, variants: [data.variants[0]!.passedOnRetry ? { ...data.variants[0]!, passedOnRetry: undefined, attempts: undefined } : data.variants[0]!] }, 'en');
+  assert.ok(!plain.includes(STRINGS.en.quarantineTitle) && !plain.includes(STRINGS.en.passedOnRetryNote), 'no quarantine and no retry: neither block appears');
+});

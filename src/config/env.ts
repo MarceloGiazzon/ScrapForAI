@@ -134,6 +134,13 @@ export const envSchema = z.object({
   // Records kept per routine (oldest dropped first).
   PERF_MAX_RECORDS: integerFromEnv.default(500),
 
+  // --- Flakiness (T3.5) ---
+  // Score = state changes (pass<->fail) between consecutive runs of one population and one build / comparable pairs, over the last FLAKY_WINDOW runs.
+  // At or above FLAKY_THRESHOLD, with at least FLAKY_MIN_RUNS runs in the window, quarantine is SUGGESTED (a person decides: it is a new routine version).
+  FLAKY_WINDOW: integerFromEnv.default(20),
+  FLAKY_MIN_RUNS: integerFromEnv.default(10),
+  FLAKY_THRESHOLD: z.coerce.number().gt(0).max(1).default(0.2),
+
   // --- Web UI ---
   UI_ENABLED: booleanFromEnv,
   SESSION_TTL_MINUTES: integerFromEnv.default(480),

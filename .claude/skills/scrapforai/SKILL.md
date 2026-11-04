@@ -64,7 +64,8 @@ saved or pinned **soon**: `fromJobId` needs the evidence to still exist. Pinning
 - Prefer `assert*` steps over reading text and judging it yourself: the verdict must come from the run.
 - A quick screenshot step at the key moments is cheap and is what a human will look at.
 - `save_routine` requires `targetProfile`. Status is `draft`, `active`, `quarantined` or `retired`; suites
-  run only `active` unless told otherwise. A new version is created only when content changes.
+  run `active` and `quarantined` (a quarantined routine RUNS, is reported in a block of its own and never changes the verdict). A new
+  version is created only when content changes, and moving a routine to or from `quarantined` is one.
 
 ## GeneXus conventions
 
@@ -174,6 +175,13 @@ How fast a routine runs is recorded on every run: `get_performance` (no argument
 means the last three green runs are clearly slower than the twenty before them (at least 30% and 100 ms), for the whole run or for a named step, and it names the new build seen in the slow runs.
 It is a lead, not a verdict: check `suspectBuild`, then look at that step in a recent run (`get_run`) before calling it a regression. A new routine version, the functional profile and another
 environment are measured separately, and failed runs never count.
+
+Whether a routine is flaky is recorded too: `get_flakiness` (no argument: every routine, the ones with a suggestion first; with `routineId`: the pass/fail strip and the numbers). The score is how often the
+routine changes between pass and fail over its last 20 runs **when nothing else changed** (same routine version, profile, origin and build), so a regression after a new build is never called flakiness, and runs that
+drew generated values are left out. A scheduled run that fails is tried **once more automatically**: both attempts are kept (each has its own run id and evidence), a pass on the second counts as passed but is marked
+`passedOnRetry`, and "failed, then passed on the new attempt" is exactly the signal that feeds the score. The server only **suggests** `quarantine` (score at or above 0.2 with at least 10 runs) or `release` (a
+quarantined routine whose last 10 runs all passed); it never changes a status. If the user agrees, save the routine again with `status: "quarantined"` (or `"active"`) and say why. Do not quarantine a routine that
+simply fails every time: that is broken, not flaky, and the failure should stay visible in the verdict.
 
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and

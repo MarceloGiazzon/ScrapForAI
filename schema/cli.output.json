@@ -228,6 +228,37 @@
                 "teardownFailures": {
                   "type": "number"
                 },
+                "passedOnRetry": {
+                  "type": "number"
+                },
+                "quarantine": {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "number"
+                    },
+                    "passed": {
+                      "type": "number"
+                    },
+                    "failed": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": "number"
+                    },
+                    "notRun": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "passed",
+                    "failed",
+                    "error",
+                    "notRun"
+                  ],
+                  "additionalProperties": false
+                },
                 "variants": {
                   "type": "array",
                   "items": {
@@ -313,6 +344,53 @@
                       },
                       "notRunReason": {
                         "type": "string"
+                      },
+                      "quarantined": {
+                        "type": "boolean"
+                      },
+                      "attempts": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "attempt": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "jobId": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "passed",
+                                "failed"
+                              ]
+                            },
+                            "durationMs": {
+                              "type": "number"
+                            },
+                            "failedStepIndex": {
+                              "type": "number"
+                            },
+                            "errorType": {
+                              "type": "string"
+                            },
+                            "errorMessage": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "attempt",
+                            "jobId",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "passedOnRetry": {
+                        "type": "boolean"
                       },
                       "sample": {
                         "type": "integer",
@@ -1905,6 +1983,123 @@
         },
         "command": {
           "type": "string",
+          "const": "flaky list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "number"
+            },
+            "suggestions": {
+              "type": "number"
+            },
+            "routines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "routineId": {
+                    "type": "string"
+                  },
+                  "runs": {
+                    "type": "number"
+                  },
+                  "transitions": {
+                    "type": "number"
+                  },
+                  "flaky": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "routineId",
+                  "runs",
+                  "transitions",
+                  "flaky"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "count",
+            "suggestions",
+            "routines"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "flaky show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "routineId": {
+              "type": "string"
+            },
+            "runs": {
+              "type": "number"
+            },
+            "transitions": {
+              "type": "number"
+            },
+            "flaky": {
+              "type": "boolean"
+            },
+            "results": {
+              "type": "array",
+              "items": {}
+            }
+          },
+          "required": [
+            "routineId",
+            "runs",
+            "transitions",
+            "flaky",
+            "results"
+          ],
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "shrink"
         },
         "exitCode": {
@@ -2558,13 +2753,19 @@
         },
         "statuses": {
           "default": [
-            "active"
+            "active",
+            "quarantined"
           ],
           "minItems": 1,
           "type": "array",
           "items": {
             "$ref": "#/$defs/__schema8"
           }
+        },
+        "retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1
         },
         "order": {
           "default": "asIs",
@@ -3495,6 +3696,12 @@
               "items": {
                 "$ref": "#/$defs/__schema4"
               }
+            },
+            "retries": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1
             }
           },
           "required": [
@@ -3505,7 +3712,8 @@
             "enabled",
             "overlap",
             "jitterSeconds",
-            "notify"
+            "notify",
+            "retries"
           ],
           "additionalProperties": false
         },
@@ -3634,6 +3842,38 @@
         },
         "message": {
           "type": "string"
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attempt": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "jobId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "attempt",
+              "jobId",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "passedOnRetry": {
+          "type": "boolean"
         }
       },
       "required": [

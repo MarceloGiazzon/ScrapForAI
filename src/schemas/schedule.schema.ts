@@ -39,6 +39,12 @@ export const scheduleSchema = z
     jitterSeconds: z.number().int().min(0).max(600).default(0),
     /** Webhook ids (T3.3). Stored and returned, but nothing is sent until notifications exist. */
     notify: z.array(safeName).max(20).default([]),
+    /**
+     * T3.5: a run that FAILED is tried once more, automatically (0 = never). Both attempts are runs of their own and both stay in the history and
+     * the series: the new attempt never hides the failure. A pass on the second attempt is a pass for the schedule (and for webhooks), recorded as
+     * `passedOnRetry`. Applies to routine targets, and to the suites a schedule starts (suite and vault targets) unless the suite sets its own `retries`.
+     */
+    retries: z.number().int().min(0).max(1).default(1),
   })
   .strict();
 
@@ -80,6 +86,10 @@ export const scheduleHistoryEntrySchema = z
     count: z.number().int().optional(),
     run: z.object({ kind: z.enum(['run', 'suite', 'snapshot']), id: z.string() }).strict().optional(),
     message: z.string().optional(),
+    /** T3.5: every attempt of a routine run, when there was more than one (the first failed). `run` and `outcome` are those of the last. */
+    attempts: z.array(z.object({ attempt: z.number().int().positive(), jobId: z.string(), status: z.enum(['passed', 'failed']) }).strict()).optional(),
+    /** T3.5: failed on the first attempt, passed on the new one. The outcome is `passed`; this says it was not clean. */
+    passedOnRetry: z.boolean().optional(),
   })
   .strict();
 

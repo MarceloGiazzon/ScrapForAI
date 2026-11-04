@@ -25,7 +25,14 @@ export function perfRecordOf(result: ExplorationResult): PerfRecord | undefined 
     status: step.status === 'passed' ? 'passed' : step.status === 'failed' ? 'failed' : 'skipped',
   }));
 
+  // T3.5: the scheduler / suite runner tag the automatic new attempt in the caller metadata (`attempt`, `retryOf`).
+  const metadata = result.caller?.metadata;
+  const attempt = Number(metadata?.attempt);
+  const retryOf = metadata?.retryOf;
+
   return {
+    ...(Number.isInteger(attempt) && attempt > 1 && retryOf ? { attempt, retryOf } : {}),
+    ...(result.parameters ? { parametric: true as const } : {}),
     jobId: result.jobId,
     at: result.startedAt,
     version: result.routine.version,

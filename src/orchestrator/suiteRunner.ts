@@ -11,11 +11,13 @@ import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
+import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import { type SuiteRequest, type SuiteState, suiteStateSchema, type VariantState } from '../schemas/suiteRequest.schema.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { listItems, recordLastRun } from '../vault/regression/regressionVault.js';
 import { orderByImpact } from '../vault/regression/impact.js';
 import { JobCancelledError } from './jobQueue.js';
+import { attemptMetadata, runAttempts } from './retry.js';
 
 /**
  * T1.6 suite runner. A suite is a list of saved routines multiplied by credential sets and target
@@ -87,6 +89,8 @@ interface Source {
   version?: number;
   keyBase?: string;
   vaultItemId?: string;
+  /** T3.5: the regression-vault item is QUARANTINED (the routine itself may be active). */
+  quarantined?: boolean;
   order?: { position: number; reasons: string[] };
 }
 
@@ -116,6 +120,7 @@ async function sourcesFor(request: SuiteRequest): Promise<Source[]> {
         version: entry.item.routine.version,
         keyBase: entry.item.id,
         vaultItemId: entry.item.id,
+        ...(entry.item.status === 'QUARANTINED' ? { quarantined: true } : {}),
         ...(request.order === 'impact' ? { order: { position: entry.position, reasons: entry.reasons.map((reason) => reason.detail) } } : {}),
       });
     }
@@ -179,6 +184,8 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
           const effectiveCredential = credentialSet ?? routine.credentialSet;
           const effectiveProfile = targetProfile ?? routine.targetProfile;
           const skipped = !request.statuses.includes(routine.status);
+          // T3.5: pinned now, like the version. A skipped variant is "not run", not "quarantined".
+          const quarantined = !skipped && (routine.status === 'quarantined' || source.quarantined === true);
 
           planned.push({
             // Pinned HERE: the version that is current now is the one every variant of this suite runs.
@@ -191,6 +198,7 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
               ...(effectiveCredential === undefined ? {} : { credentialSet: effectiveCredential }),
               targetProfile: effectiveProfile,
               ...(sample === undefined ? {} : { sample }),
+              ...(quarantined ? { quarantined: true } : {}),
               status: skipped ? 'notRun' : 'pending',
               ...(skipped ? { notRunReason: `routine status is "${routine.status}"; this suite runs: ${request.statuses.join(', ')}` } : {}),
             },
@@ -261,29 +269,63 @@ function suiteSlots(): number {
   return Math.max(1, env.MAX_PARALLEL_JOBS - reserved);
 }
 
+function tally(variants: VariantState[]): { passed: number; failed: number; error: number; notRun: number } {
+  const counts = { passed: 0, failed: 0, error: 0, notRun: 0 };
+  for (const variant of variants) {
+    if (variant.status === 'passed' || variant.status === 'failed' || variant.status === 'error' || variant.status === 'notRun') counts[variant.status] += 1;
+  }
+  return counts;
+}
+
+/**
+ * The verdict is the verdict of the variants that COUNT: a quarantined one (T3.5) ran and is reported, but a known-unstable routine going red
+ * must not turn the suite red, and one going green must not make it green. What it did is in `quarantine` and in the reason.
+ */
 export function concludeSuite(state: SuiteState, cancelled: boolean): void {
-  const { counts } = state;
   state.finishedAt = new Date().toISOString();
   state.status = cancelled ? 'cancelled' : 'completed';
   state.teardownFailures = state.variants.filter((variant) => variant.teardownStatus === 'failed').length;
 
+  const counted = state.variants.filter((variant) => !variant.quarantined);
+  const quarantined = state.variants.filter((variant) => variant.quarantined);
+  const counts = tally(counted);
   const ran = counts.passed + counts.failed + counts.error;
+
+  const retried = counted.filter((variant) => variant.passedOnRetry).length;
+  if (retried > 0) state.passedOnRetry = retried;
+  else delete state.passedOnRetry;
+
+  if (quarantined.length > 0) {
+    const apart = tally(quarantined);
+    state.quarantine = { total: quarantined.length, ...apart };
+  } else {
+    delete state.quarantine;
+  }
+
+  const notes = [
+    retried > 0 ? `${retried} passed only on a new attempt` : undefined,
+    state.quarantine && state.quarantine.failed + state.quarantine.error > 0
+      ? `${state.quarantine.failed + state.quarantine.error} of ${state.quarantine.total} quarantined run(s) did not pass (not counted)`
+      : undefined,
+  ].filter((note): note is string => note !== undefined);
+  const suffix = notes.length > 0 ? ` (${notes.join('; ')})` : '';
+
   if (cancelled) {
     state.verdict = 'infra-error';
     state.verdictReason = 'the suite was cancelled';
   } else if (counts.error > 0) {
     state.verdict = 'infra-error';
-    state.verdictReason = `${counts.error} run(s) could not be executed`;
+    state.verdictReason = `${counts.error} run(s) could not be executed${suffix}`;
   } else if (counts.failed > 0) {
     state.verdict = 'red';
-    state.verdictReason = `${counts.failed} of ${ran} run(s) failed`;
+    state.verdictReason = `${counts.failed} of ${ran} run(s) failed${suffix}`;
   } else if (ran === 0) {
     // Nothing was verified, so "green" would be a lie.
     state.verdict = 'infra-error';
-    state.verdictReason = 'no run was executed (every variant was skipped)';
+    state.verdictReason = quarantined.length > 0 ? 'no run that counts was executed (only quarantined routines ran, and they do not count)' : 'no run was executed (every variant was skipped)';
   } else {
     state.verdict = 'green';
-    state.verdictReason = `${counts.passed} of ${ran} run(s) passed`;
+    state.verdictReason = `${counts.passed} of ${ran} run(s) passed${suffix}`;
   }
 
   state.exitCode = state.verdict === 'green' ? 0 : state.verdict === 'red' ? 1 : 2;
@@ -303,25 +345,43 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
     await persist(state);
 
     try {
-      const result = await jobQueue.run(
-        () =>
-          runLibraryRoutine(
-            variant.routineId,
-            variant.routineVersion,
-            {
-              ...(entry.credentialSet === undefined ? {} : { credentialSet: entry.credentialSet }),
-              ...(entry.targetProfile === undefined ? {} : { targetProfile: entry.targetProfile }),
-              ...(request.retention === undefined ? {} : { retention: request.retention }),
-              ...(request.profile === undefined ? {} : { profile: request.profile }),
-              ...(request.buildId === undefined ? {} : { buildId: request.buildId }),
-              // T5.4: every sample draws from the suite's one seed, so any row of the table replays alone.
-              ...(entry.sample === undefined ? {} : { seed: state.seed, sample: entry.sample }),
-              caller: { source: 'suite', correlationId: state.suiteRunId, metadata: { variantKey: variant.variantKey } },
-            },
-            { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey } },
+      // T3.5: a failed run may be tried once more (only when the request asks, and never for a quarantined variant or a parametric sample).
+      const retries = variant.quarantined || entry.sample !== undefined ? 0 : (request.retries ?? 0);
+      const attempted = await runAttempts<ExplorationResult>(
+        (attempt, previous) =>
+          jobQueue.run(
+            () =>
+              runLibraryRoutine(
+                variant.routineId,
+                variant.routineVersion,
+                {
+                  ...(entry.credentialSet === undefined ? {} : { credentialSet: entry.credentialSet }),
+                  ...(entry.targetProfile === undefined ? {} : { targetProfile: entry.targetProfile }),
+                  ...(request.retention === undefined ? {} : { retention: request.retention }),
+                  ...(request.profile === undefined ? {} : { profile: request.profile }),
+                  ...(request.buildId === undefined ? {} : { buildId: request.buildId }),
+                  // T5.4: every sample draws from the suite's one seed, so any row of the table replays alone.
+                  ...(entry.sample === undefined ? {} : { seed: state.seed, sample: entry.sample }),
+                  caller: { source: 'suite', correlationId: state.suiteRunId, metadata: { variantKey: variant.variantKey, ...attemptMetadata(attempt, previous) } },
+                },
+                { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey } },
+              ),
+            { priority: 'suite', lockKey: entry.lockKey, maxPerLock: entry.maxSessions, signal: controller.signal },
           ),
-        { priority: 'suite', lockKey: entry.lockKey, maxPerLock: entry.maxSessions, signal: controller.signal },
+        { retries, canRetry: () => !controller.signal.aborted && stoppedBy === undefined },
       );
+      const result = attempted.results[attempted.results.length - 1]!;
+
+      if (attempted.results.length > 1) {
+        variant.attempts = attempted.results.map((attempt, index) => ({
+          attempt: index + 1,
+          jobId: attempt.jobId,
+          status: attempt.status === 'passed' ? ('passed' as const) : ('failed' as const),
+          durationMs: attempt.durationMs,
+          ...(attempt.status !== 'passed' ? { failedStepIndex: attempt.failedStepIndex, errorType: attempt.error?.type, errorMessage: attempt.error?.message.slice(0, 500) } : {}),
+        }));
+        if (result.status === 'passed') variant.passedOnRetry = true;
+      }
 
       variant.jobId = result.jobId;
       variant.status = result.status === 'passed' ? 'passed' : 'failed';
@@ -338,6 +398,11 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
         variant.failedStepIndex = result.failedStepIndex;
         variant.errorType = result.error?.type;
         variant.errorMessage = result.error?.message.slice(0, 500);
+        if (attempted.retryError !== undefined) {
+          // The failure stands (it is the only result), and the reader is told why there is no second attempt.
+          const reason = attempted.retryError instanceof Error ? attempted.retryError.message : String(attempted.retryError);
+          variant.errorMessage = `${variant.errorMessage ?? ''} [the new attempt could not run: ${reason}]`.trim().slice(0, 500);
+        }
       }
     } catch (error) {
       if (error instanceof JobCancelledError) {
@@ -362,7 +427,8 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
       }).catch(() => undefined);
     }
     if (variant.status === 'failed' || variant.status === 'error') {
-      if (request.failFast) {
+      // A quarantined routine failing is what quarantine is for: it must not stop the suite.
+      if (request.failFast && !variant.quarantined) {
         stoppedBy ??= variant.variantKey;
       }
     }

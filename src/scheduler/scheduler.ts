@@ -27,6 +27,9 @@ export interface Settled {
   outcome: 'passed' | 'failed' | 'error';
   message?: string;
   facts?: SettledFacts;
+  /** T3.5: every attempt of a routine run, when there was more than one. The outcome is that of the last. */
+  attempts?: NonNullable<ScheduleHistoryEntry['attempts']>;
+  passedOnRetry?: boolean;
 }
 
 /** A scheduled occurrence reached a result (or could not start). Handed to `onSettled` once the history is written. */
@@ -270,6 +273,8 @@ export class Scheduler {
           entry.outcome = settled.outcome;
           entry.finishedAt = finishedAt;
           if (settled.message) entry.message = settled.message;
+          if (settled.attempts) entry.attempts = settled.attempts;
+          if (settled.passedOnRetry) entry.passedOnRetry = true;
         }
         delete current.running;
       },

@@ -62,6 +62,12 @@ export interface Strings {
   syntheticTag: string;
   syntheticNote: string;
   replayHint: string;
+  quarantineTitle: string;
+  quarantineNote: string;
+  quarantinedTag: string;
+  passedOnRetryTag: string;
+  passedOnRetryNote: string;
+  attempt: string;
 }
 
 const en: Strings = {
@@ -125,6 +131,12 @@ const en: Strings = {
   syntheticTag: 'synthetic',
   syntheticNote: "Synthetic data: the generated identity documents are made up but carry correct check digits, so one may coincide with a real person's or company's. Use only in dev/QA environments.",
   replayHint: 'Run again with the same seed and sample to reproduce these values.',
+  quarantineTitle: 'Quarantined routines (not counted in the verdict)',
+  quarantineNote: 'These routines are quarantined because they were unstable. They ran, and their results are shown here, but they do not change the verdict of the suite.',
+  quarantinedTag: 'quarantined',
+  passedOnRetryTag: 'passed on a new attempt',
+  passedOnRetryNote: 'These runs failed once and passed when tried again automatically. They count as passed, and the failed attempt is kept: it is listed below with its own run id.',
+  attempt: 'Attempt',
 };
 
 const pt: Strings = {
@@ -188,6 +200,12 @@ const pt: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Dados sintéticos: os documentos gerados são inventados, mas têm dígitos verificadores corretos, então um deles pode coincidir com o de uma pessoa ou empresa real. Use apenas em ambientes de dev/QA.',
   replayHint: 'Execute de novo com a mesma semente e amostra para reproduzir estes valores.',
+  quarantineTitle: 'Rotinas em quarentena (não contam no veredito)',
+  quarantineNote: 'Estas rotinas estão em quarentena por serem instáveis. Elas rodaram e o resultado aparece aqui, mas não alteram o veredito da suíte.',
+  quarantinedTag: 'quarentena',
+  passedOnRetryTag: 'passou em nova tentativa',
+  passedOnRetryNote: 'Estas execuções falharam uma vez e passaram quando foram repetidas automaticamente. Contam como aprovadas, e a tentativa que falhou foi mantida: aparece abaixo com o seu próprio id de execução.',
+  attempt: 'Tentativa',
 };
 
 const es: Strings = {
@@ -251,6 +269,12 @@ const es: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Datos sintéticos: los documentos generados son inventados pero tienen dígitos verificadores correctos, por lo que uno puede coincidir con el de una persona o empresa real. Úselos solo en entornos de dev/QA.',
   replayHint: 'Ejecute de nuevo con la misma semilla y muestra para reproducir estos valores.',
+  quarantineTitle: 'Rutinas en cuarentena (no cuentan en el veredicto)',
+  quarantineNote: 'Estas rutinas están en cuarentena por ser inestables. Se ejecutaron y su resultado se muestra aquí, pero no cambian el veredicto de la suite.',
+  quarantinedTag: 'cuarentena',
+  passedOnRetryTag: 'pasó en un nuevo intento',
+  passedOnRetryNote: 'Estas ejecuciones fallaron una vez y pasaron al repetirse automáticamente. Cuentan como aprobadas, y el intento que falló se conserva: aparece abajo con su propio id de ejecución.',
+  attempt: 'Intento',
 };
 
 export const STRINGS: Record<ReportLang, Strings> = { en, pt, es };

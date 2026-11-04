@@ -30,6 +30,12 @@ export interface PerfRecord {
   status: 'passed' | 'failed';
   durationMs: number;
   steps: PerfStep[];
+  /** T3.5: 2 for the automatic new attempt of a scheduled run; absent for a first (or only) attempt. */
+  attempt?: number;
+  /** T3.5: with `attempt`, the job id of the attempt it repeats. Both attempts stay in the series: a retry never hides a failure. */
+  retryOf?: string;
+  /** T3.5: the run drew generated values (parameters/generators). Its outcome depends on the values, so it says nothing about flakiness. */
+  parametric?: true;
 }
 
 export interface PerfConfig {

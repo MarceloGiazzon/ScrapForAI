@@ -31,6 +31,7 @@ before(async () => {
   await saveRoutine('crud', { title: 'crud', targetProfile: 'app-dev', steps });
   await saveRoutine('report', { title: 'report', targetProfile: 'app-dev', steps, credentialSet: 'own-cred' });
   await saveRoutine('flaky', { title: 'flaky', targetProfile: 'app-dev', steps, status: 'quarantined' });
+  await saveRoutine('drafty', { title: 'drafty', targetProfile: 'app-dev', steps, status: 'draft' });
   // T5.4: one routine with its own parameter, one with an inline generator, one that only includes the first.
   await saveRoutine('qty-form', {
     title: 'qty form', targetProfile: 'app-dev',
@@ -103,13 +104,24 @@ test('the same item twice gets #2, so keys stay unique', async () => {
   assert.deepEqual(keys(planned), ['crud', 'crud#2']);
 });
 
-test('non-active routines are listed as not run, with the reason, instead of disappearing', async () => {
-  const skipped = (await planSuite(parse({ name: 'q', items: [{ routineId: 'flaky' }] })))[0]!.state;
+test('draft and retired routines are listed as not run, with the reason, instead of disappearing', async () => {
+  const skipped = (await planSuite(parse({ name: 'q', items: [{ routineId: 'drafty' }] })))[0]!.state;
   assert.equal(skipped.status, 'notRun');
-  assert.match(skipped.notRunReason ?? '', /quarantined/);
+  assert.match(skipped.notRunReason ?? '', /draft/);
+  assert.equal(skipped.quarantined, undefined, 'skipped is not quarantined');
 
-  const included = (await planSuite(parse({ name: 'q', items: [{ routineId: 'flaky' }], statuses: ['active', 'quarantined'] })))[0]!.state;
+  const included = (await planSuite(parse({ name: 'q', items: [{ routineId: 'drafty' }], statuses: ['active', 'draft'] })))[0]!.state;
   assert.equal(included.status, 'pending');
+});
+
+test('T3.5: a quarantined routine RUNS by default and is marked quarantined; asking for active only leaves it out', async () => {
+  const planned = await planSuite(parse({ name: 'q', items: [{ routineId: 'crud' }, { routineId: 'flaky' }] }));
+  assert.deepEqual(planned.map((entry) => [entry.state.routineId, entry.state.status, entry.state.quarantined]), [['crud', 'pending', undefined], ['flaky', 'pending', true]]);
+
+  const activeOnly = (await planSuite(parse({ name: 'q', items: [{ routineId: 'flaky' }], statuses: ['active'] })))[0]!.state;
+  assert.equal(activeOnly.status, 'notRun');
+  assert.match(activeOnly.notRunReason ?? '', /quarantined/);
+  assert.equal(activeOnly.quarantined, undefined);
 });
 
 test('an unknown routine or version fails the whole suite before anything runs', async () => {
@@ -176,7 +188,8 @@ test('request validation: strict, bounded, sensible defaults', () => {
   assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'crud' }], samples: 5, seed: 's' }).success, true);
 
   const ok = parse({ name: 'x', items: [{ routineId: 'crud' }] });
-  assert.deepEqual([ok.mode, ok.failFast, ok.statuses], ['sequential', false, ['active']]);
+  assert.deepEqual([ok.mode, ok.failFast, ok.statuses, ok.retries], ['sequential', false, ['active', 'quarantined'], undefined]);
+  assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'crud' }], retries: 2 }).success, false, 'at most one new attempt');
 
   assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [] }).success, false);
   assert.equal(suiteRequestSchema.safeParse({ name: 'x', items: [{ routineId: 'a/b' }] }).success, false);
@@ -215,6 +228,58 @@ test('one verdict, one exit code: 0 green, 1 red, 2 infrastructure', () => {
     assert.ok(state.verdictReason);
     assert.equal(state.status, cancelled ? 'cancelled' : 'completed');
   }
+});
+
+type VariantInput = { status: 'passed' | 'failed' | 'error' | 'notRun'; quarantined?: boolean; passedOnRetry?: boolean };
+function stateOf(variants: VariantInput[]) {
+  const state = suiteStateSchema.parse({
+    suiteRunId: 'suite_x', name: 'x', status: 'running', createdAt: new Date().toISOString(),
+    request: parse({ name: 'x', items: [{ routineId: 'crud' }] }), total: variants.length,
+    counts: { pending: 0, running: 0, passed: 0, failed: 0, error: 0, notRun: 0 },
+    variants: variants.map((v, i) => ({ variantKey: `v${i}`, routineId: 'crud', routineVersion: 1, ...v })),
+  });
+  for (const v of state.variants) state.counts[v.status] += 1;
+  return state;
+}
+
+test('T3.5: a quarantined variant ran and is reported, but never changes the verdict', () => {
+  const cases: Array<[VariantInput[], string, number]> = [
+    [[{ status: 'passed' }, { status: 'failed', quarantined: true }], 'green', 0],      // its failure does not turn the suite red
+    [[{ status: 'failed' }, { status: 'passed', quarantined: true }], 'red', 1],         // its pass does not hide a real failure
+    [[{ status: 'passed' }, { status: 'error', quarantined: true }], 'green', 0],        // nor does one that could not run
+    [[{ status: 'failed', quarantined: true }, { status: 'passed', quarantined: true }], 'infra-error', 2], // only quarantined ran: nothing was verified
+    [[{ status: 'failed', quarantined: true }, { status: 'notRun' }], 'infra-error', 2],
+  ];
+  for (const [variants, verdict, exitCode] of cases) {
+    const state = stateOf(variants);
+    concludeSuite(state, false);
+    assert.deepEqual([state.verdict, state.exitCode], [verdict, exitCode], JSON.stringify(variants));
+  }
+
+  const state = stateOf([{ status: 'passed' }, { status: 'failed', quarantined: true }, { status: 'passed', quarantined: true }]);
+  concludeSuite(state, false);
+  assert.deepEqual(state.quarantine, { total: 2, passed: 1, failed: 1, error: 0, notRun: 0 });
+  assert.ok(state.verdictReason?.includes('1 of 1 run(s) passed'), state.verdictReason);
+  assert.ok(state.verdictReason?.includes('1 of 2 quarantined run(s) did not pass (not counted)'), state.verdictReason);
+
+  const onlyQuarantined = stateOf([{ status: 'passed', quarantined: true }]);
+  concludeSuite(onlyQuarantined, false);
+  assert.match(onlyQuarantined.verdictReason ?? '', /only quarantined/);
+
+  const none = stateOf([{ status: 'passed' }]);
+  concludeSuite(none, false);
+  assert.equal(none.quarantine, undefined, 'no quarantined variant: no block');
+});
+
+test('T3.5: a variant that passed only on a new attempt counts as passed, and the verdict says so', () => {
+  const state = stateOf([{ status: 'passed', passedOnRetry: true }, { status: 'passed' }]);
+  concludeSuite(state, false);
+  assert.deepEqual([state.verdict, state.passedOnRetry], ['green', 1]);
+  assert.ok(state.verdictReason?.includes('2 of 2 run(s) passed (1 passed only on a new attempt)'), state.verdictReason);
+
+  const clean = stateOf([{ status: 'passed' }]);
+  concludeSuite(clean, false);
+  assert.equal(clean.passedOnRetry, undefined);
 });
 
 test('a failed teardown does not turn a green suite red, but is counted', () => {

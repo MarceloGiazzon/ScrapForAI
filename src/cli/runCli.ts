@@ -59,6 +59,8 @@ Commands
   webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
   perf list | alerts | show <routineId> [--version N] [--profile full|functional] [--fail-on-alert]
                                     (how long each step takes over time: baseline = median of the last 20 green runs, alert when the last 3 are >30% slower; --fail-on-alert exits 1)
+  flaky list | show <routineId> [--version N] [--profile full|functional] [--fail-on-suggestion]
+                                    (how often a routine changes between pass and fail on the same version and build: score over the last 20 runs; it only SUGGESTS quarantine, a person saves the new status; --fail-on-suggestion exits 1)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -185,7 +187,14 @@ function formatSuite(state: Record<string, any>): string {
 
   for (const variant of state.variants as Array<Record<string, any>>) {
     const detail = variant.errorType ? `  ${variant.errorType}: ${variant.errorMessage ?? ''}` : variant.notRunReason ? `  (${variant.notRunReason})` : '';
-    lines.push(`  ${mark[variant.status] ?? variant.status}  ${variant.variantKey}${variant.jobId ? `  ${variant.jobId}` : ''}${detail}`);
+    const tags = `${variant.quarantined ? '  [quarantined: not counted]' : ''}${variant.passedOnRetry ? '  [passed on a new attempt]' : ''}`;
+    lines.push(`  ${mark[variant.status] ?? variant.status}  ${variant.variantKey}${variant.jobId ? `  ${variant.jobId}` : ''}${tags}${detail}`);
+    // T3.5: the failed attempt stays visible next to the one that decided.
+    if (Array.isArray(variant.attempts) && variant.attempts.length > 1) {
+      for (const attempt of variant.attempts as Array<Record<string, any>>) {
+        lines.push(`        attempt ${attempt.attempt}: ${attempt.status}  ${attempt.jobId}${attempt.errorType ? `  ${attempt.errorType}` : ''}`);
+      }
+    }
     // T5.4: the samples table: what each run was fed, and what it extracted.
     const values = (record: unknown): string =>
       Object.entries((record ?? {}) as Record<string, string>)
@@ -195,8 +204,14 @@ function formatSuite(state: Record<string, any>): string {
     if (variant.extracted) lines.push(`        extracted: ${values(variant.extracted)}`);
   }
 
-  const c = state.counts;
+  // T3.5: the counts are those of the variants that count; the quarantined ones ran, and are told apart.
+  const counted = (state.variants as Array<Record<string, any>>).filter((variant) => !variant.quarantined);
+  const c = Object.fromEntries(['passed', 'failed', 'error', 'notRun'].map((status) => [status, counted.filter((variant) => variant.status === status).length]));
   lines.push(`  ${c.passed} passed, ${c.failed} failed, ${c.error} error, ${c.notRun} not run`);
+  if (state.quarantine) {
+    const q = state.quarantine;
+    lines.push(`  quarantined, not in the verdict: ${q.total} ran - ${q.passed} passed, ${q.failed} failed, ${q.error} error`);
+  }
   if (state.verdict) {
     lines.push(`Verdict: ${String(state.verdict).toUpperCase()} (exit ${state.exitCode}) - ${state.verdictReason ?? ''}`);
   }
@@ -283,7 +298,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' || command === 'flaky' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -756,6 +771,51 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       ];
       const exitCode: ExitCode = failOnAlert && (body.alerts as string[]).length > 0 ? 1 : 0;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'perf show', exitCode, result: body as never }, `${lines.join('\n')}\n`);
+      return exitCode;
+    }
+
+    if (command === 'flaky list' || command === 'flaky show') {
+      // T3.5: read-only. Flakiness is computed from the series the server records on every run of a library routine; quarantine is only suggested.
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, version: { type: 'string' }, profile: { type: 'string' }, 'fail-on-suggestion': { type: 'boolean' } } });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const failOnSuggestion = values['fail-on-suggestion'] === true;
+      const score = (item: Record<string, any>): string => (item.score === undefined ? '  -  ' : Number(item.score).toFixed(2));
+      const suggestionText = (item: Record<string, any>): string => (item.suggestion ? `  -> ${String(item.suggestion.action).toUpperCase()}: ${item.suggestion.reason}` : '');
+
+      if (command === 'flaky list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai flaky list [--fail-on-suggestion]');
+        const response = await api('GET', '/v1/metrics/flaky');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { suggestions: number; routines: Array<Record<string, any>> };
+        const lines = body.routines.map((item) => `${item.suggestion ? 'SUGGEST' : '       '}  ${score(item)}  ${String(item.status ?? '?').padEnd(11)} ${item.routineId}  ${item.transitions} change(s) in ${item.runs} run(s)${item.note ? `  (${item.note})` : ''}${suggestionText(item)}`);
+        const exitCode: ExitCode = failOnSuggestion && body.suggestions > 0 ? 1 : 0;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'flaky list', exitCode, result: body as never }, `${lines.length === 0 ? 'No runs recorded yet.' : lines.join('\n')}\n`);
+        return exitCode;
+      }
+
+      const [routineId] = positionals;
+      if (!routineId || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai flaky show <routineId> [--version N] [--profile full|functional] [--fail-on-suggestion]');
+      if (values.profile !== undefined && values.profile !== 'full' && values.profile !== 'functional') throw new CliError('UsageError', '--profile must be full or functional');
+      const version = values.version === undefined ? undefined : Number(values.version);
+      if (version !== undefined && (!Number.isInteger(version) || version < 1)) throw new CliError('UsageError', '--version must be a positive integer');
+      const query = new URLSearchParams({ ...(version === undefined ? {} : { version: String(version) }), ...(values.profile ? { profile: values.profile } : {}) });
+      const response = await api('GET', `/v1/metrics/flaky/${encodeURIComponent(routineId)}${query.size > 0 ? `?${query.toString()}` : ''}`);
+      if (response.status !== 200) throw errorOf(response);
+      const body = response.body as Record<string, any>;
+      const population = body.population as Record<string, any> | undefined;
+      const strip = (body.results as Array<Record<string, any>>).map((result) => (result.status === 'passed' ? '.' : 'X')).join('');
+      const lines = [
+        `${body.routineId} (${body.status ?? 'status unknown'})${population ? `: version ${population.version}, ${population.profile}, ${population.env}` : ''}`,
+        `  score ${score(body)}  (${body.transitions} change(s) in ${body.comparablePairs} comparable pair(s), ${body.runs} run(s), ${body.failed} failed; threshold ${body.thresholds.threshold})`,
+        ...(body.skippedAtBuildChange > 0 ? [`  ${body.skippedAtBuildChange} pair(s) not compared: the build changed between them`] : []),
+        ...(body.recoveredOnRetry > 0 ? [`  ${body.recoveredOnRetry} time(s) failed and then passed on the automatic new attempt`] : []),
+        `  runs (oldest first): ${strip}   (. passed, X failed)`,
+        ...(body.note ? [`  ${body.note}`] : []),
+        ...(body.suggestion ? [`  ${String(body.suggestion.action).toUpperCase()}: ${body.suggestion.reason}`] : []),
+      ];
+      const exitCode: ExitCode = failOnSuggestion && body.suggestion ? 1 : 0;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'flaky show', exitCode, result: body as never }, `${lines.join('\n')}\n`);
       return exitCode;
     }
 

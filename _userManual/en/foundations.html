@@ -130,7 +130,7 @@ POST /v1/routines/crud-sales/run?version=2</code></pre>
 <ul>
   <li><strong>Secrets are refused.</strong> A literal equal to a vault value, or shaped like an API key, JWT or token, is rejected at save time (422).</li>
   <li><strong><code>fromJobId</code></strong> saves the steps of a run that passed, while its evidence still exists.</li>
-  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Changing it is a new version. Suites run only <code>active</code> by default.</li>
+  <li><strong>Status:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Changing it is a new version. Suites run <code>active</code> and <code>quarantined</code> by default: a quarantined routine runs and is reported apart, but never changes the verdict.</li>
   <li>Set <code>ROUTINE_LIBRARY_DIR</code> inside a git repository to review routines in pull requests.</li>
 </ul>
 

@@ -828,6 +828,14 @@ homologação útil.
 
 ### T3.5 — Flakiness e quarentena · M
 
+> **Implementada em 2026-11-03** (`src/metrics/flakyAnalysis.ts`, `flakyService.ts`, `src/orchestrator/retry.ts`, ver AGENTS.md, "Flakiness, retry and quarantine"). Score = mudanças de estado entre execuções
+> consecutivas **comparáveis** / pares comparados, nas últimas 20 execuções de uma população (versão da rotina, perfil, origem); um par que atravessa uma troca de build **não conta** (é regressão ou correção, não flakiness) e execuções
+> com valores gerados ficam de fora. Desvio do texto abaixo: o denominador são os pares comparados, não as execuções. Nova tentativa automática (`retries`, 0|1): **padrão 1 no agendamento**, 0 em suítes manuais; só uma execução
+> que FALHOU é repetida, as duas ficam como execuções próprias (série, histórico do agendamento, variante da suíte e relatório) e passar na segunda conta como aprovado mas marca `passedOnRetry`. O servidor só **sugere**
+> `quarantine` (score >= 0,2 com >= 10 execuções) ou `release`; mudar o status é uma nova versão da rotina, decisão de uma pessoa. **Mudança de comportamento:** uma rotina `quarantined` agora **roda** nas suítes por padrão,
+> fora do veredito, do `failFast` e do código de saída, num bloco separado do relatório (antes era listada como "não executada"). REST `/v1/metrics/flaky`, CLI `flaky`, MCP `get_flakiness`. **Não feito:** tela na UI (T3.7),
+> webhook de uma rotina em quarentena agendada diretamente, aplicar a sugestão com uma chamada.
+
 - Score = transições de estado / execuções, numa janela de 20.
 - Em execuções agendadas: 1 nova tentativa automática em caso de falha. As duas execuções ficam
   registradas, porque a nova tentativa nunca esconde a falha.

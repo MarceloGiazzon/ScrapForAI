@@ -130,7 +130,7 @@ POST /v1/routines/crud-sales/run?version=2</code></pre>
 <ul>
   <li><strong>Se rechazan los secretos.</strong> Un literal igual a un valor de la bóveda, o con forma de clave de API, JWT o token, se rechaza al guardar (422).</li>
   <li><strong><code>fromJobId</code></strong> guarda los steps de una ejecución que pasó, mientras su evidencia todavía exista.</li>
-  <li><strong>Estado:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Cambiarlo es una nueva versión. Las suites ejecutan solo <code>active</code> por defecto.</li>
+  <li><strong>Estado:</strong> <code>draft</code>, <code>active</code>, <code>quarantined</code>, <code>retired</code>. Cambiarlo es una nueva versión. Las suites ejecutan <code>active</code> y <code>quarantined</code> por defecto: una rutina en cuarentena se ejecuta y se informa aparte, pero nunca cambia el veredicto.</li>
   <li>Apunte <code>ROUTINE_LIBRARY_DIR</code> dentro de un repositorio git para revisar rutinas en pull requests.</li>
 </ul>
 

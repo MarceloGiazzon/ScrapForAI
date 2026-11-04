@@ -46,10 +46,17 @@ export const suiteRequestSchema = z
       .strict()
       .optional(),
     /**
-     * Which routine statuses run. Default: only `active`; quarantined/draft/retired routines are listed
-     * as not run (with the reason) instead of silently disappearing.
+     * Which routine statuses run. Default: `active` and `quarantined` (T3.5: a quarantined routine runs, but its result does not
+     * count towards the verdict and is reported apart); draft/retired routines are listed as not run (with the reason) instead of
+     * silently disappearing.
      */
-    statuses: z.array(routineStatusSchema).min(1).default(['active']),
+    statuses: z.array(routineStatusSchema).min(1).default(['active', 'quarantined']),
+    /**
+     * T3.5: how many times a run that FAILED is tried again automatically (0 or 1). Both attempts are kept and shown; the second one decides the
+     * variant. Default 0: a suite started by hand fails as it fails. A schedule sets it for the suites it starts. Not applied to quarantined
+     * routines (they do not count) or to parametric samples (an edge value fails on purpose and would fail again).
+     */
+    retries: z.number().int().min(0).max(1).optional(),
     /**
      * `impact`: order the regression-vault items by how likely they are to break (T2.3) using `impact`; routine
      * items keep their place, before them. Each run records why it is where it is.
@@ -84,6 +91,19 @@ export type SuiteRequest = z.infer<typeof suiteRequestSchema>;
 
 export const variantStatusSchema = z.enum(['pending', 'running', 'passed', 'failed', 'error', 'notRun']);
 
+/** T3.5: one attempt at a variant. Only written when there was more than one: the failed first attempt stays next to the one that decided. */
+export const variantAttemptSchema = z
+  .object({
+    attempt: z.number().int().positive(),
+    jobId: z.string(),
+    status: z.enum(['passed', 'failed']),
+    durationMs: z.number().optional(),
+    failedStepIndex: z.number().optional(),
+    errorType: z.string().optional(),
+    errorMessage: z.string().optional(),
+  })
+  .strict();
+
 export const variantStateSchema = z
   .object({
     variantKey: z.string(),
@@ -106,6 +126,15 @@ export const variantStateSchema = z
     errorMessage: z.string().optional(),
     teardownStatus: z.enum(['passed', 'failed']).optional(),
     notRunReason: z.string().optional(),
+    /**
+     * T3.5: the routine (or the vault item) is quarantined: it ran, but this result does not count towards the suite's verdict, failFast or
+     * exit code, and the report lists it in a block of its own. Pinned when the suite is planned.
+     */
+    quarantined: z.boolean().optional(),
+    /** T3.5: every attempt, when there was more than one. The variant's own fields (jobId, status, error...) are those of the last one. */
+    attempts: z.array(variantAttemptSchema).optional(),
+    /** T3.5: failed on the first attempt and passed on the new one. Counts as passed, and says so everywhere. */
+    passedOnRetry: z.boolean().optional(),
     /** T5.4: the sample index of a parametric variant, the values its parameters took and a bounded copy of what it extracted. */
     sample: z.number().int().min(0).optional(),
     parameters: z.record(z.string(), z.string()).optional(),
@@ -137,6 +166,10 @@ export const suiteStateSchema = z
     exitCode: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
     /** Variants whose steps passed but whose teardown failed: not red, but data may have been left behind. */
     teardownFailures: z.number().optional(),
+    /** T3.5: variants that passed only on a new attempt (counted as passed). */
+    passedOnRetry: z.number().optional(),
+    /** T3.5: what the quarantined variants did. They are not in the verdict. Absent when none was quarantined. */
+    quarantine: z.object({ total: z.number(), passed: z.number(), failed: z.number(), error: z.number(), notRun: z.number() }).strict().optional(),
     variants: z.array(variantStateSchema),
   })
   .strict();
