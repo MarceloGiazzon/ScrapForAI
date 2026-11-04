@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { nanoid } from 'nanoid';
-import type { Frame, Page } from 'playwright';
+import type { Browser, Frame, Page } from 'playwright';
 
 import { compareAudits, failureFor, normalizeAxeAnswer, type RawAxeAnswer } from '../a11y/audit.js';
 import { createArtifactStore, saveJsonFile } from '../artifacts/artifactStore.js';
@@ -13,8 +13,9 @@ import { summarizeResult } from '../history/summarizeResult.js';
 import { checkAssertEquals } from '../oracle/assertEquals.js';
 import { type AccessibilityDelta, STANDARD_TAGS } from '../schemas/accessibility.schema.js';
 import { type FrameRef, type RunnableStep, stubbedResourceTypes, type WaitCondition } from '../schemas/explorationRequest.schema.js';
-import type { ClockEvidence, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
-import { assertCredentialOrigin } from '../security/credentialBinding.js';
+import type { ClockEvidence, EvidenceBlock, ExplorationResult, JsonValue, StepResult } from '../schemas/explorationResult.schema.js';
+import type { PiiReport } from '../schemas/pii.schema.js';
+import { assertCredentialOrigin, type CredentialBinding } from '../security/credentialBinding.js';
 import { maskText, maskUrl, PII_SURFACES } from '../security/piiDetectors.js';
 import { meetsFailLevel, SEVERITY_RANK } from '../security/piiFindings.js';
 import { getPiiFingerprintKey } from '../security/piiSalt.js';
@@ -32,7 +33,30 @@ import { usesQuiet, waitForNetworkQuiet } from './networkQuiet.js';
 import { PiiScanner, usesPiiScan } from './piiScanner.js';
 import { runTrustedScript } from './trusted/runTrusted.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
-import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
+import { actorOf, actorsInUse, isMultiActor, MAIN_ACTOR } from './actors.js';
+import { mergeEvidence, mergePiiReports } from './mergeEvidence.js';
+import { type ActorContext, launchBrowser, openActorContext } from './playwrightContext.js';
+
+/**
+ * T6.4: everything that belongs to ONE actor -- its isolated browser context and page, the evidence it collected, its own fault controller
+ * and PII hunt, and the vault values only it may type. A run has one per actor that runs a step; a run without actors has just `main`.
+ */
+interface ActorSession {
+  name: string;
+  ctx: ActorContext;
+  evidence: EvidenceCollector;
+  faults: FaultController | undefined;
+  pii: PiiScanner | undefined;
+  /** `setClock` installAt is allowed once per browser context. */
+  clockInstalled: boolean;
+  credentials: Record<string, string> | undefined;
+  binding: CredentialBinding | undefined;
+  credentialSet: string | undefined;
+  domTextSnapshot: string | undefined;
+  stepsRun: number;
+  tracePath: string | undefined;
+  finalUrl: string | undefined;
+}
 
 class StepExecutionError extends Error {
   constructor(message: string) {
@@ -181,18 +205,22 @@ export async function runEvaluate(frame: Frame, script: string): Promise<unknown
   }
 }
 
-function resolveValue(step: RunnableStep, request: ResolvedExplorationRequest, targetFrame: Frame): string {
+function resolveValue(step: RunnableStep, request: ResolvedExplorationRequest, targetFrame: Frame, actor: ActorSession): string {
   if ('value' in step && step.value !== undefined) {
     return step.value;
   }
 
   if ('valueFromCredential' in step && step.valueFromCredential !== undefined) {
-    const value = request.credentials?.[step.valueFromCredential];
+    const value = actor.credentials?.[step.valueFromCredential];
     if (value === undefined) {
-      throw new StepExecutionError('Credential value was not provided');
+      throw new StepExecutionError(
+        actor.name === MAIN_ACTOR
+          ? 'Credential value was not provided'
+          : `Credential value was not provided for actor "${actor.name}" (it has no credentialSet, or its set has no such field)`,
+      );
     }
-    // Vault-sourced values may only be typed into pages of their bound origins (T1.2).
-    assertCredentialOrigin(request.credentialBinding, step.valueFromCredential, targetFrame.url());
+    // Vault-sourced values may only be typed into pages of their bound origins (T1.2): the origins of THIS actor's set (T6.4).
+    assertCredentialOrigin(actor.binding, step.valueFromCredential, targetFrame.url());
     return value;
   }
 
@@ -267,7 +295,14 @@ export async function runExploration(request: ResolvedExplorationRequest): Promi
 }
 
 async function runExplorationInner(request: ResolvedExplorationRequest): Promise<ExplorationResult> {
-  const knownSecrets = collectKnownSecretValues(request.credentials, { SCRAPFORAI_API_KEY: env.SCRAPFORAI_API_KEY });
+  // T6.4: the values of every actor's vault set are secrets of the run (blanked from every output, found by the PII hunt).
+  const knownSecrets = collectKnownSecretValues(
+    request.credentials,
+    { SCRAPFORAI_API_KEY: env.SCRAPFORAI_API_KEY },
+    ...Object.values(request.actorCredentials ?? {}).map((actor) => actor.credentials),
+  );
+  const usedActors = actorsInUse(request);
+  const multiActor = isMultiActor(usedActors);
   const jobId = `job_${nanoid(12)}`;
   const startedAt = new Date();
   const normalizedTargetUrl = validateTargetUrl(request.targetUrl);
@@ -276,8 +311,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   const functional = request.options.profile === 'functional';
   const screenshotMode = functional ? 'off' : request.options.screenshots;
   const traceOn = functional ? false : request.options.trace;
-  let playwright: PlaywrightJobContext | undefined;
-  let evidence: EvidenceCollector | undefined;
+  // T6.4: one browser, one isolated context per actor that runs a step (in the order of their first step). A run without actors has just `main`.
+  let browser: Browser | undefined;
+  const sessions = new Map<string, ActorSession>();
   const extracted: Record<string, JsonValue> = {};
   const steps: StepResult[] = [];
   const teardownSteps: StepResult[] = [];
@@ -288,11 +324,10 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   let domTextSnapshot: string | undefined;
   let finalUrl: string | undefined;
   let probedBuildId: string | undefined;
-  // T7.3: what setClock did to the browser's clock, and whether the clock was installed (it can be, once).
+  // T7.3: what setClock did to the browser's clock.
   const clockEvents: ClockEvidence[] = [];
-  let clockInstalled = false;
   // T7.8: the PII hunt of this run, only for a run that asks for it (options.piiScan or a scanForPii step).
-  let piiScanner: PiiScanner | undefined;
+  let hunting = false;
   let piiReport: ExplorationResult['pii'];
   // T8.1: the target profile of the run, when it has one (platform rules and noise filters).
   let profile: Awaited<ReturnType<typeof getTarget>> | undefined;
@@ -302,44 +337,66 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // overrides a headed request so it degrades to headless instead of failing to launch a
     // browser that was never bundled.
     const headless = env.FORCE_HEADLESS || request.options.headless;
-    // T7.2: the fault policy is installed only for a run that has an injectFault step; any other run installs nothing for it.
-    const faults: FaultController | undefined = usesFaults(request) ? createFaultController() : undefined;
-    playwright = await createPlaywrightContext(headless, request.options.viewport, {
-      stubResources: stubbedResourceTypes(request.options),
-      ...(faults ? { faults: faults.policy } : {}),
-      ...(usesQuiet(request) ? { networkTracker: true } : {}),
-    });
-    evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled, request.options.recordTraffic === true);
-
     // The profile is read once: its platform and noise filters (T8.1) and its PII policy (T7.9) are used below.
     profile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
 
-    if (usesPiiScan(request)) {
-      // T7.9: what this application's profile says is expected, and how serious each kind of finding is here.
-      const piiProfile = profile;
-      piiScanner = new PiiScanner(playwright.page, playwright.context, {
-        // The vault values of this run, plus the API key: any of them showing up on a page is a leak.
-        knownSecrets,
-        key: await getPiiFingerprintKey(),
-        ...(piiProfile?.pii ? { policy: piiProfile.pii } : {}),
+    browser = await launchBrowser(headless);
+    const piiKey = usesPiiScan(request) ? await getPiiFingerprintKey() : undefined;
+    const piiPolicy = profile?.pii;
+    for (const name of usedActors) {
+      // T7.2: the fault policy is installed only for a run that has an injectFault step; any other run installs nothing for it.
+      // One controller per actor: a fault hits the actor it was injected for, not every session of the run.
+      const faults: FaultController | undefined = usesFaults(request) ? createFaultController() : undefined;
+      const declared = name === MAIN_ACTOR ? undefined : request.actors?.[name];
+      const ctx = await openActorContext(browser, name === MAIN_ACTOR ? request.options.viewport : (declared?.viewport ?? request.options.viewport), {
+        stubResources: stubbedResourceTypes(request.options),
+        ...(faults ? { faults: faults.policy } : {}),
+        ...(usesQuiet(request) ? { networkTracker: true } : {}),
       });
-      piiScanner.attach();
-    }
+      const own = name === MAIN_ACTOR ? undefined : request.actorCredentials?.[name];
+      const session: ActorSession = {
+        name,
+        ctx,
+        // A screenshot of another actor goes to its own file (`bob--home.png`): two actors may both take "home".
+        evidence: registerEvidenceCollectors(ctx.page, artifactStore, ctx.routing.isHandled, request.options.recordTraffic === true, name === MAIN_ACTOR ? '' : `${name}--`),
+        faults,
+        pii: undefined,
+        clockInstalled: false,
+        // An actor never borrows main's vault values, and main never gets an actor's.
+        credentials: name === MAIN_ACTOR ? request.credentials : own?.credentials,
+        binding: name === MAIN_ACTOR ? request.credentialBinding : own?.credentialBinding,
+        credentialSet: name === MAIN_ACTOR ? request.credentialSet : declared?.credentialSet,
+        domTextSnapshot: undefined,
+        stepsRun: 0,
+        tracePath: undefined,
+        finalUrl: undefined,
+      };
+      sessions.set(name, session);
 
-    if (traceOn) {
-      await playwright.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
+      if (piiKey !== undefined) {
+        // T7.9: what this application's profile says is expected, and how serious each kind of finding is here.
+        session.pii = new PiiScanner(ctx.page, ctx.context, {
+          // The vault values of this run, plus the API key: any of them showing up on a page is a leak.
+          knownSecrets,
+          key: piiKey,
+          ...(piiPolicy ? { policy: piiPolicy } : {}),
+        });
+        session.pii.attach();
+        hunting = true;
+      }
+
+      if (traceOn) {
+        await ctx.context.tracing.start({ screenshots: false, snapshots: true, sources: false });
+      }
     }
+    const primary = sessions.get(usedActors[0]!)!;
 
     // One step, in either phase. Teardown (T1.4) uses the same machinery but must not touch the verdict:
     // its failures stay in teardownSteps and never set failedStepIndex/resultError.
-    // Narrowed here, once, because TypeScript does not carry the narrowing of `let` variables into closures.
-    const activePlaywright = playwright;
-    const activeEvidence = evidence;
-    const activeFaults = faults;
-    const activePii = piiScanner;
     const runStep = async (step: RunnableStep, index: number, phase: 'steps' | 'teardown'): Promise<boolean> => {
-      const playwright = activePlaywright;
-      const evidence = activeEvidence;
+      // Every actor a step names was opened above (actorsInUse reads the same lists).
+      const session = sessions.get(actorOf(step))!;
+      const evidence = session.evidence;
       let stepFailed = false;
       const stepStartedAt = new Date();
       let responseWaiter: Promise<unknown> | undefined;
@@ -348,6 +405,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         id: step.id,
         label: step.label,
         description: step.description,
+        ...(step.actor === undefined ? {} : { actor: step.actor }),
         action: step.action,
         status: 'passed',
         startedAt: stepStartedAt.toISOString(),
@@ -356,7 +414,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       };
 
       try {
-        const page = playwright.page;
+        const page = session.ctx.page;
         const timeout = timeoutFor(step);
         const frame = resolveFrame(page, step.frame);
 
@@ -393,7 +451,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           case 'setOffline':
             // Cuts (or restores) the network for the whole browser context: fetch/XHR fail, navigator.onLine
             // flips and the page gets its online/offline events, exactly as a real connection drop does.
-            await playwright.context.setOffline(step.offline);
+            await session.ctx.context.setOffline(step.offline);
             break;
           case 'waitForLoadState':
             await frame.waitForLoadState(step.state, { timeout });
@@ -415,14 +473,26 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             // framework layout engines (e.g. ExtJS onWindowResize) recalculate exactly
             // as a physical window drag does. Also calls setViewportSize so Playwright's
             // viewport emulation stays in sync for correct screenshots. Chromium only.
-            const cdp = await playwright!.browser.newBrowserCDPSession();
+            const cdp = await browser!.newBrowserCDPSession();
             try {
-              const { targetInfos } = await cdp.send('Target.getTargets', {}) as { targetInfos: Array<{ targetId: string; type: string }> };
-              const target = targetInfos.find((t) => t.type === 'page');
-              if (!target) {
+              // T6.4: the window of THIS actor's page. "The first page of the browser" is wrong once several actors share the browser.
+              let targetId: string | undefined;
+              const pageCdp = await session.ctx.context.newCDPSession(page).catch(() => undefined);
+              try {
+                targetId = pageCdp ? ((await pageCdp.send('Target.getTargetInfo')) as { targetInfo: { targetId: string } }).targetInfo.targetId : undefined;
+              } catch {
+                targetId = undefined;
+              } finally {
+                await pageCdp?.detach().catch(() => undefined);
+              }
+              if (targetId === undefined) {
+                const { targetInfos } = await cdp.send('Target.getTargets', {}) as { targetInfos: Array<{ targetId: string; type: string }> };
+                targetId = targetInfos.find((t) => t.type === 'page')?.targetId;
+              }
+              if (targetId === undefined) {
                 throw new StepExecutionError('resizeWindow: no page target found via CDP');
               }
-              const { windowId } = await cdp.send('Browser.getWindowForTarget', { targetId: target.targetId }) as { windowId: number };
+              const { windowId } = await cdp.send('Browser.getWindowForTarget', { targetId }) as { windowId: number };
               await cdp.send('Browser.setWindowBounds', { windowId, bounds: { width: step.width, height: step.height } });
             } finally {
               await cdp.detach().catch(() => undefined);
@@ -431,7 +501,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             break;
           }
           case 'fill':
-            await frame.locator(step.selector).fill(resolveValue(step, request, frame), { timeout });
+            await frame.locator(step.selector).fill(resolveValue(step, request, frame, session), { timeout });
             break;
           case 'click':
             await frame.locator(step.selector).click({ timeout });
@@ -446,7 +516,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             await frame.locator(step.selector).press(step.key, { timeout });
             break;
           case 'selectOption':
-            await frame.locator(step.selector).selectOption(resolveValue(step, request, frame), { timeout });
+            await frame.locator(step.selector).selectOption(resolveValue(step, request, frame, session), { timeout });
             break;
           case 'check':
             await frame.locator(step.selector).check({ timeout });
@@ -539,6 +609,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               const domText = await evidence.collectDomText();
               if (domText) {
                 domTextSnapshot = domText;
+                session.domTextSnapshot = domText;
               }
             }
 
@@ -667,6 +738,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           }
           case 'injectFault': {
             // T7.2: the policy was installed with the context because the run has this step; the allowlist is applied per request.
+            const activeFaults = session.faults;
             if (!activeFaults) throw new StepExecutionError('injectFault: fault injection is not active for this run');
             activeFaults.add({
               match: step.match,
@@ -688,6 +760,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           }
           case 'scanForPii': {
             // T7.8: reads only. The report keeps masked samples and fingerprints; the raw text was scanned in memory and dropped.
+            const activePii = session.pii;
             if (!activePii) throw new StepExecutionError('scanForPii: the PII hunt is not active for this run');
             const surfaces = step.surfaces ?? PII_SURFACES;
             await activePii.scan(frame, surfaces);
@@ -704,21 +777,22 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           }
           case 'setClock': {
             // T7.3: the browser's clock only (context-wide: every page and frame). The server's clock is the real one.
-            const clock = playwright.context.clock;
+            const clock = session.ctx.context.clock;
             if (step.fixedTime !== undefined) {
               const at = new Date(step.fixedTime);
               await clock.setFixedTime(at);
-              clockEvents.push({ ...(step.id ? { stepId: step.id } : {}), mode: 'fixed', time: at.toISOString() });
+              clockEvents.push({ ...(step.id ? { stepId: step.id } : {}), ...(step.actor ? { actor: step.actor } : {}), mode: 'fixed', time: at.toISOString() });
             } else {
-              if (clockInstalled) {
+              if (session.clockInstalled) {
                 throw new StepExecutionError('setClock: installAt can be used once per run (installing again would restart the time); use fixedTime to move the clock');
               }
               const at = new Date(step.installAt!);
               await clock.install({ time: at });
-              clockInstalled = true;
+              session.clockInstalled = true;
               if (step.fastForwardMs !== undefined) await clock.fastForward(step.fastForwardMs);
               clockEvents.push({
                 ...(step.id ? { stepId: step.id } : {}),
+                ...(step.actor ? { actor: step.actor } : {}),
                 mode: 'install',
                 time: at.toISOString(),
                 ...(step.fastForwardMs === undefined ? {} : { fastForwardMs: step.fastForwardMs }),
@@ -786,9 +860,11 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           await applyWaitCondition(page, step.frame, step.afterWaitFor);
         }
 
-        const disallowedNavigationError = evidence.getDisallowedNavigationError();
-        if (disallowedNavigationError) {
-          throw new StepExecutionError(disallowedNavigationError);
+        for (const other of [session, ...sessions.values()]) {
+          const disallowedNavigationError = other.evidence.getDisallowedNavigationError();
+          if (disallowedNavigationError) {
+            throw new StepExecutionError(other === session || !multiActor ? disallowedNavigationError : `[actor ${other.name}] ${disallowedNavigationError}`);
+          }
         }
       } catch (error) {
         responseWaiter?.catch(() => undefined);
@@ -810,11 +886,12 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         const finishedAt = new Date();
         stepResult.finishedAt = finishedAt.toISOString();
         stepResult.durationMs = finishedAt.getTime() - stepStartedAt.getTime();
+        session.stepsRun += 1;
         (phase === 'steps' ? steps : teardownSteps).push(stepResult);
         if (step.id) {
           stepFinishedAt.set(step.id, finishedAt.getTime());
           // T7.2: a fault that was to last "until this step" ends now, pass or fail.
-          activeFaults?.stepFinished(step.id);
+          for (const each of sessions.values()) each.faults?.stepFinished(step.id);
         }
       }
 
@@ -828,6 +905,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           const domText = await evidence.collectDomText();
           if (domText) {
             domTextSnapshot = domText;
+            session.domTextSnapshot = domText;
           }
         }
       }
@@ -842,27 +920,32 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     }
 
     // T7.8: storage, cookies and hidden inputs are read once, here: after the steps (logged in, on the last page) and before a teardown that may log out.
-    if (piiScanner && request.options.piiScan) {
-      await piiScanner.scan(playwright.page.mainFrame()).catch(() => undefined);
+    if (request.options.piiScan) {
+      for (const each of sessions.values()) await each.pii?.scan(each.ctx.page.mainFrame()).catch(() => undefined);
     }
 
     // Always runs once a browser exists, whether the steps passed or failed. Each teardown step is
     // attempted even if an earlier one failed: cleanup is best-effort and independent.
     // T7.2: faults of the steps end here, so the cleanup talks to the application as it really is (a teardown may inject its own).
-    faults?.clear();
+    for (const each of sessions.values()) each.faults?.clear();
     for (const [index, step] of (request.teardown ?? []).entries()) {
       await runStep(step, index, 'teardown');
     }
 
-    if (piiScanner && request.options.piiScan) {
+    if (request.options.piiScan) {
       // The bodies still being read when the last step ended (teardown included) are waited for, bounded.
-      await piiScanner.settle();
-      piiReport = piiScanner.report();
+      const reports: Array<{ actor: string; report: PiiReport }> = [];
+      for (const each of sessions.values()) {
+        if (!each.pii) continue;
+        await each.pii.settle();
+        reports.push({ actor: each.name, report: each.pii.report() });
+      }
+      piiReport = multiActor ? mergePiiReports(reports) : reports[0]?.report;
     }
 
     // T3.1: the build the app reports (never fails the run, `unknown` when it cannot be read).
     if (request.buildProbe) {
-      probedBuildId = await probeBuildId(request.buildProbe.info, request.buildProbe.baseUrl, playwright.context);
+      probedBuildId = await probeBuildId(request.buildProbe.info, request.buildProbe.baseUrl, primary.ctx.context);
     }
   } catch (error) {
     const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown runner error';
@@ -871,39 +954,74 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       message,
     };
   } finally {
-    finalUrl = playwright?.page.url() ?? normalizedTargetUrl;
-    if (traceOn && playwright) {
-      const trace = artifactStore.tracePath();
-      await playwright.context.tracing.stop({ path: trace.absolutePath }).catch(() => undefined);
-      tracePath = trace.relativePath;
+    // The run's own page is the first one that ran a step; every actor's last address is read BEFORE its page closes.
+    for (const each of sessions.values()) each.finalUrl = each.ctx.page.url();
+    finalUrl = [...sessions.values()][0]?.finalUrl ?? normalizedTargetUrl;
+    if (traceOn) {
+      for (const each of sessions.values()) {
+        // trace.zip is main's (as it always was); another actor's is trace.<actor>.zip.
+        const trace = artifactStore.tracePath(each.name === MAIN_ACTOR ? undefined : each.name);
+        await each.ctx.context.tracing.stop({ path: trace.absolutePath }).catch(() => undefined);
+        each.tracePath = trace.relativePath;
+      }
+      tracePath = (sessions.get(MAIN_ACTOR) ?? [...sessions.values()][0])?.tracePath;
     }
-    await playwright?.close();
+    for (const each of sessions.values()) await each.ctx.close();
+    await browser?.close().catch(() => undefined);
   }
 
   const finishedAt = new Date();
   const status = failedStepIndex === undefined && !resultError ? 'passed' : 'failed';
-  // T7.8: what a hunting run keeps as evidence must not hold the values it reports: console text, page errors, the URL a console line came from, the DOM text of a failure.
-  const hunting = piiScanner !== undefined;
   const maskOptions = { knownSecrets };
-  const consoleEvidence = hunting
-    ? (evidence?.console ?? []).map((item) => ({
-        ...item,
-        text: maskText(item.text, maskOptions),
-        ...(item.location ? { location: { ...item.location, ...(item.location.url ? { url: maskUrl(item.location.url, maskOptions) } : {}) } } : {}),
-      }))
-    : (evidence?.console ?? []);
-  const pageErrorEvidence = hunting ? (evidence?.pageErrors ?? []).map((message) => maskText(message, maskOptions)) : (evidence?.pageErrors ?? []);
-  const domTextEvidence = hunting && domTextSnapshot ? maskText(domTextSnapshot, maskOptions) : domTextSnapshot;
-  const networkEvidence = evidence?.network ?? [];
-  const consoleErrors = consoleEvidence.filter((item) => item.type === 'error');
-  const routingEntries = playwright?.routing.entries ?? [];
+  const noiseRules = noiseRulesFor(profile);
   // T7.8: a run that hunts for secrets in URLs must not write the one it found into its own result (finalUrl keeps the query and the fragment).
-  const recordedUrl = piiScanner && finalUrl ? maskUrl(finalUrl, { knownSecrets }) : finalUrl;
-  // T8.1: known noise (the platform's, the profile's) is left out of the failures and counted apart; `network` keeps every request.
-  const { kept: networkFailures, filtered: noiseFiltered } = applyNoiseFilters(
-    networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400)),
-    noiseRulesFor(profile),
-  );
+  const recordable = (url: string | undefined): string | undefined => (hunting && url ? maskUrl(url, maskOptions) : url);
+  const recordedUrl = recordable(finalUrl);
+  // The evidence of ONE actor (T6.4). A run without actors has exactly one -- main's -- and it is the run's evidence, as it always was.
+  const evidenceOf = (session: ActorSession | undefined, domText: string | undefined): EvidenceBlock => {
+    const collected = session?.evidence;
+    // T7.8: what a hunting run keeps as evidence must not hold the values it reports: console text, page errors, the URL a console line came from, the DOM text of a failure.
+    const consoleEvidence = hunting
+      ? (collected?.console ?? []).map((item) => ({
+          ...item,
+          text: maskText(item.text, maskOptions),
+          ...(item.location ? { location: { ...item.location, ...(item.location.url ? { url: maskUrl(item.location.url, maskOptions) } : {}) } } : {}),
+        }))
+      : (collected?.console ?? []);
+    const pageErrorEvidence = hunting ? (collected?.pageErrors ?? []).map((message) => maskText(message, maskOptions)) : (collected?.pageErrors ?? []);
+    const domTextEvidence = hunting && domText ? maskText(domText, maskOptions) : domText;
+    const networkEvidence = collected?.network ?? [];
+    const routingEntries = session?.ctx.routing.entries ?? [];
+    const sessionUrl = recordable(session ? session.finalUrl : finalUrl);
+    // T8.1: known noise (the platform's, the profile's) is left out of the failures and counted apart; `network` keeps every request.
+    const { kept: networkFailures, filtered: noiseFiltered } = applyNoiseFilters(
+      networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400)),
+      noiseRules,
+    );
+    return {
+      screenshots: collected?.screenshots ?? [],
+      ...(session?.tracePath === undefined ? {} : { tracePath: session.tracePath }),
+      console: consoleEvidence,
+      consoleErrors: consoleEvidence.filter((item) => item.type === 'error'),
+      pageErrors: pageErrorEvidence,
+      network: networkEvidence,
+      networkFailures,
+      ...(noiseFiltered.length > 0 ? { noiseFiltered } : {}),
+      unexpectedExternalRequests: collected?.unexpectedExternalRequests ?? [],
+      ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
+      ...(collected?.traffic ? { traffic: collected.traffic, ...(collected.trafficTruncated ? { trafficTruncated: true } : {}) } : {}),
+      ...(domTextEvidence === undefined ? {} : { domTextSnapshot: domTextEvidence }),
+      ...(sessionUrl === undefined ? {} : { finalUrl: sessionUrl }),
+    };
+  };
+  const perActor = [...sessions.values()].map((session) => ({ session, actor: session.name, evidence: evidenceOf(session, session.domTextSnapshot) }));
+  const runEvidence: EvidenceBlock = multiActor
+    ? {
+        ...mergeEvidence(perActor),
+        ...(hunting && domTextSnapshot ? { domTextSnapshot: maskText(domTextSnapshot, maskOptions) } : domTextSnapshot ? { domTextSnapshot } : {}),
+        ...(recordedUrl === undefined ? {} : { finalUrl: recordedUrl }),
+      }
+    : evidenceOf([...sessions.values()][0], domTextSnapshot);
   const rawResult: ExplorationResult = {
     jobId,
     scenarioName: request.scenarioName,
@@ -934,21 +1052,18 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     error: resultError,
     steps,
     extracted,
-    evidence: {
-      screenshots: evidence?.screenshots ?? [],
-      tracePath,
-      console: consoleEvidence,
-      consoleErrors,
-      pageErrors: pageErrorEvidence,
-      network: networkEvidence,
-      networkFailures,
-      ...(noiseFiltered.length > 0 ? { noiseFiltered } : {}),
-      unexpectedExternalRequests: evidence?.unexpectedExternalRequests ?? [],
-      ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
-      ...(evidence?.traffic ? { traffic: evidence.traffic, ...(evidence.trafficTruncated ? { trafficTruncated: true } : {}) } : {}),
-      domTextSnapshot: domTextEvidence,
-      finalUrl: recordedUrl,
-    },
+    // T6.4: each actor's own evidence, only when a step named an actor other than main. `evidence` below is then the merged view, every item tagged.
+    ...(multiActor
+      ? {
+          actors: Object.fromEntries(
+            perActor.map(({ session, evidence: block }) => [
+              session.name,
+              { ...(session.credentialSet === undefined ? {} : { credentialSet: session.credentialSet }), ...(block.finalUrl === undefined ? {} : { finalUrl: block.finalUrl }), stepsRun: session.stepsRun, evidence: block },
+            ]),
+          ),
+        }
+      : {}),
+    evidence: runEvidence,
   };
 
   const result = redactSecrets(rawResult, knownSecrets);
@@ -965,6 +1080,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         targetUrl: normalizedTargetUrl,
         targetProfile: request.targetProfile,
         credentialSet: request.credentialSet,
+        // T6.4: the actors' names, credential-set ids and viewports (never a value), so a good run saves as the routine it was.
+        ...(request.actors ? { actors: request.actors } : {}),
         options: request.options,
         // T5.3: declared parameters (never the generated values or the seed: those are per run).
         ...(request.parameters ? { parameters: request.parameters } : {}),

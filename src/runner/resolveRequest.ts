@@ -1,3 +1,4 @@
+import { env } from '../config/env.js';
 import { ParameterError, resolveParameters } from '../generators/resolveParameters.js';
 import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpander.js';
 import type { ExplorationRequest, ExplorationStep, RunnableStep } from '../schemas/explorationRequest.schema.js';
@@ -5,6 +6,8 @@ import type { ParameterRecord } from '../schemas/parameters.schema.js';
 import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
+import { firstOverflow } from '../orchestrator/jobQueue.js';
+import { actorsInUse, sessionCredentialSets } from './actors.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
 import { resolveCredentialSet } from '../vault/credentials/credentialVault.js';
@@ -18,6 +21,12 @@ export const AUTO_LOGIN_ID = 'autologin';
 /** True when a step types a vault value: the run logs itself in. */
 function typesCredential(steps: RunnableStep[]): boolean {
   return steps.some((step) => (step.action === 'fill' || step.action === 'selectOption') && step.valueFromCredential !== undefined);
+}
+
+/** T6.4: what one actor may type from the vault: the fields of ITS credential set, and the origins they are bound to. */
+export interface ActorCredentials {
+  credentials: Record<string, string>;
+  credentialBinding: CredentialBinding;
 }
 
 /** A request whose target profile and credential set have been resolved server-side. */
@@ -34,6 +43,11 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   unexpanded?: { steps: ExplorationStep[]; teardown?: ExplorationStep[] };
   /** Set only when `credentialSet` was used; drives the per-fill origin check. */
   credentialBinding?: CredentialBinding;
+  /**
+   * T6.4: the vault values of each declared actor that has a `credentialSet`, keyed by actor. `credentials`/`credentialBinding` above belong to
+   * `main` only: an actor never sees another actor's values, and an actor with no set here has none.
+   */
+  actorCredentials?: Record<string, ActorCredentials>;
   /** Set when the run executes a library routine (T1.3); recorded in the result and history. */
   routine?: { id: string; version: number; sha256: string };
   /** Set when the run is one variant of a suite (T1.6); recorded in the result and history. */
@@ -59,6 +73,7 @@ export async function resolveExplorationRequest(
   let allowedSets: string[] | undefined;
   let buildProbe: ResolvedExplorationRequest['buildProbe'];
   let faultsForbiddenBy: string | undefined;
+  let maxSessionsPerCredential = 1;
   let autoLoginSource: { routineId: string; gate?: { urlContains: string; timeoutMs: number } } | undefined;
 
   if (request.targetProfile !== undefined) {
@@ -69,6 +84,7 @@ export async function resolveExplorationRequest(
 
     targetUrl ??= validateTargetUrl(profile.baseUrl);
     allowedSets = profile.credentialSets;
+    maxSessionsPerCredential = profile.flags.maxSessionsPerCredential ?? 1;
     faultsForbiddenBy = profile.environment === 'staging' && !profile.flags.allowFaults ? profile.id : undefined;
     // T8.1: a genexus profile logs in for you when the run uses one of its credential sets (platform npdev: rules still to be gathered with that team).
     if (profile.platform === 'genexus' && profile.loginRoutine && request.credentialSet !== undefined && request.options.autoLogin !== false) {
@@ -87,7 +103,12 @@ export async function resolveExplorationRequest(
   // The includes must belong to the app the routine was written for, even when a suite runs it against
   // another environment's profile (qa instead of dev).
   const expandOptions = { targetProfile: options.includeProfile ?? request.targetProfile };
-  const expandInput = { steps: request.steps, teardown: request.teardown, ...(request.parameters ? { parameters: request.parameters } : {}) };
+  const expandInput = {
+    steps: request.steps,
+    teardown: request.teardown,
+    ...(request.parameters ? { parameters: request.parameters } : {}),
+    ...(request.actors ? { actors: request.actors } : {}),
+  };
   let expanded = await expandIncludes(expandInput, expandOptions);
   let autoLogin: ResolvedExplorationRequest['autoLogin'];
 
@@ -128,6 +149,20 @@ export async function resolveExplorationRequest(
     throw error;
   }
 
+  // T6.4: every actor in use is a real browser context and a real session; and an account can be in only as many sessions as the profile allows.
+  const used = actorsInUse(parameterized);
+  if (used.length > env.MAX_ACTORS_PER_JOB) {
+    throw new RequestResolutionError(400, 'TooManyActors', `The run uses ${used.length} actors (${used.join(', ')}) but MAX_ACTORS_PER_JOB is ${env.MAX_ACTORS_PER_JOB}`);
+  }
+  const overflow = firstOverflow(sessionCredentialSets(request), maxSessionsPerCredential);
+  if (overflow) {
+    throw new RequestResolutionError(
+      400,
+      'TooManySessionsForCredential',
+      `Credential set "${overflow.lockKey}" is used by ${overflow.wanted} actors of this run but the target profile allows ${maxSessionsPerCredential} simultaneous session(s) (flags.maxSessionsPerCredential)`,
+    );
+  }
+
   const { steps: _steps, teardown: _teardown, ...rest } = request;
   const resolved: ResolvedExplorationRequest = {
     ...rest,
@@ -163,6 +198,26 @@ export async function resolveExplorationRequest(
 
     resolved.credentials = { ...request.credentials, ...set.values };
     resolved.credentialBinding = { setId: set.id, boundOrigins: set.boundOrigins, fields: Object.keys(set.values) };
+  }
+
+  // T6.4: each actor loads ITS OWN set, under the same rules as the run's. No fallback to main's: an actor without a set has no vault values.
+  for (const [actorName, actor] of Object.entries(request.actors ?? {})) {
+    if (actor.credentialSet === undefined) continue;
+    if (allowedSets && !allowedSets.includes(actor.credentialSet)) {
+      throw new RequestResolutionError(
+        403,
+        'CredentialSetNotAllowed',
+        `Credential set "${actor.credentialSet}" (actor "${actorName}") is not allowed for target profile "${request.targetProfile}"`,
+      );
+    }
+    const set = await resolveCredentialSet(actor.credentialSet);
+    if (!set) {
+      throw new RequestResolutionError(404, 'CredentialSetNotFound', `Credential set "${actor.credentialSet}" (actor "${actorName}") does not exist`);
+    }
+    (resolved.actorCredentials ??= {})[actorName] = {
+      credentials: { ...set.values },
+      credentialBinding: { setId: set.id, boundOrigins: set.boundOrigins, fields: Object.keys(set.values) },
+    };
   }
 
   return resolved;

@@ -307,6 +307,25 @@ step limits, artifact retention, etc.).
   optional visual diff (D6, deferred on purpose: semantic first), a report in HTML/PDF (the run has `?format=md`), differential as a suite variant or a vault item, a per-routine credential set per side, comparing request
   COUNTS (repeats are counted in the evidence but are not a difference), response bodies, and the web UI. Not run against a real GeneXus 17 x 18 pair: only the fixture (`test/differential.smoke.ts`: values, a new
   console error, a 200 -> 500, a slow call, masked ids, a fixed-address warning, an infra-error). `test/differential.test.ts` (pure rules), `test/cli.test.ts`.
+- **Actors** (`src/runner/actors.ts`, `mergeEvidence.ts`, `playwrightContext.ts`, `resolveRequest.ts`, T6.4): more than one session in one run. `actors: { [name]: { credentialSet?, viewport? } }` on a request and on a library routine
+  (optional, no default, so older digests hold); a step and an `include` take `actor?`. No `actors` = the implicit `main`, and a run without them is what it always was (no `actors` block, no tag anywhere). `main` is the request's own
+  `credentialSet` + `options.viewport` and **cannot be declared**. **One `BrowserContext` per actor IN USE** (steps and teardown; opened in order of first use, in the run's ONE browser), so cookies/storage never cross; a declared actor nobody uses costs
+  nothing, a run whose steps all name an actor never opens `main`, and `MAX_ACTORS_PER_JOB` (5, `main` counts) caps the contexts. An undeclared actor is refused at validation (also after includes are expanded: the includer declares the names an
+  included routine uses, declarations are not merged). **Credentials are per actor**: each declared set is loaded under the same rules as the run's (profile `credentialSets`, 403/404 naming the actor) with its OWN origin binding; an actor
+  **never borrows main's values** (an actor with no set fails `valueFromCredential` with "not provided for actor X"; legacy inline `credentials` are main's); every actor's values are known secrets (redaction, PII `known-secret`).
+  `include { actor }` makes the included steps that name none run as that actor (nearest include wins, a step's own `actor` wins). **The single-session rule covers actors**: a run holds one session per credential set (main's + each DECLARED actor's,
+  conservative because the queue decides before includes are expanded) **all at once** (`JobQueue` `lockKeys`, all or nothing, so two jobs never each hold half of what the other needs); one set on two actors counts twice, so it needs
+  `flags.maxSessionsPerCredential` >= 2, else 400 `TooManySessionsForCredential` (the queue rejects `LockUnsatisfiable` instead of waiting for ever). Sites: `acquireInteractiveSlot`, suites (`actorLockKeys` next to `lockKey`), scheduler, shrink, differential.
+  **Per actor, because the thing belongs to a context**: `setOffline`, `setClock` (`installAt` once per actor; `result.clock[].actor`), `injectFault` (one controller per actor: a fault hits the actor it was injected for; `untilStep` ends it whoever runs that step),
+  the network-quiet tracker, the PII scanner, `resizeWindow` (the actor's own window, found by its page's CDP target: "the first page of the browser" was wrong with several). **Evidence is separate AND merged**: `result.actors[name] = { credentialSet?, finalUrl?,
+  stepsRun, evidence }` (only when some step names an actor other than `main`) holds each actor's own console/network/screenshots/routing/traffic; `result.evidence` stays the whole-run view for everything that already reads it (history, reports,
+  the differential), with `actor` on every screenshot/console/network/routing item, page errors prefixed `[actor] `, traffic summed, `result.pii` merged (locations prefixed `[actor] `, counts recomputed). Step results carry `actor` (only when the
+  step named one). Files: a screenshot of a non-main actor is `screenshots/<actor>--<name>.png` (its `name` stays plain, so the report still finds `failure`), traces are `trace.zip` (main) and `trace.<actor>.zip`, and `pin` drops them all unless `keepTrace`.
+  `domTextSnapshot` is the last one any actor captured, `finalUrl` and the build probe are the first actor's. A navigation off the allowlist in ANY actor's page fails the run at the next step (the error is sticky, as with one page). Convention
+  lint **GX001** follows each actor (one actor's submit is not another's, and another actor's gate does not vouch for a login). **Pitfall:** redaction blanks a vault value wherever it appears, so an actor or credential set named like a value
+  (an actor `admin` while a user is `admin`) shows as `[REDACTED]` in the result. Steps run strictly one after the other. Not done: `parallel { branches }` and races (T6.5), the ready-made concurrency scenarios (T6.6), automatic login for an actor
+  (T8.1 logs in `main` only: include the login `as` the actor), actors in the permission matrix / snapshots, a per-actor section in the HTML report (the step table and screenshot captions say who), and merging the actor declarations of included
+  routines. `test/actors.test.ts` (helpers, schema, lock, merge, include, resolution, GX001), `test/actors.smoke.ts` (Chromium: two logged-in users that do not share a cookie, per-actor evidence/credentials/origin/viewport/window, a run without actors unchanged).
 - **Scheduler** (`src/scheduler/`, T3.2): `PUT /v1/schedules/:id` (bearer only: it makes the server start browsers on its own) stores `{ cron, timezone (default
   America/Montevideo), target, enabled, overlap: 'skip', jitterSeconds, notify }` in `<dataDir>/schedules/<id>.json`; the cursor, the run in progress and the last 100 outcomes live in
   `schedules/state/<id>.json`. `target` = `{ kind: 'routine', routineId, version?, credentialSet?, targetProfile?, profile?, buildId? }` | `{ kind: 'suite', suite }` | `{ kind: 'vault', tags? }`
@@ -611,6 +630,7 @@ Put the command first and global options (`--json`, `--url`) after it.
   `test/suite-run.smoke.ts` (credential locks measured server-side, failFast, verdicts, cancel, 409 vs interactive),
   `test/routine-library.smoke.ts` (pinned versions, history tagging, saving a run without its secret), all
   against a real headless Chromium instance. Tests must set `ARTIFACT_DIR` to a temp dir: `.env` may pin it.
+- `test/actors.smoke.ts` (also in `test:smoke`): two actors against a fixture with a server-side session.
 - `test/inspect-dom.smoke.ts` spins up a local HTTP fixture and asserts `inspectDom` returns a correct
   snapshot; it isn't currently wired into an npm script, so run it directly with
   `tsx --test test/inspect-dom.smoke.ts` if you touch DOM-snapshot code.

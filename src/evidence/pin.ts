@@ -72,7 +72,12 @@ async function contextOf(dir: string): Promise<NonNullable<EvidenceManifest['con
   }
 }
 
-const TRACE_FILE = 'trace.zip';
+/** `trace.zip`, and (T6.4) the `trace.<actor>.zip` of every other actor of the run. */
+const TRACE_FILE = /^trace(\.[A-Za-z0-9_-]+)?\.zip$/;
+
+async function traceFiles(dir: string): Promise<string[]> {
+  return (await fs.readdir(dir).catch(() => [] as string[])).filter((name) => TRACE_FILE.test(name));
+}
 
 function describe(manifest: EvidenceManifest, manifestSha256: string, bytes: number, alreadyPinned: boolean): PinResult {
   const pin = manifest.pin;
@@ -90,7 +95,9 @@ function describe(manifest: EvidenceManifest, manifestSha256: string, bytes: num
 }
 
 async function traceSize(dir: string): Promise<number> {
-  return (await fs.stat(path.join(dir, TRACE_FILE)).catch(() => undefined))?.size ?? 0;
+  let total = 0;
+  for (const name of await traceFiles(dir)) total += (await fs.stat(path.join(dir, name)).catch(() => undefined))?.size ?? 0;
+  return total;
 }
 
 /**
@@ -160,7 +167,7 @@ export function pinJob(jobId: string, request: PinRequest): Promise<PinResult> {
       }
 
       if (dropTrace) {
-        await fs.rm(path.join(staging, TRACE_FILE), { force: true });
+        for (const name of await traceFiles(staging)) await fs.rm(path.join(staging, name), { force: true });
       }
 
       const manifest = await buildManifest(staging, jobId, 'pinned', {

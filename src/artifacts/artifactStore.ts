@@ -12,7 +12,8 @@ export interface ArtifactStore {
   screenshotsDir: string;
   relativeRoot: string;
   screenshotPath(name: string): { absolutePath: string; relativePath: string; safeName: string };
-  tracePath(): { absolutePath: string; relativePath: string };
+  /** `trace.zip`, or (T6.4) `trace.<actor>.zip` for an actor other than main. */
+  tracePath(actor?: string): { absolutePath: string; relativePath: string };
   resultPath(): { absolutePath: string; relativePath: string };
   /** Sanitized copy of the request (no credential values), so a good run can be saved as a routine. */
   requestPath(): { absolutePath: string; relativePath: string };
@@ -75,10 +76,11 @@ export async function createArtifactStore(jobId: string): Promise<ArtifactStore>
         safeName,
       };
     },
-    tracePath() {
+    tracePath(actor?: string) {
+      const file = actor === undefined ? 'trace.zip' : `trace.${safeFileName(actor, 'actor')}.zip`;
       return {
-        absolutePath: path.join(rootDir, 'trace.zip'),
-        relativePath: relativeArtifactPath(safeJobId, 'trace.zip'),
+        absolutePath: path.join(rootDir, file),
+        relativePath: relativeArtifactPath(safeJobId, file),
       };
     },
     resultPath() {

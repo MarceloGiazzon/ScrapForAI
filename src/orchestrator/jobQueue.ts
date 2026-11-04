@@ -8,6 +8,9 @@
  *  - Locks: at most `maxPerLock` running tasks per lock key. The key is a credential set id, which is
  *    how the "one session per account" rule of GeneXus applications is enforced (a second login with
  *    the same user kills the first session). A task blocked on a lock never blocks tasks behind it.
+ *    A task with several actors (T6.4) holds ALL its keys at once (`lockKeys`): it starts only when every one is free, so
+ *    two jobs can never each hold half of what the other needs. A key listed twice is two sessions on one account and
+ *    counts twice against `maxPerLock`.
  *
  * Single process by design, like the run history and the session store.
  */
@@ -15,6 +18,33 @@
 export type JobPriority = 'interactive' | 'suite' | 'scheduled';
 
 const RANK: Record<JobPriority, number> = { interactive: 0, suite: 1, scheduled: 2 };
+
+/** A task asks for more simultaneous sessions on one credential than `maxPerLock` allows: it could never start, so it is refused instead of queued. */
+export class LockUnsatisfiableError extends Error {
+  constructor(
+    public readonly lockKey: string,
+    public readonly wanted: number,
+    public readonly allowed: number,
+  ) {
+    super(`Credential set "${lockKey}" is used by ${wanted} actors of one run but the target profile allows ${allowed} simultaneous session(s) (flags.maxSessionsPerCredential)`);
+    this.name = 'LockUnsatisfiable';
+  }
+}
+
+/** The keys a task holds, counted: ['a','a','b'] -> a:2, b:1. */
+export function countLockKeys(keys: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return counts;
+}
+
+/** The first key that wants more sessions than `maxPerLock`, if any. */
+export function firstOverflow(keys: readonly string[], maxPerLock: number): { lockKey: string; wanted: number } | undefined {
+  for (const [lockKey, wanted] of countLockKeys(keys)) {
+    if (wanted > maxPerLock) return { lockKey, wanted };
+  }
+  return undefined;
+}
 
 export class JobCancelledError extends Error {
   constructor(message = 'Job was cancelled before it started') {
@@ -34,6 +64,8 @@ export interface RunOptions {
   priority: JobPriority;
   /** Concurrency domain, e.g. a credential set id. Tasks with the same key are limited by `maxPerLock`. */
   lockKey?: string;
+  /** T6.4: more keys held together with `lockKey` (one per actor session). All or nothing; a repeat counts again. */
+  lockKeys?: readonly string[];
   maxPerLock?: number;
   /** Aborting while the task is still waiting rejects it with JobCancelledError. A running task is not interrupted. */
   signal?: AbortSignal;
@@ -44,10 +76,14 @@ export type AcquireResult = { ok: true; release: () => void } | { ok: false; rea
 interface Waiting {
   rank: number;
   seq: number;
-  lockKey?: string;
+  lockKeys: readonly string[];
   maxPerLock: number;
   start: () => void;
   cancel: (error: Error) => void;
+}
+
+function keysOf(options: { lockKey?: string | undefined; lockKeys?: readonly string[] | undefined }): readonly string[] {
+  return [...(options.lockKey === undefined ? [] : [options.lockKey]), ...(options.lockKeys ?? [])];
 }
 
 export class JobQueue {
@@ -63,22 +99,24 @@ export class JobQueue {
     return rank === 0 ? max : Math.max(1, max - Math.min(reservedForInteractive, max - 1));
   }
 
-  private check(rank: number, lockKey: string | undefined, maxPerLock: number): 'ok' | 'capacity' | 'lock' {
+  private check(rank: number, lockKeys: readonly string[], maxPerLock: number): 'ok' | 'capacity' | 'lock' {
     if (this.running >= this.slotLimitFor(rank)) {
       return 'capacity';
     }
 
-    if (lockKey !== undefined && (this.locks.get(lockKey) ?? 0) >= maxPerLock) {
-      return 'lock';
+    for (const [lockKey, wanted] of countLockKeys(lockKeys)) {
+      if ((this.locks.get(lockKey) ?? 0) + wanted > maxPerLock) {
+        return 'lock';
+      }
     }
 
     return 'ok';
   }
 
-  private take(lockKey: string | undefined): () => void {
+  private take(lockKeys: readonly string[]): () => void {
     this.running += 1;
-    if (lockKey !== undefined) {
-      this.locks.set(lockKey, (this.locks.get(lockKey) ?? 0) + 1);
+    for (const [lockKey, wanted] of countLockKeys(lockKeys)) {
+      this.locks.set(lockKey, (this.locks.get(lockKey) ?? 0) + wanted);
     }
 
     let released = false;
@@ -88,8 +126,8 @@ export class JobQueue {
       }
       released = true;
       this.running -= 1;
-      if (lockKey !== undefined) {
-        const left = (this.locks.get(lockKey) ?? 1) - 1;
+      for (const [lockKey, wanted] of countLockKeys(lockKeys)) {
+        const left = (this.locks.get(lockKey) ?? wanted) - wanted;
         if (left <= 0) {
           this.locks.delete(lockKey);
         } else {
@@ -104,10 +142,11 @@ export class JobQueue {
    * Non-waiting acquire, for synchronous HTTP runs that answer 429/409 instead of queueing. Fails if no
    * slot is free OR the credential lock is taken.
    */
-  tryAcquire(options: { priority?: JobPriority; lockKey?: string; maxPerLock?: number } = {}): AcquireResult {
+  tryAcquire(options: { priority?: JobPriority; lockKey?: string | undefined; lockKeys?: readonly string[]; maxPerLock?: number } = {}): AcquireResult {
     const rank = RANK[options.priority ?? 'interactive'];
-    const verdict = this.check(rank, options.lockKey, options.maxPerLock ?? 1);
-    return verdict === 'ok' ? { ok: true, release: this.take(options.lockKey) } : { ok: false, reason: verdict };
+    const keys = keysOf(options);
+    const verdict = this.check(rank, keys, options.maxPerLock ?? 1);
+    return verdict === 'ok' ? { ok: true, release: this.take(keys) } : { ok: false, reason: verdict };
   }
 
   /** Waits for a slot (and the lock), runs `task`, releases. */
@@ -116,15 +155,22 @@ export class JobQueue {
       return Promise.reject(new JobCancelledError());
     }
 
+    const keys = keysOf(options);
+    const overflow = firstOverflow(keys, options.maxPerLock ?? 1);
+    if (overflow) {
+      // It would wait for ever: no moment exists in which `wanted` sessions of one credential are allowed.
+      return Promise.reject(new LockUnsatisfiableError(overflow.lockKey, overflow.wanted, options.maxPerLock ?? 1));
+    }
+
     return new Promise<T>((resolve, reject) => {
       const entry: Waiting = {
         rank: RANK[options.priority],
         seq: this.seq++,
-        lockKey: options.lockKey,
+        lockKeys: keys,
         maxPerLock: options.maxPerLock ?? 1,
         start: () => {
           options.signal?.removeEventListener('abort', onAbort);
-          const release = this.take(options.lockKey);
+          const release = this.take(keys);
           // Release BEFORE settling: whoever awaits this run may immediately ask for the same slot or
           // credential lock, and must not find it still taken. (Promise.resolve().then also keeps a
           // synchronous throw from `task` inside the promise chain.)
@@ -159,7 +205,7 @@ export class JobQueue {
     for (;;) {
       const next = [...this.waiting]
         .sort((a, b) => a.rank - b.rank || a.seq - b.seq)
-        .find((item) => this.check(item.rank, item.lockKey, item.maxPerLock) === 'ok');
+        .find((item) => this.check(item.rank, item.lockKeys, item.maxPerLock) === 'ok');
 
       if (!next) {
         return;

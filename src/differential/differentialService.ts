@@ -10,6 +10,7 @@ import { resolveJobFile } from '../evidence/locate.js';
 import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
+import { sessionCredentialSets } from '../runner/actors.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { DiffConfigInput } from '../schemas/diffConfig.schema.js';
@@ -116,9 +117,17 @@ function decide(state: Pick<DifferentialState, 'pairs' | 'counts'>, cancelled: b
   return { verdict: 'same', reason: `${plural(same, 'routine')} behave the same on both sides` };
 }
 
+/** A routine fixed at the version both sides run; `actors` (T6.4) only to know which credential sessions it holds. */
+interface PinnedRoutine {
+  id: string;
+  version: number;
+  credentialSet?: string;
+  actors?: Record<string, { credentialSet?: string | undefined }>;
+}
+
 /** Everything that can be checked without a browser: routines, profiles and the credential set of each side. */
-async function validate(request: DifferentialRequest): Promise<{ routines: Array<{ id: string; version: number; credentialSet?: string }>; leftDiff?: DiffConfigInput; warnings: string[] }> {
-  const routines: Array<{ id: string; version: number; credentialSet?: string }> = [];
+async function validate(request: DifferentialRequest): Promise<{ routines: PinnedRoutine[]; leftDiff?: DiffConfigInput; warnings: string[] }> {
+  const routines: PinnedRoutine[] = [];
   const fixedAddresses: Array<{ routineId: string; stepId: string; origin: string }> = [];
   for (const wanted of request.routines) {
     const routine = await getRoutine(wanted.routineId, wanted.version);
@@ -126,7 +135,7 @@ async function validate(request: DifferentialRequest): Promise<{ routines: Array
       throw new DifferentialError(404, 'RoutineNotFound', wanted.version === undefined ? `Routine "${wanted.routineId}" does not exist` : `Routine "${wanted.routineId}" has no version ${wanted.version}`);
     }
     if (routine.status === 'retired') throw new DifferentialError(409, 'RoutineRetired', `Routine "${routine.id}" v${routine.version} is retired`);
-    routines.push({ id: routine.id, version: routine.version, ...(routine.credentialSet ? { credentialSet: routine.credentialSet } : {}) });
+    routines.push({ id: routine.id, version: routine.version, ...(routine.credentialSet ? { credentialSet: routine.credentialSet } : {}), ...(routine.actors ? { actors: routine.actors } : {}) });
     for (const [index, routineStep] of routine.steps.entries()) {
       if (routineStep.action !== 'goto' || routineStep.url === '$targetUrl') continue;
       try {
@@ -173,11 +182,11 @@ const summarize = (result: ExplorationResult): SideRun => ({
 
 const errorText = (error: unknown): string => (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 500);
 
-async function worker(entry: Active, pinned: Array<{ id: string; version: number; credentialSet?: string }>, leftDiff: DiffConfigInput | undefined): Promise<void> {
+async function worker(entry: Active, pinned: PinnedRoutine[], leftDiff: DiffConfigInput | undefined): Promise<void> {
   const { state, controller } = entry;
   const { request } = state;
 
-  const runSide = async (side: DifferentialRequest['left'], which: 'left' | 'right', routine: { id: string; version: number; credentialSet?: string }): Promise<ExplorationResult> => {
+  const runSide = async (side: DifferentialRequest['left'], which: 'left' | 'right', routine: PinnedRoutine): Promise<ExplorationResult> => {
     const credentialSet = side.credentialSet ?? routine.credentialSet;
     const maxPerLock = await maxSessionsFor(side.targetProfile);
     return jobQueue.run(
@@ -192,7 +201,7 @@ async function worker(entry: Active, pinned: Array<{ id: string; version: number
           ...(request.retention ? { retention: request.retention } : {}),
           caller: { source: 'differential', correlationId: state.differentialId, metadata: { side: which } },
         } as never),
-      { priority: 'suite', ...(credentialSet ? { lockKey: credentialSet, maxPerLock } : {}), signal: controller.signal },
+      { priority: 'suite', lockKeys: sessionCredentialSets({ credentialSet, actors: routine.actors }), maxPerLock, signal: controller.signal },
     );
   };
 

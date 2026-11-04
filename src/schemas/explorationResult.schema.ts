@@ -27,6 +27,8 @@ export const stepResultSchema = z.object({
   id: z.string().optional(),
   label: z.string().optional(),
   description: z.string().optional(),
+  /** T6.4: the actor that ran the step, when the step named one. Absent for a step of the implicit `main` actor. */
+  actor: z.string().optional(),
   action: z.string(),
   status: stepStatusSchema,
   startedAt: z.string(),
@@ -39,12 +41,16 @@ export type StepResult = z.infer<typeof stepResultSchema>;
 export const screenshotEvidenceSchema = z.object({
   name: z.string(),
   path: z.string(),
+  /** T6.4: whose page it is (set when the run has actors). */
+  actor: z.string().optional(),
 });
 export type ScreenshotEvidence = z.infer<typeof screenshotEvidenceSchema>;
 
 export const consoleEvidenceSchema = z.object({
   type: z.string(),
   text: z.string(),
+  /** T6.4: whose console it is (set in the merged view of a run with actors). */
+  actor: z.string().optional(),
   location: z
     .object({
       url: z.string().optional(),
@@ -63,6 +69,8 @@ export const networkEvidenceSchema = z.object({
   status: z.number().optional(),
   failureText: z.string().optional(),
   unexpectedExternalOrigin: z.boolean().optional(),
+  /** T6.4: whose request it is (set in the merged view of a run with actors). */
+  actor: z.string().optional(),
 });
 export type NetworkEvidence = z.infer<typeof networkEvidenceSchema>;
 
@@ -79,17 +87,43 @@ export const routingEvidenceSchema = z.object({
   handledBy: z.string(),
   action: z.enum(['abort', 'fulfill', 'delay']),
   detail: z.string().optional(),
+  /** T6.4 */
+  actor: z.string().optional(),
 });
 
 /** T7.3: a change `setClock` made to the clock the page sees. The server's clock is never touched. */
 export const clockEvidenceSchema = z.object({
   stepId: z.string().optional(),
+  /** T6.4: the actor whose browser clock moved (absent: main). */
+  actor: z.string().optional(),
   mode: z.enum(['fixed', 'install']),
   /** ISO instant, as the browser got it. */
   time: z.string(),
   fastForwardMs: z.number().optional(),
 });
 export type ClockEvidence = z.infer<typeof clockEvidenceSchema>;
+
+/** The evidence of a run, or (T6.4) of one of its actors. */
+export const evidenceBlockSchema = z.object({
+  screenshots: z.array(screenshotEvidenceSchema),
+  tracePath: z.string().optional(),
+  console: z.array(consoleEvidenceSchema),
+  consoleErrors: z.array(consoleEvidenceSchema),
+  pageErrors: z.array(z.string()),
+  network: z.array(networkEvidenceSchema),
+  networkFailures: z.array(networkEvidenceSchema),
+  // T6.3: every distinct request, successful or not, when the run asked for `options.recordTraffic`; `trafficTruncated` when the distinct ones went past the cap.
+  traffic: z.array(trafficEvidenceSchema).optional(),
+  trafficTruncated: z.boolean().optional(),
+  // T8.1: failures left OUT of `networkFailures` as known noise (platform rule or the profile's noiseFilters). `network` keeps every one of them.
+  noiseFiltered: z.array(z.object({ reason: z.string(), count: z.number().int().positive() })).optional(),
+  unexpectedExternalRequests: z.array(networkEvidenceSchema),
+  // Present only when a routing policy touched at least one request (T5.1).
+  routing: z.array(routingEvidenceSchema).optional(),
+  domTextSnapshot: z.string().optional(),
+  finalUrl: z.string().optional(),
+});
+export type EvidenceBlock = z.infer<typeof evidenceBlockSchema>;
 
 export const explorationResultSchema = z.object({
   jobId: z.string(),
@@ -132,24 +166,16 @@ export const explorationResultSchema = z.object({
   error: errorSchema.optional(),
   steps: z.array(stepResultSchema),
   extracted: z.record(z.string(), jsonValueSchema),
-  evidence: z.object({
-    screenshots: z.array(screenshotEvidenceSchema),
-    tracePath: z.string().optional(),
-    console: z.array(consoleEvidenceSchema),
-    consoleErrors: z.array(consoleEvidenceSchema),
-    pageErrors: z.array(z.string()),
-    network: z.array(networkEvidenceSchema),
-    networkFailures: z.array(networkEvidenceSchema),
-    // T6.3: every distinct request, successful or not, when the run asked for `options.recordTraffic`; `trafficTruncated` when the distinct ones went past the cap.
-    traffic: z.array(trafficEvidenceSchema).optional(),
-    trafficTruncated: z.boolean().optional(),
-    // T8.1: failures left OUT of `networkFailures` as known noise (platform rule or the profile's noiseFilters). `network` keeps every one of them.
-    noiseFiltered: z.array(z.object({ reason: z.string(), count: z.number().int().positive() })).optional(),
-    unexpectedExternalRequests: z.array(networkEvidenceSchema),
-    // Present only when a routing policy touched at least one request (T5.1).
-    routing: z.array(routingEvidenceSchema).optional(),
-    domTextSnapshot: z.string().optional(),
-    finalUrl: z.string().optional(),
-  }),
+  /**
+   * T6.4: present only when a step named an actor other than `main`. `evidence` below is then the MERGED view of all actors (every item tagged
+   * `actor`); here each actor has its own, untagged. Keys are the actor names, in the order they first ran a step.
+   */
+  actors: z
+    .record(
+      z.string(),
+      z.object({ credentialSet: z.string().optional(), finalUrl: z.string().optional(), stepsRun: z.number().int().nonnegative(), evidence: evidenceBlockSchema }),
+    )
+    .optional(),
+  evidence: evidenceBlockSchema,
 });
 export type ExplorationResult = z.infer<typeof explorationResultSchema>;

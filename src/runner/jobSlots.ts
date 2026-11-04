@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { getTarget } from '../targets/targetStore.js';
-import { JobQueue } from '../orchestrator/jobQueue.js';
+import { firstOverflow, JobQueue } from '../orchestrator/jobQueue.js';
+import { sessionCredentialSets } from './actors.js';
 
 /**
  * The process-wide job queue (T1.6): the single pool behind MAX_PARALLEL_JOBS. Synchronous HTTP runs
@@ -30,14 +31,28 @@ export type InteractiveSlot =
  *  - no free slot            -> 429 TooManyRequests (unchanged behaviour);
  *  - credential lock taken   -> 409 CredentialInUse: another run (often a suite) is logged in with the
  *    same credential set and a second session would end it (T1.2 sets + GeneXus single-session rule).
+ *
+ * T6.4: a run with actors holds one session per credential set it uses, all together (`sessionCredentialSets`). More actors on one set
+ * than the profile allows can never run, which is a 400 up front rather than a wait.
  */
-export async function acquireInteractiveSlot(request: { credentialSet?: string; targetProfile?: string }): Promise<InteractiveSlot> {
-  const lockKey = request.credentialSet;
-  const acquired = jobQueue.tryAcquire({
-    priority: 'interactive',
-    lockKey,
-    maxPerLock: lockKey === undefined ? 1 : await maxSessionsFor(request.targetProfile),
-  });
+export async function acquireInteractiveSlot(request: {
+  credentialSet?: string | undefined;
+  actors?: Record<string, { credentialSet?: string | undefined }> | undefined;
+  targetProfile?: string | undefined;
+}): Promise<InteractiveSlot> {
+  const lockKeys = sessionCredentialSets(request);
+  const maxPerLock = lockKeys.length === 0 ? 1 : await maxSessionsFor(request.targetProfile);
+  const overflow = firstOverflow(lockKeys, maxPerLock);
+  if (overflow) {
+    return {
+      ok: false,
+      status: 400,
+      type: 'TooManySessionsForCredential',
+      message: `Credential set "${overflow.lockKey}" is used by ${overflow.wanted} actors of this run but the target profile allows ${maxPerLock} simultaneous session(s) (flags.maxSessionsPerCredential)`,
+    };
+  }
+
+  const acquired = jobQueue.tryAcquire({ priority: 'interactive', lockKeys, maxPerLock });
 
   if (acquired.ok) {
     return acquired;
@@ -48,7 +63,7 @@ export async function acquireInteractiveSlot(request: { credentialSet?: string; 
         ok: false,
         status: 409,
         type: 'CredentialInUse',
-        message: `Credential set "${lockKey}" is already in use by another run and allows no more simultaneous sessions. Retry when it finishes.`,
+        message: `Credential set "${[...new Set(lockKeys)].join('", "')}" is already in use by another run and allows no more simultaneous sessions. Retry when it finishes.`,
       }
     : { ok: false, status: 429, type: 'TooManyRequests', message: 'Too many exploration jobs are already running' };
 }

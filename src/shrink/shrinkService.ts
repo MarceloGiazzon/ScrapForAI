@@ -12,6 +12,7 @@ import { expandIncludes } from '../library/includeExpander.js';
 import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
+import { sessionCredentialSets } from '../runner/actors.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
@@ -147,7 +148,7 @@ async function worker(entry: Active, source: Source): Promise<void> {
   const run = (body: Record<string, unknown>): Promise<ExplorationResult> =>
     jobQueue.run(() => runLibraryRoutine(source.routineId, source.version, { ...base, ...body } as never), {
       priority: 'suite',
-      lockKey: effectiveCredential,
+      lockKeys: sessionCredentialSets({ credentialSet: effectiveCredential, actors: routine.actors }),
       maxPerLock,
       signal: controller.signal,
     });

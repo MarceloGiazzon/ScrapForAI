@@ -60,6 +60,8 @@ export const envSchema = z.object({
   ALLOWED_RESOURCE_ORIGINS: originListFromEnv,
   CORS_ALLOWED_ORIGINS: originListFromEnv,
   MAX_STEPS_PER_JOB: integerFromEnv.default(50),
+  // T6.4: how many actors (one isolated browser context each, `main` included) a single run may use. Every actor is a real session.
+  MAX_ACTORS_PER_JOB: integerFromEnv.default(5),
   JOB_TIMEOUT_MS: integerFromEnv.default(60000),
   STEP_TIMEOUT_MS: integerFromEnv.default(10000),
   MAX_REQUEST_BODY_SIZE: z.string().min(1).default('1mb'),

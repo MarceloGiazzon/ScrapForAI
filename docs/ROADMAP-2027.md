@@ -1161,6 +1161,14 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 
 ### T6.4 — Runner multi-contexto (atores) · G
 
+> **Implementada em 2026-11-04** (`src/runner/actors.ts`, `mergeEvidence.ts`, ver AGENTS.md, "Actors"). Desvios e acréscimos em relação ao texto: (1) `main` **não pode ser declarado** em `actors`: é a `credentialSet` e o `options.viewport` da própria requisição;
+> (2) só ganham `BrowserContext` os atores que **rodam algum step** (steps e teardown), então um ator declarado e não usado não custa nada e uma rotina cujos steps nomeiam todos um ator nunca abre o `main`; há um teto, `MAX_ACTORS_PER_JOB` (5);
+> (3) um ator **nunca herda as credenciais do `main`**: sem `credentialSet` ele não tem valores do cofre; (4) a regra de **sessão única** passou a cobrir os atores: a run segura todas as credenciais de uma vez (`JobQueue` com várias chaves, tudo ou nada), e a mesma
+> credencial em dois atores conta duas vezes, exigindo `flags.maxSessionsPerCredential` >= 2 (senão 400 `TooManySessionsForCredential`); (5) `include` ganhou `actor` ("incluir o login como `bob`"), que vale para os steps incluídos que não nomeiam um; (6) a evidência é **separada por ator**
+> (`result.actors[nome].evidence`) **e** mesclada em `result.evidence` com a marca `actor` em cada item, para não quebrar o que já lê `result.evidence` (histórico, relatórios, execução diferencial); (7) `resizeWindow` passou a achar a janela pelo alvo CDP da página do ator ("a primeira página do browser"
+> redimensionaria a janela errada); (8) a lint GX001 acompanha cada ator. **Fica de fora:** `parallel` e corridas (T6.5), os cenários prontos (T6.6), login automático de um ator (T8.1 só loga o `main`), atores na matriz de permissões e nos snapshots, uma seção por ator no relatório HTML e a mescla das declarações
+> de `actors` de rotinas incluídas. Aceite: a suíte anterior passa sem alteração (611 testes unitários) e `test/actors.smoke.ts` roda dois usuários logados que não compartilham cookie.
+
 **Por quê:** achado A8.
 
 **Especificação:**

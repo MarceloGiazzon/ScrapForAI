@@ -60,6 +60,8 @@ type Loose = Record<string, unknown> & { action: string; id?: string };
 
 const typesCredential = (step: Loose): boolean => (step.action === 'fill' || step.action === 'selectOption') && typeof step.valueFromCredential === 'string';
 const isSubmit = (step: Loose): boolean => step.action === 'click' || step.action === 'doubleClick' || step.action === 'press';
+/** T6.4: the actor a step runs as. A routine without actors is all `main`, which is how the rules below behave exactly as before. */
+const actorOf = (step: Loose): string => (typeof step.actor === 'string' ? step.actor : 'main');
 const waitsForUrl = (condition: unknown): boolean => typeof condition === 'object' && condition !== null && 'urlContains' in condition;
 
 /** Is this step itself a gate (it fails unless the URL is the expected one)? */
@@ -80,16 +82,19 @@ export function lintConventions(
 
   // GX001: the submit that follows typing a credential must be followed by a gate (or carry one).
   if (genexus && !context.gateProvidedByProfile) {
-    let typed = false;
+    // Per actor (T6.4): one actor's submit is not another's, and another actor's gate does not prove this login completed.
+    const typedBy = new Set<string>();
     steps.forEach((step, index) => {
+      const actor = actorOf(step);
       if (typesCredential(step)) {
-        typed = true;
+        typedBy.add(actor);
         return;
       }
-      if (!typed || !isSubmit(step)) return;
-      typed = false;
+      if (!typedBy.has(actor) || !isSubmit(step)) return;
+      typedBy.delete(actor);
 
-      const gated = waitsForUrl(step.afterWaitFor) || steps.slice(index + 1, index + 4).some(isGateStep);
+      const next = steps.slice(index + 1).filter((later) => actorOf(later) === actor).slice(0, 3);
+      const gated = waitsForUrl(step.afterWaitFor) || next.some(isGateStep);
       if (!gated) {
         found.push({
           rule: 'GX001',

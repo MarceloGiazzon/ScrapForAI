@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
 import { env } from '../config/env.js';
-import { buildIdSchema, explorationOptionsSchema, explorationStepSchema, safeName } from './explorationRequest.schema.js';
+import { actorsSchema, buildIdSchema, explorationOptionsSchema, explorationStepSchema, safeName } from './explorationRequest.schema.js';
 import { parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
 
 /**
  * T1.3 library routine. A routine is DATA: this JSON is what gets stored, versioned, reviewed in PRs
  * and executed. Versions are immutable; `sha256` is the digest of the canonical author content.
  *
- * Fields owned by later tasks (actors T6.4, parameters T5.3) are added there as optional additions,
+ * Fields owned by later tasks (actors T6.4, parameters T5.3) were added as optional additions,
  * so routines saved today stay valid.
  */
 export const routineStatusSchema = z.enum(['draft', 'active', 'quarantined', 'retired']);
@@ -26,6 +26,8 @@ const contentShape = {
   status: routineStatusSchema.default('active'),
   targetProfile: safeName,
   credentialSet: safeName.optional(),
+  // T6.4. Optional with no default, so routines saved before actors existed keep their digest.
+  actors: actorsSchema.optional(),
   options: explorationOptionsSchema.optional(),
   // T5.3. Optional with no default, like teardown: a default would change the digest of routines saved before parameters existed.
   parameters: parametersSchema.optional(),
@@ -65,6 +67,7 @@ export const routineSaveBodyBase = z
     status: routineStatusSchema.optional(),
     targetProfile: safeName.optional(),
     credentialSet: safeName.optional(),
+    actors: contentShape.actors,
     options: explorationOptionsSchema.optional(),
     parameters: contentShape.parameters,
     lintSuppress: contentShape.lintSuppress,

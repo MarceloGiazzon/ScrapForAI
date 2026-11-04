@@ -46,6 +46,16 @@ interface Context {
    * routine does not see its includer's parameters (it could not be saved on its own if it did). Empty at the root, where names are global.
    */
   scope: Map<string, string>;
+  /**
+   * T6.4: the actor of the nearest enclosing `include` that names one. A step of an included routine that names no actor of its own
+   * runs as this one ("include login as bob"); a step that names one keeps it. Undefined at the root.
+   */
+  actor: string | undefined;
+}
+
+/** T6.4: the step runs as the include's actor unless it names its own. */
+function withActor(step: RunnableStep, actor: string | undefined): RunnableStep {
+  return actor === undefined || step.actor !== undefined ? step : ({ ...step, actor } as RunnableStep);
 }
 
 /** A step of an included routine that draws from one of ITS parameters now draws from the renamed one. */
@@ -96,7 +106,7 @@ async function expandList(
 
   for (const step of steps) {
     if (step.action !== 'include') {
-      out.push(prefixed(withScopedParameter(step as RunnableStep, context.scope), prefix));
+      out.push(withActor(prefixed(withScopedParameter(step as RunnableStep, context.scope), prefix), context.actor));
       continue;
     }
 
@@ -141,7 +151,7 @@ async function expandList(
       scope.set(own.name, global);
       context.parameters.push({ ...own, name: global });
     }
-    const childContext: Context = { ...context, stack: [...context.stack, step.routineId], scope };
+    const childContext: Context = { ...context, stack: [...context.stack, step.routineId], scope, actor: step.actor ?? context.actor };
 
     const body = await expandList(routine.steps, childContext, childPrefix, collectTeardown);
     out.push(...body.steps);
@@ -170,7 +180,8 @@ async function expandList(
 export async function expandIncludes(
   // `parameters` (T5.3): what the including run/routine declares, so the expanded steps may use `valueFromParameter`.
   // An included routine declares its OWN parameters (renamed after the include in the result); it cannot use its includer's.
-  input: { steps: ExplorationStep[]; teardown?: ExplorationStep[]; parameters?: unknown[] },
+  // `actors` (T6.4): what the including run/routine declares. An included routine uses actor names that its includer has to declare too.
+  input: { steps: ExplorationStep[]; teardown?: ExplorationStep[]; parameters?: unknown[]; actors?: Record<string, unknown> },
   options: { targetProfile?: string; selfId?: string } = {},
 ): Promise<ExpandedSteps> {
   const context: Context = {
@@ -180,6 +191,7 @@ export async function expandIncludes(
     includes: [],
     parameters: [],
     scope: new Map(),
+    actor: undefined,
   };
 
   const main = await expandList(input.steps, context, '', true);
@@ -198,6 +210,7 @@ export async function expandIncludes(
   // the same routine need distinct include ids), waitForElapsed references, evaluate gating.
   const check = explorationRequestSchema.safeParse({
     targetProfile: options.targetProfile ?? 'expanded',
+    ...(input.actors ? { actors: input.actors } : {}),
     steps: main.steps.length > 0 ? main.steps : input.steps,
     ...(teardown.length > 0 ? { teardown } : {}),
     ...(input.parameters || context.parameters.length > 0 ? { parameters: [...(input.parameters ?? []), ...context.parameters] } : {}),

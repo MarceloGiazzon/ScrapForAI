@@ -25,6 +25,8 @@ const clip = (value: string, max: number): string => (value.length > max ? `${va
 export interface ReportStep {
   index: number;
   id?: string;
+  /** T6.4: the actor that ran the step, when the step named one. */
+  actor?: string;
   label?: string;
   description?: string;
   action: string;
@@ -73,7 +75,7 @@ export interface RunReportData {
   accessibility?: Array<{ name: string; result: AccessibilityResult }>;
   /** T7.8: the privacy scans of the run (`options.piiScan` and every `scanForPii` step). A finding never carries the value. */
   privacy?: Array<{ name: string; report: PiiReport }>;
-  screenshots: Array<{ name: string; dataUri: string }>;
+  screenshots: Array<{ name: string; dataUri: string; actor?: string }>;
   consoleCount: number;
   consoleErrors: string[];
   networkCount: number;
@@ -165,7 +167,7 @@ function stepRows(s: Strings, steps: ReportStep[]): string {
     .map((step) => {
       const name = step.label ?? step.description ?? step.id ?? '';
       const detail = step.error ? `<span class="cell-failed">${esc(step.error.type)}</span>: ${esc(clip(step.error.message, 400))}` : '';
-      return `<tr><td>${step.index + 1}</td><td><b>${esc(step.action)}</b>${name ? `<br><small>${esc(clip(name, 120))}</small>` : ''}</td><td class="cell-${step.status === 'skipped' ? 'error' : step.status}">${esc(statusLabel(s, step.status))}</td><td>${step.durationMs} ms</td><td>${detail}</td></tr>`;
+      return `<tr><td>${step.index + 1}</td><td>${step.actor ? `<span class="muted">${esc(step.actor)}</span> ` : ''}<b>${esc(step.action)}</b>${name ? `<br><small>${esc(clip(name, 120))}</small>` : ''}</td><td class="cell-${step.status === 'skipped' ? 'error' : step.status}">${esc(statusLabel(s, step.status))}</td><td>${step.durationMs} ms</td><td>${detail}</td></tr>`;
     })
     .join('');
 }
@@ -393,12 +395,12 @@ ${data.accessibility?.length ? `<h2>${esc(s.a11yTitle)}</h2>${accessibilityBlock
 
 ${data.privacy?.length ? `<h2>${esc(s.piiTitle)}</h2><p class="muted">${esc(s.piiNote)}</p>${privacyBlock(s, data.privacy)}` : ''}
 
-${failureShot ? `<h2>${esc(s.failureEvidence)}</h2><figure><img src="${esc(failureShot.dataUri)}" alt="failure"><figcaption>failure</figcaption></figure>` : ''}
+${failureShot ? `<h2>${esc(s.failureEvidence)}</h2><figure><img src="${esc(failureShot.dataUri)}" alt="failure"><figcaption>${failureShot.actor ? `${esc(failureShot.actor)} · ` : ''}failure</figcaption></figure>` : ''}
 ${
   data.screenshots.filter((shot) => shot !== failureShot).length
     ? `<h2>${esc(s.screenshots)}</h2>${data.screenshots
         .filter((shot) => shot !== failureShot)
-        .map((shot) => `<figure><img src="${esc(shot.dataUri)}" alt="${esc(shot.name)}"><figcaption>${esc(shot.name)}</figcaption></figure>`)
+        .map((shot) => `<figure><img src="${esc(shot.dataUri)}" alt="${esc(shot.name)}"><figcaption>${shot.actor ? `${esc(shot.actor)} · ` : ''}${esc(shot.name)}</figcaption></figure>`)
         .join('')}`
     : ''
 }

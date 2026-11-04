@@ -3,6 +3,7 @@ import { getSnapshotRun, startSnapshot, waitForSnapshotRun } from '../evolution/
 import { expandIncludes } from '../library/includeExpander.js';
 import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
+import { sessionCredentialSets } from '../runner/actors.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { snapshotBodySchema } from '../schemas/evolution.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
@@ -115,7 +116,7 @@ export function createDispatcher(): Dispatcher {
                     ...(target.buildId ? { buildId: target.buildId } : {}),
                     caller: { source: 'schedule', correlationId: schedule.id, metadata: { occurrence: occurrenceIso, ...attemptMetadata(attempt, previous) } },
                   }),
-                { priority: 'scheduled', lockKey: credentialSet, maxPerLock },
+                { priority: 'scheduled', lockKeys: sessionCredentialSets({ credentialSet, actors: routine.actors }), maxPerLock },
               ),
             { retries: schedule.retries },
           );

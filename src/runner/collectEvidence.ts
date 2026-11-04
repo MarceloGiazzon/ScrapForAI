@@ -87,6 +87,8 @@ export function registerEvidenceCollectors(
   // T5.1: a request a policy aborted or answered on purpose is not a failure of the application (a stand-in 204 for media makes Chromium cancel the load, which would otherwise show up as ERR_ABORTED).
   isHandledByPolicy: (request: Request) => boolean = () => false,
   recordTraffic = false,
+  // T6.4: put in front of a screenshot's FILE name (never of its `name`), so two actors that both take "home" do not overwrite each other.
+  fileNamePrefix = '',
 ): EvidenceCollector {
   const screenshots: ScreenshotEvidence[] = [];
   const consoleEvents: ConsoleEvidence[] = [];
@@ -194,9 +196,9 @@ export function registerEvidenceCollectors(
       return disallowedNavigationError;
     },
     async captureScreenshot(name: string) {
-      const screenshotPath = artifactStore.screenshotPath(name);
+      const screenshotPath = artifactStore.screenshotPath(`${fileNamePrefix}${name}`);
       await page.screenshot({ path: screenshotPath.absolutePath, fullPage: true });
-      const evidence = { name: screenshotPath.safeName, path: screenshotPath.relativePath };
+      const evidence = { name: fileNamePrefix === '' ? screenshotPath.safeName : artifactStore.screenshotPath(name).safeName, path: screenshotPath.relativePath };
       screenshots.push(evidence);
       return evidence;
     },

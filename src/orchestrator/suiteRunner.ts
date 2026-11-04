@@ -16,6 +16,7 @@ import { type SuiteRequest, type SuiteState, suiteStateSchema, type VariantState
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { listItems, recordLastRun } from '../vault/regression/regressionVault.js';
 import { orderByImpact } from '../vault/regression/impact.js';
+import { sessionCredentialSets } from '../runner/actors.js';
 import { JobCancelledError } from './jobQueue.js';
 import { attemptMetadata, runAttempts } from './retry.js';
 
@@ -41,6 +42,8 @@ interface PlannedVariant {
   sample?: number;
   /** Concurrency domain for the single-session rule: the credential set this variant will really use. */
   lockKey?: string;
+  /** T6.4: one more session per declared actor that has a credential set; held together with `lockKey`. */
+  actorLockKeys: string[];
   maxSessions: number;
 }
 
@@ -206,6 +209,7 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
             ...(targetProfile === undefined ? {} : { targetProfile }),
             ...(sample === undefined ? {} : { sample }),
             ...(effectiveCredential === undefined ? {} : { lockKey: effectiveCredential }),
+            actorLockKeys: sessionCredentialSets({ actors: routine.actors }),
             maxSessions: await maxSessionsFor(effectiveProfile),
           });
         }
@@ -366,7 +370,7 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
                 },
                 { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey } },
               ),
-            { priority: 'suite', lockKey: entry.lockKey, maxPerLock: entry.maxSessions, signal: controller.signal },
+            { priority: 'suite', lockKey: entry.lockKey, lockKeys: entry.actorLockKeys, maxPerLock: entry.maxSessions, signal: controller.signal },
           ),
         { retries, canRetry: () => !controller.signal.aborted && stoppedBy === undefined },
       );

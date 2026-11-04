@@ -80,6 +80,8 @@ const baseStep = {
   id: stepId.optional(),
   label: z.string().min(1).max(160).optional(),
   description: z.string().min(1).max(500).optional(),
+  // T6.4: which actor (browser context) runs the step. Absent = `main`, the run's own session.
+  actor: safeName.optional(),
   frame: frameRefSchema.optional(),
   delayMs: z.number().int().min(0).max(60000).optional(),
   waitFor: waitConditionSchema.optional(),
@@ -465,6 +467,8 @@ const includeStep = z
     label: z.string().min(1).max(160).optional(),
     description: z.string().min(1).max(500).optional(),
     action: z.literal('include'),
+    // T6.4: the actor that runs the included steps that do not name one themselves (e.g. `include login` as `bob`).
+    actor: safeName.optional(),
     routineId: safeName,
     version: z.number().int().positive().optional(),
   })
@@ -547,6 +551,34 @@ export function stubbedResourceTypes(options: { profile: 'full' | 'functional'; 
   return options.profile === 'functional' ? [...stubbableTypes] : [];
 }
 
+const viewportSchema = z
+  .object({
+    width: z.number().int().min(50).max(4096),
+    height: z.number().int().min(50).max(4096),
+  })
+  .strict();
+
+/**
+ * T6.4: an actor is one isolated browser context (own cookies, storage and page) inside the run's browser. `main` is the implicit actor of
+ * every run: it uses the request's own `credentialSet` and `options.viewport`, so it can not be declared here. An actor with no `credentialSet`
+ * has NO vault values (it never borrows main's), and may only type what a step spells out or a variable/parameter provides.
+ */
+export const MAIN_ACTOR = 'main';
+export const actorSchema = z.object({ credentialSet: safeName.optional(), viewport: viewportSchema.optional() }).strict();
+export const actorsSchema = z.record(safeName, actorSchema).superRefine((actors, ctx) => {
+  if (Object.keys(actors).includes(MAIN_ACTOR)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [MAIN_ACTOR],
+      message: `"${MAIN_ACTOR}" is the implicit actor of every run: set credentialSet and options.viewport on the request itself instead of declaring it`,
+    });
+  }
+  if (Object.keys(actors).length > env.MAX_ACTORS_PER_JOB) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `at most ${env.MAX_ACTORS_PER_JOB} actors per run (MAX_ACTORS_PER_JOB)` });
+  }
+});
+export type Actors = z.infer<typeof actorsSchema>;
+
 // The object BEFORE superRefine. Derived schemas (e.g. the MCP one, without `credentials`) must be
 // built from this, not from the refined schema, so no validation is lost or broken.
 export const explorationOptionsSchema = z
@@ -567,13 +599,7 @@ export const explorationOptionsSchema = z
     // T8.1: `false` turns off the automatic login of a `genexus` target profile for this run (its login routine is not included for you).
     autoLogin: z.boolean().optional(),
     collectDomOnFailure: z.boolean().default(false),
-    viewport: z
-      .object({
-        width: z.number().int().min(50).max(4096),
-        height: z.number().int().min(50).max(4096),
-      })
-      .strict()
-      .optional(),
+    viewport: viewportSchema.optional(),
     // Evidence retention class (T1.5). Absent = ephemeral (ARTIFACT_RETENTION_HOURS). Pinning is a
     // separate, explicit action (POST /v1/runs/:jobId/pin), never an option of the run itself.
     retention: z.enum(['ephemeral', 'standard']).optional(),
@@ -595,6 +621,9 @@ export const explorationRequestBaseSchema = z
     credentials: z.record(safeName, z.string().max(5000)).optional(),
     // T1.2: id of a vault credential set. Its fields are loaded server-side into `credentials`.
     credentialSet: safeName.optional(),
+    // T6.4: more sessions in one run (two users editing one record, a double submit, the second login that ends the first). Optional with no default,
+    // so a saved routine keeps its digest and a run without actors is exactly what it always was.
+    actors: actorsSchema.optional(),
     variables: z.record(safeName, z.string().max(5000)).optional(),
     // T5.3: values the steps draw with `valueFromParameter`. `seed` makes them reproducible (absent: a fresh one is generated and
     // returned in result.parameters); `sample` is which value of each parameter this run takes (edge values first, then random).
@@ -616,6 +645,7 @@ type RoutineForValidation = {
   targetUrl?: string;
   targetProfile?: string;
   parameters?: Array<{ name: string }>;
+  actors?: Record<string, unknown>;
   steps: Array<z.infer<typeof explorationStepSchema>>;
   teardown?: Array<z.infer<typeof explorationStepSchema>>;
 };
@@ -631,6 +661,7 @@ function validateRoutine(routine: RoutineForValidation, ctx: z.RefinementCtx): v
 
   validateStepList(routine.steps, 'steps', ctx);
   validateParameterReferences(routine, ctx);
+  validateActorReferences(routine, ctx);
 
   if (routine.teardown) {
     validateStepList(routine.teardown, 'teardown', ctx);
@@ -658,6 +689,27 @@ function validateParameterReferences(routine: RoutineForValidation, ctx: z.Refin
       const name = (step as { valueFromParameter?: string }).valueFromParameter;
       if (name !== undefined && !declared.has(name)) {
         ctx.addIssue({ code: 'custom', path: [field, index, 'valueFromParameter'], message: `parameter "${name}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
+      }
+    });
+  }
+}
+
+/**
+ * T6.4: a step (or an include) may name only `main` or an actor the routine declares. Steps INSIDE an included routine are checked after the
+ * include is expanded, with the includer's declarations: an included routine uses actor names its includer has to declare.
+ */
+function validateActorReferences(routine: RoutineForValidation, ctx: z.RefinementCtx): void {
+  const declared = new Set([MAIN_ACTOR, ...Object.keys(routine.actors ?? {})]);
+  const lists = { steps: routine.steps, ...(routine.teardown ? { teardown: routine.teardown } : {}) };
+  for (const [field, list] of Object.entries(lists)) {
+    list.forEach((step, index) => {
+      const actor = (step as { actor?: string }).actor;
+      if (actor !== undefined && !declared.has(actor)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [field, index, 'actor'],
+          message: `actor "${actor}" is not declared (declared: ${[...declared].join(', ')}); add it to "actors"`,
+        });
       }
     });
   }

@@ -57,6 +57,7 @@ const toSteps = (steps: ExplorationResult['steps'] | undefined): ReportStep[] =>
     id: step.id,
     label: step.label,
     description: step.description,
+    ...(step.actor ? { actor: step.actor } : {}),
     action: step.action,
     status: step.status,
     durationMs: step.durationMs,
@@ -77,13 +78,13 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
   const request = await readJson<{ targetProfile?: string }>(jobId, 'request.json');
   const profile = request?.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
 
-  const screenshots: Array<{ name: string; dataUri: string }> = [];
+  const screenshots: Array<{ name: string; dataUri: string; actor?: string }> = [];
   for (const shot of result.evidence.screenshots.slice(0, MAX_SCREENSHOTS)) {
     const file = resolveJobFile(jobId, `screenshots/${path.basename(shot.path)}`);
     if (!file) continue;
     const data = await readFileRetry(file).catch(() => undefined);
     if (data && data.length <= MAX_SCREENSHOT_BYTES) {
-      screenshots.push({ name: shot.name, dataUri: `data:image/png;base64,${data.toString('base64')}` });
+      screenshots.push({ name: shot.name, dataUri: `data:image/png;base64,${data.toString('base64')}`, ...(shot.actor ? { actor: shot.actor } : {}) });
     }
   }
 

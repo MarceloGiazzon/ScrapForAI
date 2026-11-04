@@ -302,3 +302,27 @@ test('T7.8: a run that hunted for personal data shows the scan in every language
   assert.ok((await get('/v1/runs/job_rep_pii/report?lang=es')).text.includes('Escaneo de privacidad'));
   assert.ok(!(await get('/v1/runs/job_rep1/report?lang=en')).text.includes('Privacy scan'));
 });
+
+test('run report (T6.4): the step table and the screenshot captions say which actor, escaped; a run without actors shows no actor', async () => {
+  await makeJob('job_rep_actors', {
+    steps: [
+      { index: 0, id: 'a', actor: 'bob<i>', action: 'goto', status: 'passed', startedAt: 'x', finishedAt: 'y', durationMs: 5 },
+      { index: 1, id: 'b', action: 'assertVisible', status: 'failed', startedAt: 'x', finishedAt: 'y', durationMs: 5, error: { type: 'StepExecutionError', message: 'nope' } },
+    ],
+    failedStepIndex: 1,
+    evidence: {
+      screenshots: [
+        { name: 'failure', path: 'artifacts/job_rep_actors/screenshots/failure.png', actor: 'bob<i>' },
+        { name: 'after', path: 'artifacts/job_rep_actors/screenshots/after.png', actor: 'alice' },
+      ],
+      console: [], consoleErrors: [], pageErrors: [], network: [], networkFailures: [], unexpectedExternalRequests: [],
+    },
+  });
+  const html = (await get('/v1/runs/job_rep_actors/report?lang=en')).text;
+  assert.ok(html.includes('<span class="muted">bob&lt;i&gt;</span> <b>goto</b>'), 'the step names its actor');
+  assert.ok(html.includes('bob&lt;i&gt; · failure'), 'the failure shot says whose page it is');
+  assert.ok(html.includes('alice · after'));
+  assert.ok(!html.includes('bob<i>'), 'an actor name is text, never markup');
+  const plain = (await get('/v1/runs/job_rep1/report?lang=en')).text;
+  assert.ok(!plain.includes(' · failure') && !plain.includes('<span class="muted">main'), 'a run without actors is unchanged');
+});

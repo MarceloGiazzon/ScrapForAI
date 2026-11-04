@@ -42,6 +42,7 @@ interface JobRequestFile {
   scenarioName?: string;
   targetProfile?: string;
   credentialSet?: string;
+  actors?: unknown;
   options?: unknown;
   parameters?: unknown;
   parameterValues?: Record<string, string>;
@@ -80,6 +81,7 @@ async function contentFromJob(body: RoutineSaveBody, jobId: string, allowFailedJ
     title: body.title ?? request.scenarioName,
     targetProfile: body.targetProfile ?? request.targetProfile,
     credentialSet: body.credentialSet ?? request.credentialSet,
+    actors: body.actors ?? request.actors,
     options: body.options ?? request.options,
     parameters: body.parameters ?? pinned?.parameters ?? request.parameters,
     steps: pinned?.steps ?? request.steps,
@@ -147,6 +149,7 @@ export async function saveRoutine(
     status: body.status,
     targetProfile: body.targetProfile,
     credentialSet: body.credentialSet,
+    actors: body.actors,
     options: body.options,
     parameters: body.parameters,
     lintSuppress: body.lintSuppress,
@@ -170,6 +173,7 @@ export async function saveRoutine(
   const asRequest = explorationRequestSchema.safeParse({
     targetProfile: content.targetProfile,
     credentialSet: content.credentialSet,
+    actors: content.actors,
     options: content.options,
     parameters: content.parameters,
     steps: content.steps,
@@ -181,7 +185,10 @@ export async function saveRoutine(
 
   // Includes are checked now, not at the first run: cycles (this routine included, directly or not),
   // depth, a missing or retired routine, another target profile, or an invalid expanded result.
-  await expandIncludes({ steps: content.steps, teardown: content.teardown, ...(content.parameters ? { parameters: content.parameters } : {}) }, { targetProfile: content.targetProfile, selfId: id });
+  await expandIncludes(
+    { steps: content.steps, teardown: content.teardown, ...(content.parameters ? { parameters: content.parameters } : {}), ...(content.actors ? { actors: content.actors } : {}) },
+    { targetProfile: content.targetProfile, selfId: id },
+  );
 
   const vaultValues = await listAllCredentialValues();
   const issues = [...lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], vaultValues), ...lintParameters(content.parameters ?? [], vaultValues)];
@@ -253,6 +260,7 @@ export async function runLibraryRoutine(
     buildId: body.buildId,
     targetProfile: body.targetProfile ?? routine.targetProfile,
     credentialSet: body.credentialSet ?? routine.credentialSet,
+    actors: routine.actors,
     variables: body.variables,
     parameters: routine.parameters,
     seed: body.seed,
@@ -296,6 +304,7 @@ export async function runRoutineInteractive(id: string, version: number | undefi
 
   const slot = await acquireInteractiveSlot({
     credentialSet: body.credentialSet ?? routine.credentialSet,
+    actors: routine.actors,
     targetProfile: body.targetProfile ?? routine.targetProfile,
   });
   if (!slot.ok) {

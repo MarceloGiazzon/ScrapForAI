@@ -205,6 +205,34 @@ To try many samples at once, give `run_suite` `samples: N` (and optionally `seed
 samples are out of range ON PURPOSE: a routine that expects success for every sample will fail on them, so assert the rejection (or use
 `includeBoundaries: false` / `oneOf` when you want only valid input).
 
+## Two users at once (actors)
+
+Use it when the bug needs two sessions: two users editing one record, a double submit, "the second login ends the first", an
+approval that one user sends and another one approves. Declare `actors` and say who runs each step:
+
+```json
+{ "credentialSet": "app-admin",
+  "actors": { "seller": { "credentialSet": "app-seller" }, "phone": { "viewport": { "width": 390, "height": 800 } } },
+  "steps": [ { "action": "include", "routineId": "login", "actor": "seller" },
+             { "actor": "seller", "action": "click", "selector": "#save" },
+             { "action": "assertVisible", "selector": "#approvals" } ] }
+```
+
+- Every actor is its own browser context: **cookies and storage never cross**. A step with no `actor` is `main`, the run's own
+  session (its `credentialSet` and `options.viewport`); `main` is implicit and cannot be declared.
+- An actor types only the values of **its own** credential set. It never borrows main's: an actor with no `credentialSet` that
+  fills `valueFromCredential` fails with "not provided for actor X". The set must be in the target profile's `credentialSets`
+  and is bound to its origins like any other.
+- `include` takes `actor`: the included steps that name none run as it (`include login` as `seller`). The routine you include
+  uses actor names that **you must declare too**; declarations of an included routine are not merged.
+- Steps run one after the other, in the order written (nothing runs in parallel yet). Teardown steps can name an actor.
+- Several sessions of ONE account need `flags.maxSessionsPerCredential` of the profile to be at least that number; otherwise it
+  is a `TooManySessionsForCredential` (400). The run holds every actor's credential at once, so it waits for all of them.
+- Read the result per actor: `result.actors.<name>.evidence` (console, network, screenshots) is that actor's own; `result.evidence`
+  is the merged view with an `actor` tag on each item. A failing step says which actor ran it (`steps[].actor`).
+- Do not name an actor (or a credential set) like a value of a credential, say `admin` when the user is `admin`: the redaction
+  blanks that text everywhere in the result.
+
 ## Describing a system's screens (catalogue and evolution)
 
 - `propose_screen_catalog` (an MCP prompt, argument `targetProfile`) walks you through exploring a profile read-only and PROPOSING
@@ -246,6 +274,8 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
 | `TargetUrlNotAllowed` | URL not on the allowlist | Ask the user to add the origin; do not look for a way around |
 | `CredentialOriginMismatch` | The credential set is bound to other origins | Use the set meant for this origin |
 | `CredentialInUse` (409) | That login is in another session | Wait and retry, or use another set |
+| `TooManySessionsForCredential` (400) | More actors use one credential set than the profile allows at once | Give the actors different sets, or ask for `flags.maxSessionsPerCredential` |
+| `TooManyActors` (400) | The run uses more actors than `MAX_ACTORS_PER_JOB` | Split the scenario |
 | `RoutineLintError` (422) | A literal looks like a secret | Replace with `valueFromCredential` |
 | `StillRed` | The fix did not work on that build | Report it; do not retry until something changed |
 | `ValidationError` | The request does not match the schema | Fetch `GET /v1/schema/…` and fix the shape |

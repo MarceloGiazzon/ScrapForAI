@@ -13,6 +13,14 @@ export interface PlaywrightJobContext {
   close(): Promise<void>;
 }
 
+/** T6.4: one actor's isolated browser context and its page, inside a browser that several actors share. */
+export interface ActorContext {
+  context: BrowserContext;
+  page: Page;
+  routing: RoutingHandle;
+  close(): Promise<void>;
+}
+
 export interface Viewport {
   width: number;
   height: number;
@@ -44,16 +52,48 @@ export interface ContextOptions {
   networkTracker?: boolean;
 }
 
+/** Starts the browser a run (and all its actors) shares. */
+export async function launchBrowser(headless: boolean): Promise<Browser> {
+  const browserType = { chromium, firefox, webkit }[env.PLAYWRIGHT_BROWSER];
+  return browserType.launch({
+    headless,
+    ...(env.PLAYWRIGHT_CHANNEL ? { channel: env.PLAYWRIGHT_CHANNEL } : {}),
+  });
+}
+
 export async function createPlaywrightContext(
   headless: boolean,
   viewport: Viewport = DEFAULT_VIEWPORT,
   options: ContextOptions = {},
 ): Promise<PlaywrightJobContext> {
-  const browserType = { chromium, firefox, webkit }[env.PLAYWRIGHT_BROWSER];
-  const browser = await browserType.launch({
-    headless,
-    ...(env.PLAYWRIGHT_CHANNEL ? { channel: env.PLAYWRIGHT_CHANNEL } : {}),
-  });
+  const browser = await launchBrowser(headless);
+  try {
+    const opened = await openActorContext(browser, viewport, options);
+    return {
+      browser,
+      context: opened.context,
+      page: opened.page,
+      routing: opened.routing,
+      async close() {
+        await opened.close();
+        await browser.close().catch(() => undefined);
+      },
+    };
+  } catch (error) {
+    await browser.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+/**
+ * A new browser context with everything a run needs installed (init scripts, the request interception) and one page. Each context has its
+ * own cookies, storage and cache, which is what keeps two actors from sharing a session (T6.4).
+ */
+export async function openActorContext(
+  browser: Browser,
+  viewport: Viewport = DEFAULT_VIEWPORT,
+  options: ContextOptions = {},
+): Promise<ActorContext> {
   const context = await browser.newContext({
     viewport,
     ignoreHTTPSErrors: false,
@@ -87,14 +127,12 @@ Object.defineProperty(navigator, 'webdriver', { get: function () { return undefi
   const page = await context.newPage();
 
   return {
-    browser,
     context,
     page,
     routing,
     async close() {
       await page.close().catch(() => undefined);
       await context.close().catch(() => undefined);
-      await browser.close().catch(() => undefined);
     },
   };
 }
