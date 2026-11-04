@@ -211,6 +211,12 @@ samples are out of range ON PURPOSE: a routine that expects success for every sa
 - To check **accessibility** (WCAG, axe-core), add `auditAccessibility { name, standard?, scope?, rules?, failOn?, baseline? }` after `goto` (no `ALLOW_EVALUATE` either). `extracted[name].findings` = `{ ruleId, impact, targetKey, target, help, wcag }` per element (selectors only: no HTML, text or value). By default it only records.
   On a legacy app the whole list has hundreds of rows and nobody acts on it, so judge the DIFFERENCE: ask a person to take a snapshot with `accessibility: true` (`scrapforai evolution snapshot <target> --accessibility`), then pass `baseline: { screen: '<catalogue screen id>' }`; the result gets `baseline.new` / `baseline.fixed`, and `failOn: 'new'` blocks only a regression.
   Not comparable across WCAG levels. `needsReview` lists what the tool could not decide: a person must look; a page with no findings is not proven accessible. The run report (`GET /v1/runs/:jobId/report?lang=pt`) shows new/fixed with what to adjust in GeneXus/NPDev (`docs/a11y-platform-mapping.md`: orientation, not verified against a build).
+- To see how the app **copes when its API misbehaves**, add `injectFault { match: { urlContains, method? }, fault, times?, untilStep? }` before the action that calls it. `fault` is one of
+  `{ status, body? }` (made-up HTTP error), `{ delayMs }` (the real call arrives late), `{ abort: 'failed' | 'timedout' }` or `{ malformedJson: true }` (200 with a cut-off JSON body). Find the URL fragment in the
+  `network` evidence of a normal run. Use `times: 1` to break just the next call, or `untilStep: '<a later step id>'`. Then assert what the USER should see (`assertVisible` of the error message, a loading
+  state) and add `assertNoTextMatches { selector?, kinds?, contains? }`: it fails if a stack trace, exception class, SQL error or server path is on screen (it does not accept your regular expression). Faults only
+  touch allowlisted origins, are listed in `evidence.routing` with `handledBy: 'fault'`, and end before the `teardown`. A `staging` profile refuses them unless a person set `flags.allowFaults`. Starting points:
+  `templates/routines/chaos-*.routine.json`.
 - A snapshot of the whole catalogue per build is a person/CI job (`scrapforai evolution snapshot <target>`, API key required):
   one folder per build, one inventory per screen, committed to git. It is all-or-nothing and idempotent per build; do not look
   for a way to write a partial one unless the person asked for `allowPartial`.

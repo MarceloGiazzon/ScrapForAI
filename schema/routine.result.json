@@ -323,8 +323,12 @@
                 "type": "string",
                 "enum": [
                   "abort",
-                  "fulfill"
+                  "fulfill",
+                  "delay"
                 ]
+              },
+              "detail": {
+                "type": "string"
               }
             },
             "required": [

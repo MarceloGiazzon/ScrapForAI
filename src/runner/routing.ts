@@ -7,7 +7,7 @@ import { isAllowedResourceUrl } from '../security/validateTargetUrl.js';
  * order, so two features never fight over the same request:
  *
  *   1. allowlist guard   (BLOCK_UNEXPECTED_RESOURCES): a sub-resource from an origin outside the allowlists is aborted;
- *   2. fault injection   (T7.2, not built yet: pass policies in `faults`);
+ *   2. fault injection   (T7.2, src/runner/faults.ts: pass its policy in `faults`);
  *   3. resource policy   (T5.2, not built yet: pass policies in `resources`);
  *   4. otherwise the request continues untouched.
  *
@@ -22,11 +22,14 @@ export interface RequestInfo {
   resourceType: string;
   /** A top-level or frame navigation. Navigations are checked by validateTargetUrl, not by the sub-resource guard. */
   isNavigation: boolean;
+  /** The `Origin` header the browser sent (cross-origin fetch/XHR), so a stand-in answer can pass the CORS check the real one would. */
+  initiatorOrigin?: string;
 }
 
 export type Decision =
-  | { action: 'abort'; handledBy: string }
-  | { action: 'fulfill'; handledBy: string; status: number; contentType?: string; body?: string | Buffer; headers?: Record<string, string> };
+  | { action: 'abort'; handledBy: string; /** Chromium network error (T7.2); default `blockedbyclient`. */ errorCode?: 'blockedbyclient' | 'failed' | 'timedout'; detail?: string }
+  | { action: 'delay'; handledBy: string; delayMs: number; detail?: string }
+  | { action: 'fulfill'; handledBy: string; status: number; contentType?: string; body?: string | Buffer; headers?: Record<string, string>; detail?: string };
 
 /** A policy answers for a request or returns undefined to let the next one look at it. */
 export type Policy = (request: RequestInfo) => Decision | undefined;
@@ -95,7 +98,9 @@ export interface RoutingEvidence {
   method: string;
   resourceType?: string;
   handledBy: string;
-  action: 'abort' | 'fulfill';
+  action: 'abort' | 'fulfill' | 'delay';
+  /** What a fault did, in words ("status 500", "delay 10000 ms"). Never a body. */
+  detail?: string;
 }
 
 export interface RoutingHandle {
@@ -118,8 +123,18 @@ function evidenceOf(request: RequestInfo, decision: Decision): RoutingEvidence {
   } catch {
     pathname = 'invalid-url';
   }
-  return { origin, pathname, method: request.method, resourceType: request.resourceType, handledBy: decision.handledBy, action: decision.action };
+  return {
+    origin,
+    pathname,
+    method: request.method,
+    resourceType: request.resourceType,
+    handledBy: decision.handledBy,
+    action: decision.action,
+    ...(decision.detail ? { detail: decision.detail } : {}),
+  };
 }
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export async function installRouting(context: Pick<BrowserContext, 'route'>, policies: Policy[]): Promise<RoutingHandle> {
   const entries: RoutingEvidence[] = [];
@@ -136,6 +151,7 @@ export async function installRouting(context: Pick<BrowserContext, 'route'>, pol
       method: request.method(),
       resourceType: request.resourceType(),
       isNavigation: request.isNavigationRequest(),
+      ...(request.headers()['origin'] ? { initiatorOrigin: request.headers()['origin'] as string } : {}),
     };
 
     let decision: Decision | undefined;
@@ -152,10 +168,16 @@ export async function installRouting(context: Pick<BrowserContext, 'route'>, pol
         return;
       }
       if (entries.length < MAX_ENTRIES) entries.push(evidenceOf(info, decision));
+      if (decision.action === 'delay') {
+        // A delayed request is a REAL request that arrives late: if it fails afterwards the application did fail, so it is not "handled".
+        await sleep(decision.delayMs);
+        await route.continue();
+        return;
+      }
       // Remembered BEFORE answering: the browser may report the cancel of a stand-in before the await below returns.
       handled.add(request);
       if (decision.action === 'abort') {
-        await route.abort('blockedbyclient');
+        await route.abort(decision.errorCode ?? 'blockedbyclient');
       } else {
         await route.fulfill({
           status: decision.status,

@@ -3,6 +3,7 @@ import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpan
 import type { ExplorationRequest, ExplorationStep, RunnableStep } from '../schemas/explorationRequest.schema.js';
 import type { ParameterRecord } from '../schemas/parameters.schema.js';
 import type { BuildInfo } from './buildProbe.js';
+import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -47,6 +48,7 @@ export async function resolveExplorationRequest(
   let targetUrl = request.targetUrl;
   let allowedSets: string[] | undefined;
   let buildProbe: ResolvedExplorationRequest['buildProbe'];
+  let faultsForbiddenBy: string | undefined;
 
   if (request.targetProfile !== undefined) {
     const profile = await getTarget(request.targetProfile);
@@ -56,6 +58,7 @@ export async function resolveExplorationRequest(
 
     targetUrl ??= validateTargetUrl(profile.baseUrl);
     allowedSets = profile.credentialSets;
+    faultsForbiddenBy = profile.environment === 'staging' && !profile.flags.allowFaults ? profile.id : undefined;
     // The caller's own buildId wins; "provided" means the profile expects the caller to say it, so nothing to probe.
     if (profile.buildInfo && profile.buildInfo.kind !== 'provided' && request.buildId === undefined) {
       buildProbe = { info: profile.buildInfo, baseUrl: profile.baseUrl };
@@ -72,6 +75,14 @@ export async function resolveExplorationRequest(
     // another environment's profile (qa instead of dev).
     { targetProfile: options.includeProfile ?? request.targetProfile },
   );
+  // T7.2: a staging environment is shared; breaking its answers on purpose is a decision of the profile, not of one routine (also through an include).
+  if (faultsForbiddenBy !== undefined && usesFaults(expanded)) {
+    throw new RequestResolutionError(
+      403,
+      'FaultsNotAllowed',
+      `Target profile "${faultsForbiddenBy}" is a staging environment and does not set flags.allowFaults; injectFault is refused`,
+    );
+  }
   // T5.3: parameters and inline generators become concrete values (the seed is returned, so a run can be replayed).
   let parameterized: ReturnType<typeof resolveParameters<RunnableStep>>;
   try {

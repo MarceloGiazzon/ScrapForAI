@@ -1,0 +1,26 @@
+{
+  "title": "Chaos: the save call returns HTTP 500",
+  "description": "Template. The save API answers 500 once; the page must tell the user in its own words and must not print the raw error. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["chaos", "fault-injection"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "steps": [
+    { "id": "auth", "label": "Log in", "action": "include", "routineId": "login", "version": 1 },
+    { "id": "open-page", "label": "Open the page under test", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "wait-page-ready", "label": "Wait for the page to settle", "action": "waitForLoadState", "state": "networkidle", "timeoutMs": 15000 },
+    {
+      "id": "break-save",
+      "label": "From now on the next save request answers HTTP 500",
+      "action": "injectFault",
+      "match": { "urlContains": "REPLACE_API_PATH", "method": "POST" },
+      "fault": { "status": 500, "body": "{\"error\":\"simulated failure\"}" },
+      "times": 1
+    },
+    { "id": "save", "label": "Do what saves", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+    { "id": "assert-message", "label": "The page tells the user what happened", "action": "assertVisible", "selector": "REPLACE_MESSAGE_SELECTOR", "timeoutMs": 10000 },
+    { "id": "assert-no-leak", "label": "No stack trace, exception or SQL error on screen", "action": "assertNoTextMatches" },
+    { "id": "shot", "label": "Evidence", "action": "screenshot", "name": "save-500" }
+  ]
+}

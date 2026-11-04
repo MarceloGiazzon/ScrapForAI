@@ -65,13 +65,17 @@ function prefixed(step: RunnableStep, prefix: string): RunnableStep {
     return step;
   }
 
-  const copy = { ...step } as RunnableStep & { id?: string; sinceStepId?: string };
+  const copy = { ...step } as RunnableStep & { id?: string; sinceStepId?: string; untilStep?: string };
   if (copy.id !== undefined) {
     copy.id = `${prefix}.${copy.id}`;
   }
   // waitForElapsed names an earlier step of the SAME routine, so it follows the rename.
   if (copy.action === 'waitForElapsed') {
     copy.sinceStepId = `${prefix}.${copy.sinceStepId}`;
+  }
+  // So does the end of a fault (T7.2): "untilStep" is a later step of the same routine.
+  if (copy.action === 'injectFault' && copy.untilStep !== undefined) {
+    copy.untilStep = `${prefix}.${copy.untilStep}`;
   }
 
   return copy;

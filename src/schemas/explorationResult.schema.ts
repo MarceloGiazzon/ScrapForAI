@@ -72,7 +72,8 @@ export const routingEvidenceSchema = z.object({
   method: z.string(),
   resourceType: z.string().optional(),
   handledBy: z.string(),
-  action: z.enum(['abort', 'fulfill']),
+  action: z.enum(['abort', 'fulfill', 'delay']),
+  detail: z.string().optional(),
 });
 
 export const explorationResultSchema = z.object({

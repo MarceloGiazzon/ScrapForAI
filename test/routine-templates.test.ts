@@ -26,6 +26,10 @@ const DUMMIES: Record<string, string> = {
   REPLACE_PAGE_URL: 'https://dev.example.com/app/hcheckout',
   REPLACE_PAGE_URL_TOKEN: 'hcheckout',
   REPLACE_MAIN_SELECTOR: '#main',
+  REPLACE_API_PATH: '/api/orders',
+  REPLACE_TRIGGER_SELECTOR: '#BTNSAVE',
+  REPLACE_MESSAGE_SELECTOR: '#message',
+  REPLACE_LOADING_SELECTOR: '#loading',
 };
 
 const files = readdirSync(dir).filter((f) => f.endsWith('.routine.json'));
@@ -64,6 +68,16 @@ for (const file of files) {
     }
   });
 }
+
+test('the chaos templates inject exactly one fault and check that nothing leaks to the screen (T7.2)', () => {
+  const chaos = files.filter((f) => f.startsWith('chaos-'));
+  assert.deepEqual(chaos.sort(), ['chaos-json-corrupt.routine.json', 'chaos-save-500.routine.json', 'chaos-search-slow.routine.json']);
+  for (const file of chaos) {
+    const body = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as { steps: Array<{ action: string }> };
+    assert.equal(body.steps.filter((s) => s.action === 'injectFault').length, 1, file);
+    assert.ok(body.steps.some((s) => s.action === 'assertNoTextMatches'), `${file} must check that no error text leaks`);
+  }
+});
 
 test('the login template gates the login and releases the session', () => {
   const login = JSON.parse(readFileSync(path.join(dir, 'gx-login.routine.json'), 'utf8')) as {

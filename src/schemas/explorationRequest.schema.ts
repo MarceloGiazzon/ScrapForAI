@@ -310,6 +310,55 @@ const auditAccessibilityStep = z
       ctx.addIssue({ code: 'custom', path: ['baseline'], message: 'failOn "new" needs a baseline: there is no "new" without something to compare with' });
     }
   });
+// T7.2: from this step on, requests that match are answered wrongly on purpose, to see how the application copes: an HTTP error, a slow
+// response, a dropped connection or a broken JSON body. Only requests to allowlisted origins are touched; each one is listed in
+// result.evidence.routing with handledBy "fault". It ends after `times` matches, after the step `untilStep` finishes, or with the run.
+// A target profile of environment "staging" must set flags.allowFaults. `malformedJson` answers 200 with a truncated JSON body, without
+// calling the server (so nothing changes there); `delayMs` lets the REAL request through, late.
+const faultSchema = z.union([
+  z
+    .object({
+      status: z.number().int().min(100).max(599),
+      body: z.string().max(10000).optional(),
+      contentType: z.string().regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).max(100).optional(),
+    })
+    .strict(),
+  z.object({ delayMs: z.number().int().min(1).max(60000) }).strict(),
+  z.object({ abort: z.enum(['failed', 'timedout']) }).strict(),
+  z.object({ malformedJson: z.literal(true) }).strict(),
+]);
+const injectFaultStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('injectFault'),
+    match: z
+      .object({
+        urlContains: z.string().min(1).max(500),
+        method: z.string().regex(/^[A-Za-z]{3,10}$/).optional(),
+      })
+      .strict(),
+    fault: faultSchema,
+    times: z.number().int().min(1).max(1000).optional(),
+    /** Id of a LATER step of the same list: the fault is removed when that step finishes (pass or fail). */
+    untilStep: stepId.optional(),
+  })
+  .strict();
+
+// T7.2: fails when the text of the page (or of `selector`) shows what a user must never see: a stack trace, an exception class, a database
+// error, a server file path. The patterns are built in (src/runner/leakPatterns.ts): the caller sends no regular expression, which could
+// stall the server on a long page. `contains` adds literal fragments. The error names the kinds found and a short, redacted example; it
+// does not copy the page.
+export const LEAK_KINDS = ['stackTrace', 'exception', 'sqlError', 'serverPath'] as const;
+const assertNoTextMatchesStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('assertNoTextMatches'),
+    selector: selector.optional(),
+    kinds: z.array(z.enum(LEAK_KINDS)).min(1).max(LEAK_KINDS.length).optional(),
+    contains: z.array(z.string().min(1).max(200)).min(1).max(20).optional(),
+    timeoutMs: stepTimeout,
+  })
+  .strict();
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -399,6 +448,8 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   captureInventoryStep,
   keyboardWalkStep,
   auditAccessibilityStep,
+  injectFaultStep,
+  assertNoTextMatchesStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,
@@ -564,6 +615,18 @@ function validateStepList(steps: Array<z.infer<typeof explorationStepSchema>>, f
         path: [field, index, 'sinceStepId'],
         message: `sinceStepId "${step.sinceStepId}" must match the id of an earlier step`,
       });
+    }
+
+    if (step.action === 'injectFault' && step.untilStep !== undefined) {
+      // The fault is on while the steps up to `untilStep` run, so that step must come AFTER the fault in the same list.
+      const laterIds = new Set(steps.slice(index + 1).map((later) => later.id));
+      if (!laterIds.has(step.untilStep)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field, index, 'untilStep'],
+          message: `untilStep "${step.untilStep}" must match the id of a LATER step of the same list (the fault ends when that step finishes)`,
+        });
+      }
     }
 
     if (step.id) {

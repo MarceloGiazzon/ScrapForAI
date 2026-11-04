@@ -46,7 +46,7 @@ function fakeContext() {
 
 function fakeRoute(info: ReturnType<typeof req>) {
   const log: string[] = [];
-  const request = { url: () => info.url, method: () => info.method, resourceType: () => info.resourceType, isNavigationRequest: () => info.isNavigation };
+  const request = { url: () => info.url, method: () => info.method, resourceType: () => info.resourceType, isNavigationRequest: () => info.isNavigation, headers: () => ({}) as Record<string, string> };
   return { request, log, route: { request: () => request, continue: async () => void log.push('continue'), abort: async (code: string) => void log.push(`abort:${code}`), fulfill: async (o: { status: number }) => void log.push(`fulfill:${o.status}`) } };
 }
 

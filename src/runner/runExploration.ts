@@ -21,7 +21,9 @@ import { getTarget } from '../targets/targetStore.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import { extractStructure } from './extractStructure.js';
+import { createFaultController, type FaultController, usesFaults } from './faults.js';
 import { type ActiveElement, type Candidate, type StyleSignature, walkKeyboard } from './keyboardWalk.js';
+import { ALL_LEAK_KINDS, findLeaks } from './leakPatterns.js';
 import { runTrustedScript } from './trusted/runTrusted.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
@@ -281,7 +283,12 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // overrides a headed request so it degrades to headless instead of failing to launch a
     // browser that was never bundled.
     const headless = env.FORCE_HEADLESS || request.options.headless;
-    playwright = await createPlaywrightContext(headless, request.options.viewport, { stubResources: stubbedResourceTypes(request.options) });
+    // T7.2: the fault policy is installed only for a run that has an injectFault step; any other run installs nothing for it.
+    const faults: FaultController | undefined = usesFaults(request) ? createFaultController() : undefined;
+    playwright = await createPlaywrightContext(headless, request.options.viewport, {
+      stubResources: stubbedResourceTypes(request.options),
+      ...(faults ? { faults: faults.policy } : {}),
+    });
     evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
 
     if (traceOn) {
@@ -293,6 +300,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     // Narrowed here, once, because TypeScript does not carry the narrowing of `let` variables into closures.
     const activePlaywright = playwright;
     const activeEvidence = evidence;
+    const activeFaults = faults;
     const runStep = async (step: RunnableStep, index: number, phase: 'steps' | 'teardown'): Promise<boolean> => {
       const playwright = activePlaywright;
       const evidence = activeEvidence;
@@ -618,6 +626,27 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             if (failure) throw new StepExecutionError(`auditAccessibility: ${failure}`);
             break;
           }
+          case 'injectFault': {
+            // T7.2: the policy was installed with the context because the run has this step; the allowlist is applied per request.
+            if (!activeFaults) throw new StepExecutionError('injectFault: fault injection is not active for this run');
+            activeFaults.add({
+              match: step.match,
+              fault: step.fault,
+              ...(step.times === undefined ? {} : { times: step.times }),
+              ...(step.untilStep === undefined ? {} : { untilStep: step.untilStep }),
+            });
+            break;
+          }
+          case 'assertNoTextMatches': {
+            const text = await frame.locator(step.selector ?? 'body').first().innerText({ timeout });
+            const findings = findLeaks(text, { kinds: step.kinds ?? ALL_LEAK_KINDS, ...(step.contains ? { contains: step.contains } : {}) });
+            if (findings.length > 0) {
+              // Kinds, counts and one short example each (redacted by the catch below); never the page.
+              const summary = findings.map((finding) => `${finding.kind} x${finding.count} (e.g. "${finding.example}")`).join('; ');
+              throw new StepExecutionError(`assertNoTextMatches: the page shows ${summary}`);
+            }
+            break;
+          }
           case 'extractText':
             extracted[step.name] = await frame.locator(step.selector).innerText({ timeout });
             break;
@@ -705,6 +734,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         (phase === 'steps' ? steps : teardownSteps).push(stepResult);
         if (step.id) {
           stepFinishedAt.set(step.id, finishedAt.getTime());
+          // T7.2: a fault that was to last "until this step" ends now, pass or fail.
+          activeFaults?.stepFinished(step.id);
         }
       }
 
@@ -733,6 +764,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
 
     // Always runs once a browser exists, whether the steps passed or failed. Each teardown step is
     // attempted even if an earlier one failed: cleanup is best-effort and independent.
+    // T7.2: faults of the steps end here, so the cleanup talks to the application as it really is (a teardown may inject its own).
+    faults?.clear();
     for (const [index, step] of (request.teardown ?? []).entries()) {
       await runStep(step, index, 'teardown');
     }

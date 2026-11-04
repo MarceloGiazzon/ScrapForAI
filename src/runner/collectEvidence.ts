@@ -136,7 +136,8 @@ export function registerEvidenceCollectors(
   });
 
   page.on('response', (response) => {
-    if (response.status() < 400) {
+    // A 4xx/5xx a policy wrote on purpose (T7.2 fault) is not the application failing: routing evidence lists it.
+    if (response.status() < 400 || isHandledByPolicy(response.request())) {
       return;
     }
 

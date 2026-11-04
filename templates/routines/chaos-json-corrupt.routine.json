@@ -1,0 +1,26 @@
+{
+  "title": "Chaos: the API answers a broken JSON body",
+  "description": "Template. The API answers HTTP 200 with a truncated JSON document (the server is not called); the page must not crash or print a parser error. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["chaos", "fault-injection"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "steps": [
+    { "id": "auth", "label": "Log in", "action": "include", "routineId": "login", "version": 1 },
+    { "id": "open-page", "label": "Open the page under test", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "wait-page-ready", "label": "Wait for the page to settle", "action": "waitForLoadState", "state": "networkidle", "timeoutMs": 15000 },
+    {
+      "id": "break-json",
+      "label": "The next answer of the API is a JSON document cut in the middle",
+      "action": "injectFault",
+      "match": { "urlContains": "REPLACE_API_PATH" },
+      "fault": { "malformedJson": true },
+      "times": 1
+    },
+    { "id": "load", "label": "Do what loads the data", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+    { "id": "assert-message", "label": "The page tells the user what happened", "action": "assertVisible", "selector": "REPLACE_MESSAGE_SELECTOR", "timeoutMs": 10000 },
+    { "id": "assert-no-leak", "label": "No parser error, stack trace or exception on screen", "action": "assertNoTextMatches", "contains": ["Unexpected end of JSON input", "JSON.parse", "SyntaxError"] },
+    { "id": "shot", "label": "Evidence", "action": "screenshot", "name": "json-corrupt" }
+  ]
+}

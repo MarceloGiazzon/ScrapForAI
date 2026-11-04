@@ -1205,6 +1205,12 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.2 — Caos controlado · M
 
+> **Implementada em 2026-11-04** (`src/runner/faults.ts`, `src/runner/leakPatterns.ts`, ver AGENTS.md, "Controlled chaos"). Desvios do texto: (1) `untilStep` é o id de um step **posterior** da mesma lista (a falha termina quando ele termina);
+> as falhas também terminam **antes do teardown**; (2) `status` aceita `contentType` opcional; `delayMs` deixa a requisição **real** passar atrasada (e por isso continua contando em `networkFailures` se ela falhar),
+> enquanto `status`, `abort` e `malformedJson` não chamam o servidor e não contam; (3) `assertNoTextMatches` **não aceita regex do chamador** (risco de travar o servidor numa página longa): usa padrões embutidos
+> (`stackTrace`, `exception`, `sqlError`, `serverPath`) mais `contains` literal; (4) `assertVisible` da mensagem esperada já existia, não foi criado outro; (5) o perfil `staging` sem `flags.allowFaults` recebe **403 `FaultsNotAllowed`**
+> na resolução da requisição, antes de abrir o browser. As três rotinas-modelo estão em `templates/routines/chaos-*.routine.json`.
+
 - Step `injectFault { match: { urlContains, method? }, fault: { status, body? } | { delayMs } | { abort: 'failed' | 'timedout' } | { malformedJson: true }, times?, untilStep? }`, via T5.1.
 - Só em origens allowlisted; cada requisição afetada é marcada `handledBy: 'fault'` na evidência.
 - Asserts de apoio: `assertNoTextMatches` (padrões de stack trace e exceção vazando na tela) e

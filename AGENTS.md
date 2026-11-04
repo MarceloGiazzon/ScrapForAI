@@ -404,6 +404,23 @@ step limits, artifact retention, etc.).
   **Reports (T7.5/T7.7)**: the run report (`en`/`pt`/`es`) has an Accessibility section for every audit in `extracted` (recognised by `kind`): with a baseline only **new** and **fixed**, without one a warning and the 20 most serious findings. Each new finding carries the platform note from `src/a11y/platformGuidance.ts` (19 groups, all WCAG rules of axe, three languages);
   `docs/a11y-platform-mapping.md` is GENERATED from it (`npm run generate:a11y-doc`) and a test fails if they differ. The notes are orientation for GeneXus/NPDev, **not verified against a real NPDev build**; the doc and the report say so. Not done: `--fail-on-a11y-new` for `evolution diff`, accessibility in the suite report, iframes, a baseline per role.
   `test/accessibility.test.ts` (normalizing, comparing, schema, stored baseline, tamper, report, guidance, pin), `test/accessibility.smoke.ts` (Chromium: defects, GeneXus ids, failOn, scope, snapshot, regression gate, report).
+- **Controlled chaos** (`injectFault` and `assertNoTextMatches` steps, `src/runner/faults.ts`, `src/runner/leakPatterns.ts`, T7.2): `injectFault { match: { urlContains, method? }, fault, times?, untilStep? }`
+  answers matching requests wrongly on purpose, through the `faults` slot of the routing layer (T5.1). `fault` is ONE of `{ status, body?, contentType? }` (the answer is made up; the server is not called),
+  `{ delayMs }` (the REAL request goes through, late), `{ abort: 'failed' | 'timedout' }` or `{ malformedJson: true }` (HTTP 200 with a truncated JSON body; the server is not called). It only touches
+  requests to origins in `ALLOWED_TARGET_ORIGINS`/`ALLOWED_RESOURCE_ORIGINS` (another origin is left alone), and matches `urlContains` against the full URL. The first matching rule wins; `times` counts the
+  requests a rule answered; `untilStep` is the id of a LATER step of the same list and the fault ends when it finishes (pass or fail; checked at validation, followed by the include rename); with neither it lasts until
+  the steps end. **Faults are cleared before the teardown starts** (cleanup talks to the real application; a teardown may inject its own). **Evidence**: each touched request is in `result.evidence.routing`
+  with `handledBy: 'fault'`, `action` (`fulfill`/`abort`/`delay`) and `detail` (`status 500`, `delay 10000 ms`, `abort timedout`, `malformed JSON`; never a body); a request a fault ABORTED or ANSWERED is not
+  counted in `networkFailures` (the application did not fail; a 4xx/5xx written by a policy is skipped too), a DELAYED one is (it is a real request that can still fail). A stand-in answer to a cross-origin
+  fetch carries CORS headers echoing the `Origin`, so the page sees the 500 and not a CORS error. A run installs the fault policy ONLY when it has an `injectFault` step, so any other run is unchanged.
+  **Staging**: a target profile of `environment: 'staging'` refuses a run that has an `injectFault` step (also through an include) with **403 `FaultsNotAllowed`** unless `flags.allowFaults: true`
+  (checked in `resolveExplorationRequest`, before any browser starts). `assertNoTextMatches { selector? (default body), kinds?: ['stackTrace'|'exception'|'sqlError'|'serverPath'][] (default all), contains?: string[] }`
+  fails when the text shows a Java/.NET/JS/Python/PHP stack trace, an exception class, a database error (ORA-, SQLSTATE, MySQL/SQL Server messages) or a server file path. **The patterns are ours, never the
+  caller's**: a caller regex over a page the caller does not control could stall the server (every pattern is bounded and linear, the text is cut at 200 000 chars, `test/faults.test.ts` times hostile input);
+  `contains` adds literal fragments. The error names the kinds, counts and ONE example each (clipped to 100 chars, redacted) and does not copy the page. Templates: `templates/routines/chaos-save-500`,
+  `chaos-search-slow`, `chaos-json-corrupt`. Not done: faults on a response BODY of a real call (only made-up or truncated ones), a `clearFaults` step, faults on websockets, matching by header or request body,
+  fault injection in suites as a variant dimension, and the list of the faults of a run in the report. `test/faults.test.ts` (controller, routing, patterns, schema, staging), `test/fault-injection.smoke.ts`
+  (Chromium: 500 once, delay, malformed JSON, aborts, a page that leaks, `untilStep`, teardown, cross-origin CORS, a run without faults).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

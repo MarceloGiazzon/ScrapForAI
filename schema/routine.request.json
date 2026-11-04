@@ -45,7 +45,7 @@
       "$ref": "#/$defs/__schema30"
     },
     "teardown": {
-      "$ref": "#/$defs/__schema68"
+      "$ref": "#/$defs/__schema70"
     }
   },
   "required": [
@@ -2066,6 +2066,194 @@
             },
             "action": {
               "type": "string",
+              "const": "injectFault"
+            },
+            "match": {
+              "type": "object",
+              "properties": {
+                "urlContains": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "method": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{3,10}$"
+                }
+              },
+              "required": [
+                "urlContains"
+              ],
+              "additionalProperties": false
+            },
+            "fault": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "minimum": 100,
+                      "maximum": 599
+                    },
+                    "body": {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "maxLength": 100,
+                      "pattern": "^[\\w.+-]+\\/[\\w.+-]+(;\\s*charset=[\\w-]+)?$"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "delayMs": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 60000
+                    }
+                  },
+                  "required": [
+                    "delayMs"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "abort": {
+                      "type": "string",
+                      "enum": [
+                        "failed",
+                        "timedout"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "abort"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "malformedJson": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "malformedJson"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "times": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "untilStep": {
+              "$ref": "#/$defs/__schema32"
+            }
+          },
+          "required": [
+            "action",
+            "match",
+            "fault"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema38"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "action": {
+              "type": "string",
+              "const": "assertNoTextMatches"
+            },
+            "selector": {
+              "$ref": "#/$defs/__schema50"
+            },
+            "kinds": {
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema68"
+              }
+            },
+            "contains": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema69"
+              }
+            },
+            "timeoutMs": {
+              "$ref": "#/$defs/__schema47"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema33"
+            },
+            "label": {
+              "$ref": "#/$defs/__schema34"
+            },
+            "description": {
+              "$ref": "#/$defs/__schema35"
+            },
+            "frame": {
+              "$ref": "#/$defs/__schema36"
+            },
+            "delayMs": {
+              "$ref": "#/$defs/__schema37"
+            },
+            "waitFor": {
+              "$ref": "#/$defs/__schema38"
+            },
+            "afterWaitFor": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "action": {
+              "type": "string",
               "const": "extractText"
             },
             "selector": {
@@ -2604,6 +2792,20 @@
       "additionalProperties": false
     },
     "__schema68": {
+      "type": "string",
+      "enum": [
+        "stackTrace",
+        "exception",
+        "sqlError",
+        "serverPath"
+      ]
+    },
+    "__schema69": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "__schema70": {
       "minItems": 1,
       "maxItems": 50,
       "type": "array",
