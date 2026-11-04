@@ -104,6 +104,8 @@ export const explorationResultSchema = z.object({
   clock: z.array(clockEvidenceSchema).optional(),
   /** Present only when the run asked for `options.piiScan` (T7.8): personal data and secrets seen where they should not be. Never holds a raw value. */
   pii: piiReportSchema.optional(),
+  /** Present only when the target profile's login routine was included for the run (T8.1, platform genexus). */
+  autoLogin: z.object({ routineId: z.string(), version: z.number().int().positive(), gate: z.boolean() }).optional(),
   /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */
   includes: z.array(z.object({ routineId: z.string(), version: z.number().int().positive(), sha256: z.string() })).optional(),
   /** Teardown step results (T1.4), apart from `steps`. Present only when the run had a teardown. */
@@ -134,6 +136,8 @@ export const explorationResultSchema = z.object({
     pageErrors: z.array(z.string()),
     network: z.array(networkEvidenceSchema),
     networkFailures: z.array(networkEvidenceSchema),
+    // T8.1: failures left OUT of `networkFailures` as known noise (platform rule or the profile's noiseFilters). `network` keeps every one of them.
+    noiseFiltered: z.array(z.object({ reason: z.string(), count: z.number().int().positive() })).optional(),
     unexpectedExternalRequests: z.array(networkEvidenceSchema),
     // Present only when a routing policy touched at least one request (T5.1).
     routing: z.array(routingEvidenceSchema).optional(),

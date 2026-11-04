@@ -57,13 +57,16 @@ test('the sources are plain data to the runner: no template syntax that could be
     const own = script.id === 'a11y-axe' ? script.source.replace(axeBundle, '') : script.source;
     assert.ok(!own.includes('${'), `${script.id} must not contain template placeholders`);
     // pii-surfaces (T7.8) is the ONE script that reads storage, by design (the PII hunt). It is still checked for everything else and for any WRITE to storage.
+    // net-tracker (T8.2) is the ONE script that names XMLHttpRequest, because it counts those requests; it may not CALL fetch or touch anything else.
     const forbidden =
-      script.id === 'pii-surfaces'
+      script.id === 'net-tracker'
+        ? /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|localStorage|sessionStorage|document\.cookie|\.open\s*\(/
+        : script.id === 'pii-surfaces'
         ? /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|document\.cookie|setItem|removeItem|\.clear\s*\(/
         : /\beval\s*\(|new Function|document\.write|innerHTML\s*=|fetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|document\.cookie/;
     assert.ok(!forbidden.test(own), `${script.id} reads and writes nothing it should not`);
   }
-  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style', 'pii-surfaces']);
+  assert.deepEqual(TRUSTED_SCRIPTS.map((script) => script.id).sort(), ['a11y-axe', 'keyboard-active', 'keyboard-candidates', 'keyboard-style', 'net-state', 'net-tracker', 'pii-surfaces']);
 });
 
 /** A frame whose evaluate records the expression and answers with `answer`. */

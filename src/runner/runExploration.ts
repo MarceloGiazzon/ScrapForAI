@@ -20,6 +20,7 @@ import { meetsFailLevel, SEVERITY_RANK } from '../security/piiFindings.js';
 import { getPiiFingerprintKey } from '../security/piiSalt.js';
 import { collectKnownSecretValues, redactSecrets, redactString } from '../security/redactSecrets.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
+import { applyNoiseFilters, noiseRulesFor } from '../targets/platformRules.js';
 import { getTarget } from '../targets/targetStore.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
@@ -27,6 +28,7 @@ import { extractStructure } from './extractStructure.js';
 import { createFaultController, type FaultController, usesFaults } from './faults.js';
 import { type ActiveElement, type Candidate, type StyleSignature, walkKeyboard } from './keyboardWalk.js';
 import { ALL_LEAK_KINDS, findLeaks } from './leakPatterns.js';
+import { usesQuiet, waitForNetworkQuiet } from './networkQuiet.js';
 import { PiiScanner, usesPiiScan } from './piiScanner.js';
 import { runTrustedScript } from './trusted/runTrusted.js';
 import type { ResolvedExplorationRequest } from './resolveRequest.js';
@@ -75,6 +77,11 @@ export async function applyWaitCondition(page: Page, frameRef: FrameRef | undefi
 
   if (condition.loadState) {
     await frame.waitForLoadState(condition.loadState, { timeout });
+    return;
+  }
+
+  if (condition.quiet) {
+    await waitForNetworkQuiet(page, { ...(condition.quiet.idleMs === undefined ? {} : { idleMs: condition.quiet.idleMs }), timeoutMs: timeout });
     return;
   }
 
@@ -287,6 +294,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   // T7.8: the PII hunt of this run, only for a run that asks for it (options.piiScan or a scanForPii step).
   let piiScanner: PiiScanner | undefined;
   let piiReport: ExplorationResult['pii'];
+  // T8.1: the target profile of the run, when it has one (platform rules and noise filters).
+  let profile: Awaited<ReturnType<typeof getTarget>> | undefined;
 
   try {
     // FORCE_HEADLESS (set by the Light distribution, which bundles only the headless shell)
@@ -298,12 +307,16 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     playwright = await createPlaywrightContext(headless, request.options.viewport, {
       stubResources: stubbedResourceTypes(request.options),
       ...(faults ? { faults: faults.policy } : {}),
+      ...(usesQuiet(request) ? { networkTracker: true } : {}),
     });
     evidence = registerEvidenceCollectors(playwright.page, artifactStore, playwright.routing.isHandled);
 
+    // The profile is read once: its platform and noise filters (T8.1) and its PII policy (T7.9) are used below.
+    profile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
+
     if (usesPiiScan(request)) {
       // T7.9: what this application's profile says is expected, and how serious each kind of finding is here.
-      const piiProfile = request.targetProfile ? await getTarget(request.targetProfile).catch(() => undefined) : undefined;
+      const piiProfile = profile;
       piiScanner = new PiiScanner(playwright.page, playwright.context, {
         // The vault values of this run, plus the API key: any of them showing up on a page is a leak.
         knownSecrets,
@@ -384,6 +397,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             break;
           case 'waitForLoadState':
             await frame.waitForLoadState(step.state, { timeout });
+            break;
+          case 'waitForQuiet':
+            await waitForNetworkQuiet(page, { ...(step.idleMs === undefined ? {} : { idleMs: step.idleMs }), timeoutMs: timeout });
             break;
           case 'waitForUrlContains':
             await waitForUrlContains(() => page.url(), step.value, timeout);
@@ -883,7 +899,11 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
   const routingEntries = playwright?.routing.entries ?? [];
   // T7.8: a run that hunts for secrets in URLs must not write the one it found into its own result (finalUrl keeps the query and the fragment).
   const recordedUrl = piiScanner && finalUrl ? maskUrl(finalUrl, { knownSecrets }) : finalUrl;
-  const networkFailures = networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400));
+  // T8.1: known noise (the platform's, the profile's) is left out of the failures and counted apart; `network` keeps every request.
+  const { kept: networkFailures, filtered: noiseFiltered } = applyNoiseFilters(
+    networkEvidence.filter((item) => item.failureText || (item.status !== undefined && item.status >= 400)),
+    noiseRulesFor(profile),
+  );
   const rawResult: ExplorationResult = {
     jobId,
     scenarioName: request.scenarioName,
@@ -897,6 +917,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     ...(clockEvents.length > 0 ? { clock: clockEvents } : {}),
     ...(piiReport ? { pii: piiReport } : {}),
     ...(request.parameterRecord ? { parameters: request.parameterRecord } : {}),
+    ...(request.autoLogin ? { autoLogin: request.autoLogin } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
     ...(request.teardown
       ? { teardown: teardownSteps, teardownStatus: teardownSteps.length === request.teardown.length && teardownSteps.every((s) => s.status === 'passed') ? ('passed' as const) : ('failed' as const) }
@@ -921,6 +942,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       pageErrors: pageErrorEvidence,
       network: networkEvidence,
       networkFailures,
+      ...(noiseFiltered.length > 0 ? { noiseFiltered } : {}),
       unexpectedExternalRequests: evidence?.unexpectedExternalRequests ?? [],
       ...(routingEntries.length > 0 ? { routing: routingEntries } : {}),
       domTextSnapshot: domTextEvidence,

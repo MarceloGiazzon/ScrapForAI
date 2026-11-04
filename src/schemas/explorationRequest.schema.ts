@@ -34,6 +34,9 @@ const frameRefSchema = z.union([
   z.object({ index: z.number().int().min(0) }).strict(),
 ]);
 
+/** T8.2: how long the page must have had no XHR/fetch pending. */
+const quietSchema = z.object({ idleMs: z.number().int().min(50).max(10_000).optional() }).strict();
+
 const waitConditionSchema = z
   .object({
     timeoutMs: z.number().int().min(0).max(60000).optional(),
@@ -48,17 +51,19 @@ const waitConditionSchema = z
       .optional(),
     loadState: z.enum(['load', 'domcontentloaded', 'networkidle']).optional(),
     urlContains: z.string().min(1).max(2048).optional(),
+    // T8.2: no XHR/fetch pending for `idleMs` (default 300) in any frame; the wait is bounded by this condition's timeoutMs.
+    quiet: quietSchema.optional(),
   })
   .strict()
   .superRefine((condition, ctx) => {
-    const specifiedConditions = [condition.selector, condition.response, condition.loadState, condition.urlContains].filter(
+    const specifiedConditions = [condition.selector, condition.response, condition.loadState, condition.urlContains, condition.quiet].filter(
       (value) => value !== undefined,
     );
 
     if (specifiedConditions.length !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'wait condition must specify exactly one of: selector, response, loadState, urlContains',
+        message: 'wait condition must specify exactly one of: selector, response, loadState, urlContains, quiet',
       });
     }
 
@@ -135,6 +140,10 @@ const waitForLoadStateStep = z
     state: z.enum(['domcontentloaded', 'load', 'networkidle']),
     timeoutMs: stepTimeout,
   })
+  .strict();
+// T8.2: waits until no XHR/fetch is pending for idleMs (default 300), in every frame. The robust replacement for waitForTimeout and for networkidle.
+const waitForQuietStep = z
+  .object({ ...baseStep, action: z.literal('waitForQuiet'), idleMs: z.number().int().min(50).max(10_000).optional(), timeoutMs: stepTimeout })
   .strict();
 const waitForUrlContainsStep = z
   .object({ ...baseStep, action: z.literal('waitForUrlContains'), value: shortText, timeoutMs: stepTimeout })
@@ -467,6 +476,7 @@ export const explorationStepSchema = z.discriminatedUnion('action', [
   reloadStep,
   setOfflineStep,
   waitForLoadStateStep,
+  waitForQuietStep,
   waitForUrlContainsStep,
   waitForTimeoutStep,
   setViewportStep,
@@ -551,6 +561,8 @@ export const explorationOptionsSchema = z
     // T7.8: hunt for personal data and secrets during the whole run (URLs, console, bodies without credentials) and, at the end of the steps, in
     // storage, cookies and hidden inputs. The result carries `pii`. Optional with no default, so a saved routine keeps its digest.
     piiScan: z.boolean().optional(),
+    // T8.1: `false` turns off the automatic login of a `genexus` target profile for this run (its login routine is not included for you).
+    autoLogin: z.boolean().optional(),
     collectDomOnFailure: z.boolean().default(false),
     viewport: z
       .object({

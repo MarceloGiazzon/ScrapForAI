@@ -1,4 +1,4 @@
-import type { Frame } from 'playwright';
+import type { BrowserContext, Frame } from 'playwright';
 
 import type { JsonValue } from '../../schemas/explorationResult.schema.js';
 import { redactSecrets } from '../../security/redactSecrets.js';
@@ -36,6 +36,15 @@ export interface TrustedRunOptions {
   knownSecrets?: string[];
   /** Replaces the registry lookup (tests). */
   definition?: TrustedScriptDefinition;
+}
+
+/**
+ * Installs a registered script as an INIT script of the context: it runs at the start of every document of every frame, before the page's own code.
+ * Same rules as `runTrustedScript`: a fixed source, verified against its pin, and no caller text in it.
+ */
+export async function installTrustedInitScript(context: BrowserContext, id: TrustedScriptId): Promise<void> {
+  ensureVerified();
+  await context.addInitScript({ content: `(${getTrustedScript(id).source})({})` });
 }
 
 /**

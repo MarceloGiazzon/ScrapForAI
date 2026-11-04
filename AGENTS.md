@@ -450,6 +450,28 @@ step limits, artifact retention, etc.).
   (en/pt/es) has a "Privacy scan" section; webhook messages mask personal data via `scrubText`. **Profile policy (T7.9)**: the target profile's optional `pii: { severity: [{ detector?, surface?, severity, note? }], suppressions: [{ id, detector, surface?, locationContains?, reason, until }] }` (`src/schemas/piiPolicy.schema.ts`, `src/security/piiPolicy.ts`, pure). A severity rule re-rates a kind of finding for THIS application (most specific wins, later among equals; the finding keeps `severityReason`); a suppression marks a finding as expected: `detector`, `reason` (10+ chars) and `until` (YYYY-MM-DD, last day inclusive, UTC) are mandatory, so there is no "suppress everything" and no permanent one; `PUT /v1/targets/:id` refuses an `until` in the past or more than 366 days ahead (that check is NOT in the schema, so a stored profile keeps loading after its suppression lapses). A suppressed finding leaves `findings` and `counts` and fails no step, but is listed in `suppressed` (with the suppression id, reason, expiry) and in the report; after `until` it counts again and `notes` says so. `known-secret` (a vault value on a page) can be neither suppressed nor re-rated. Policy is applied when the report is built, severity rules first, then suppressions. Not done: editing the policy in the web UI, the PII summary in suite reports and in the history, iframes, ci-uy
   without separators, names and addresses (no detector can tell them from text).
   `test/pii.test.ts` (detectors, masking, fingerprints, collector, schema), `test/pii.smoke.ts` (Chromium: a page that leaks through every surface; nothing raw on disk), `test/reports.test.ts`, `test/notify.test.ts`.
+- **Platform rules** (`src/targets/platformRules.ts`, `resolveRequest.ts`, T8.1): the target profile's `platform` is no longer a label.
+  **`genexus`**: (1) `net::ERR_ABORTED` network failures are noise (conventions 3): they leave `evidence.networkFailures` and are counted in
+  `evidence.noiseFiltered: [{ reason, count }]` (`evidence.network` keeps every request, so a filter is never silent; an HTTP 4xx/5xx is never noise).
+  The profile's own `noiseFilters` (`networkFailureTextContains` + `reason`, which existed but were applied nowhere) now apply to EVERY platform, by the same rule.
+  (2) **Automatic login**: when the run has a `credentialSet` and the profile a `loginRoutine`, the routine is included before the steps as `autologin`
+  (step ids `autologin.<id>`), followed by the **login gate** `autologin-gate` (`waitForUrlContains`) when the profile has `loginGate: { urlContains, timeoutMs (15 s) }`.
+  It is NOT added when the expanded steps already type a vault value (`fill`/`selectOption` with `valueFromCredential`: an explicit include, the login routine run
+  on its own, a permission matrix, a snapshot) because a second login ends the first session; `options.autoLogin: false` turns it off. A run saved as a routine keeps
+  its steps as written (without the login). `result.autoLogin = { routineId, version, gate }` records it, and `includes` has the version. (3) One session per credential:
+  `flags.maxSessionsPerCredential` already defaults to 1 for every profile, so nothing new was needed. `platform: 'npdev'` has NO rules yet (`[cross-repo]`: to be gathered
+  with the NPDev team). Not done: a profile without `loginGate` gets no gate (nothing to guess it from), and ERR_ABORTED is dropped for all documents/images, not only for redirect-aborted ones.
+  `test/platform-rules.test.ts`.
+- **Network quiet** (`src/runner/networkQuiet.ts`, `trusted/scripts/network.ts`, T8.2): `{ action: 'waitForQuiet', idleMs?, timeoutMs? }` and the wait condition `{ quiet: { idleMs? } }`
+  (`waitFor` before / `afterWaitFor` after any action; its `timeoutMs` bounds it, a departure from the roadmap's `quiet.timeoutMs`) wait until NO XHR/fetch is pending, in ANY frame,
+  and nothing started or ended, for `idleMs` (default 300, 50-10000). The trusted init script `net-tracker` wraps `fetch` and `XMLHttpRequest.prototype.send` (calls pass through
+  unchanged) and keeps two numbers, `{ pending, seq }`, on a non-enumerable `window.__scrapforaiNet`; `net-state` reads them. It is installed ONLY for a run that waits for quiet
+  (`usesQuiet`), so any other run is untouched. The idle time is measured by the SERVER with the real clock (`QuietDetector`, pure), not by the page, so a fake clock (T7.3) cannot
+  change it; a frame that cannot be read (navigating) is "not quiet". Timeout: `Timeout waiting for network quiet: N XHR/fetch request(s) still pending after X ms` (or "kept making requests").
+  Not counted: websockets, EventSource, sendBeacon, navigations, images/scripts/styles; a request that never answers (long polling) keeps the page busy until the timeout. `idleMs` above the
+  timeout is refused. **GeneXus spike NOT done**: no generated GeneXus app (Java or .NET) was available (WmsOffice is NPDev), so whether the GeneXus runtime exposes a reliable "busy" flag is
+  unknown; the counter works without it. To do it: on a real page, read the globals the runtime defines (`gx`, its ajax/event objects) before and during a server event and see if any
+  flips. `test/network-quiet.test.ts`, `test/network-quiet.smoke.ts` (Chromium: fetch -> XHR chain, an iframe, a request that hangs, a run without the counter).
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

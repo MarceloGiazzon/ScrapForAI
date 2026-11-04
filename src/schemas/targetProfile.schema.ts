@@ -50,6 +50,16 @@ export const targetProfileSchema = z
     // Vault credential sets (T1.2) a run against this profile may use.
     credentialSets: z.array(safeName).max(50).default([]),
     loginRoutine: safeName.optional(),
+    // T8.1: the "login gate" (genexus conventions, 1): where the app must be once the login is done. With platform `genexus`, a run that uses a
+    // credential set gets `loginRoutine` included automatically, followed by a wait for this URL fragment, so a login that did not complete fails
+    // HERE and not as a confusing timeout later.
+    loginGate: z
+      .object({
+        urlContains: z.string().min(1).max(500),
+        timeoutMs: z.number().int().min(1000).max(60_000).default(15_000),
+      })
+      .strict()
+      .optional(),
     buildInfo: z
       .discriminatedUnion('kind', [
         z.object({ kind: z.literal('httpHeader'), header: z.string().min(1).max(200) }).strict(),

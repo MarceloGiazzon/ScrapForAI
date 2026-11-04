@@ -94,8 +94,11 @@ From `docs/npdev-testing-guide.md`:
 ## Reading evidence without chasing false failures
 
 - The reliable health signals are your **assertions**, `consoleErrors`, `pageErrors` and the login gate.
-- `net::ERR_ABORTED` in `networkFailures` is benign on GeneXus: client-side `top.location.href` redirects
-  abort in-flight requests. Filter it out when judging health.
+- `net::ERR_ABORTED` is benign on GeneXus (client-side `top.location.href` redirects abort in-flight requests). On a target profile with
+  `platform: genexus` it is already filtered out of `networkFailures` and counted in `evidence.noiseFiltered`.
+- On a `genexus` profile the profile's `loginRoutine` (+ `loginGate`) is included for you when you pass a `credentialSet`: do not include it again.
+  `options.autoLogin: false` turns that off.
+- Prefer `waitForQuiet` (or `afterWaitFor: { quiet: {} }` on the action) to a fixed `waitForTimeout`: it waits until no XHR/fetch is pending.
 - A "missing component" is often a consequence of **not reaching the page** (failed login, redirect). Confirm
   the URL first (the login gate, or a `collect` of `url`) before calling it a UI defect.
 - Empty `consoleErrors`/`pageErrors` with a page that "looks wrong" is usually a navigation artifact.

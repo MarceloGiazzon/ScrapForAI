@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { axeAuditSource } from './scripts/axe.js';
+import { netStateSource, netTrackerSource } from './scripts/network.js';
 import { piiSurfacesSource } from './scripts/pii.js';
 import { keyboardActiveSource, keyboardCandidatesSource, keyboardStyleSource } from './scripts/keyboard.js';
 
@@ -49,6 +50,9 @@ export const TRUSTED_SCRIPTS = [
   { id: 'a11y-axe', source: axeAuditSource, sha256: 'b48ec2d85edd794c0258305adebf0566dc2d9c0227745c7ec1df6a200463c807', timeoutMs: 30_000, maxOutputChars: 250_000 },
   // T7.8: reads localStorage/sessionStorage and hidden inputs for the PII hunt; the server scans the text and keeps none of it.
   { id: 'pii-surfaces', source: piiSurfacesSource, sha256: 'f4723e225ca9d8c24165c375a521a730a7f3a5fdb9e5a4ead00778d6b15c635f', timeoutMs: 5000, maxOutputChars: 1_000_000 },
+  // T8.2: counts pending XHR/fetch (installed as an init script) and reads the count; two numbers, no URL or body.
+  { id: 'net-tracker', source: netTrackerSource, sha256: 'ad6127ef1fd3759676cf146e4d4fb7c47012a74000dab4150acbbc3e7b0350d3', timeoutMs: 3000, maxOutputChars: 100 },
+  { id: 'net-state', source: netStateSource, sha256: '6bca5fa4164712483465e3a0a39277eefc848033526cad83795af59dbe824305', timeoutMs: 1000, maxOutputChars: 100 },
 ] as const satisfies readonly TrustedScriptDefinition[];
 
 export type TrustedScriptId = (typeof TRUSTED_SCRIPTS)[number]['id'];

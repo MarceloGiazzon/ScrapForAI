@@ -1325,6 +1325,8 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T8.1 — Plataforma no perfil de alvo · M
 
+> **Implementada em 2026-11-04** para `genexus` (`src/targets/platformRules.ts`, `resolveRequest.ts`; ver AGENTS.md, "Platform rules"). Desvios: (1) o *login gate* é um campo do perfil (`loginGate`), sem ele não há gate; (2) o login automático não é adicionado quando a execução já digita um valor do cofre (evita a segunda sessão); (3) o lock de sessão única já era o padrão. `noiseFilters`, que existia no perfil sem uso, passou a valer para toda plataforma. **Não feito:** `npdev` (`[cross-repo]`).
+
 Com `platform: 'genexus'`:
 - filtro de ruído automático: `net::ERR_ABORTED` causado por redirects `top.location` (convenções §3);
 - `loginRoutine` do perfil incluída automaticamente via `include` (T1.4), com o *login gate* (convenções §1);
@@ -1333,6 +1335,8 @@ Com `platform: 'genexus'`:
 Com `platform: 'npdev'`: as regras equivalentes, levantadas junto com o time do NPDev. `[cross-repo]`
 
 ### T8.2 — Espera por quietude de rede (+ sinais GX) · M
+
+> **Implementada em 2026-11-04** (contador + `waitForQuiet` + condição `quiet`; ver AGENTS.md, "Network quiet"). Desvio: o `timeoutMs` é o da condição/step, não de dentro de `quiet`. **Spike GeneXus NÃO feito:** não havia app GeneXus gerado para inspecionar; o contador funciona sozinho.
 
 **Por quê:** `networkidle` é frágil, e esperas fixas (`waitForTimeout`) são a principal fonte de
 lentidão e flakiness.

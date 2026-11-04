@@ -1,6 +1,7 @@
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page } from 'playwright';
 
 import { env } from '../config/env.js';
+import { installNetworkTracker } from './networkQuiet.js';
 import { buildPolicies, installRouting, resourceStubPolicy, type Policy, type RoutingHandle } from './routing.js';
 
 export interface PlaywrightJobContext {
@@ -39,6 +40,8 @@ export interface ContextOptions {
   stubResources?: readonly string[];
   /** T7.2: the fault policy of this run (only passed when a step injects faults, so a run without them installs nothing). */
   faults?: Policy;
+  /** T8.2: install the pending-request counter (only for a run that waits for network quiet, so any other run is untouched). */
+  networkTracker?: boolean;
 }
 
 export async function createPlaywrightContext(
@@ -70,6 +73,10 @@ export async function createPlaywrightContext(
     content: `globalThis.__name = globalThis.__name || function (value) { return value; };
 Object.defineProperty(navigator, 'webdriver', { get: function () { return undefined; } });`,
   });
+
+  if (options.networkTracker) {
+    await installNetworkTracker(context);
+  }
 
   const routing = await installRouting(context, buildPolicies({
       blockUnexpected: options.blockUnexpected ?? env.BLOCK_UNEXPECTED_RESOURCES,
