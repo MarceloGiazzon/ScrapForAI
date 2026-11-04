@@ -56,6 +56,7 @@ Commands
   shrink --from-job <jobId> | <routineId> --seed s --sample N  [--max-runs N] [--max-seconds N] [--profile functional] [--no-wait]
                                     (smallest input that still fails; exit 0 when found, 2 otherwise)
   schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
+  webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
   routines list
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
@@ -280,7 +281,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' ?`${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -701,6 +702,52 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const entry = started.body as Record<string, any>;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'schedules run-now', exitCode: 0, result: entry as never }, `${entry.outcome}${entry.run ? `: ${entry.run.kind} ${entry.run.id}` : ''}${entry.message ? ` - ${entry.message}` : ''}\n`);
       return 0;
+    }
+
+    if (command === 'webhooks list' || command === 'webhooks show' || command === 'webhooks test') {
+      // T3.3: read the channels, or send a test message. Creating and editing them is `PUT /v1/webhooks/:id` (the URL is a secret and goes
+      // to the server's credential vault: it is never a command-line argument, which would end up in shell history).
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: common });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [id] = positionals;
+
+      if (command === 'webhooks list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai webhooks list');
+        const response = await api('GET', '/v1/webhooks');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { webhooks: Array<Record<string, any>> };
+        const lines = body.webhooks.map(
+          (item) =>
+            `${item.webhook.enabled ? 'on ' : 'off'}  ${item.webhook.id}  ${item.webhook.preset}/${item.webhook.lang}  ${item.urlOrigin ?? 'NO URL'}${item.originAllowed ? '' : '  (ORIGIN NOT ALLOWED)'}  schedules: ${item.schedules.join(',') || '-'}${item.lastDelivery ? `  last ${item.lastDelivery.kind} ${item.lastDelivery.status}` : ''}`,
+        );
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'webhooks list', exitCode: 0, result: body as never }, `${lines.length === 0 ? 'No webhooks.' : lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', `usage: scrapforai ${command} <webhookId>`);
+      if (command === 'webhooks show') {
+        const response = await api('GET', `/v1/webhooks/${encodeURIComponent(id)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as Record<string, any>;
+        const lines = [
+          `${body.webhook.id}: ${body.webhook.enabled ? 'enabled' : 'DISABLED'}  ${body.webhook.preset}/${body.webhook.lang}  events ${body.webhook.events.join(',')}${body.webhook.dailySummary ? `  daily summary ${body.webhook.dailySummary.at} (${body.webhook.dailySummary.timezone})` : ''}`,
+          `  destination: ${body.urlOrigin ?? 'NO URL STORED'}${body.originAllowed ? '' : '  <- not in ALLOWED_NOTIFY_ORIGINS: nothing is delivered'}`,
+          `  schedules: ${(body.schedules as string[]).join(', ') || '-'}`,
+          ...Object.entries(body.known as Record<string, { verdict: string; since: string }>).map(([subject, value]) => `  knows: ${subject} is ${value.verdict} since ${value.since}`),
+          ...((body.deliveries ?? []) as Array<Record<string, any>>).slice(0, 10).map((delivery) => `  ${delivery.at}  ${delivery.kind}  ${delivery.status}${delivery.httpStatus ? ` HTTP ${delivery.httpStatus}` : ''}${delivery.reason ? `  ${delivery.reason}` : ''}`),
+        ];
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'webhooks show', exitCode: 0, result: body as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      // 200 = it arrived, 502 = it did not (the body is the delivery either way).
+      const sent = await api('POST', `/v1/webhooks/${encodeURIComponent(id)}/test`);
+      if (sent.status !== 200 && sent.status !== 502) throw errorOf(sent);
+      const delivery = sent.body as Record<string, any>;
+      const exitCode: ExitCode = sent.status === 200 ? 0 : 2;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'webhooks test', exitCode, result: delivery as never }, `${delivery.status}${delivery.httpStatus ? ` (HTTP ${delivery.httpStatus})` : ''}${delivery.reason ? `: ${delivery.reason}` : ''}\n`);
+      return exitCode;
     }
 
     if (command === 'shrink') {

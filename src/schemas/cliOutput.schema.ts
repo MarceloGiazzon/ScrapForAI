@@ -6,6 +6,7 @@ import { matrixRunStateSchema } from './permissionMatrix.schema.js';
 import { scheduleHistoryEntrySchema, scheduleSchema } from './schedule.schema.js';
 import { shrinkStateSchema } from './shrink.schema.js';
 import { suiteStateSchema } from './suiteRequest.schema.js';
+import { deliverySchema, webhookSchema } from './webhook.schema.js';
 
 /**
  * T1.7 contract of `scrapforai ... --json`. The NPDev ledger guards (T2.4) and CI scripts parse this,
@@ -122,6 +123,23 @@ const cliScheduleViewSchema = z
   .strict();
 export const cliSchedulesListSchema = z.object({ schedulerRunning: z.boolean(), schedules: z.array(cliScheduleViewSchema) }).strict();
 
+/** `webhooks list|show|test` (T3.3). Never a URL: only its origin. */
+const cliWebhookViewSchema = z
+  .object({
+    webhook: webhookSchema,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    hasUrl: z.boolean(),
+    urlOrigin: z.string().optional(),
+    originAllowed: z.boolean(),
+    schedules: z.array(z.string()),
+    lastDelivery: deliverySchema.optional(),
+    known: z.record(z.string(), z.object({ verdict: z.string(), since: z.string() }).strict()).optional(),
+    deliveries: z.array(deliverySchema).optional(),
+  })
+  .strict();
+export const cliWebhooksListSchema = z.object({ webhooks: z.array(cliWebhookViewSchema) }).strict();
+
 /** `shrink --no-wait`. */
 export const cliShrinkStartedSchema = z.object({ shrinkId: z.string() }).strict();
 
@@ -186,6 +204,9 @@ export const cliOutputSchema = z.union([
   success('schedules list', cliSchedulesListSchema),
   success('schedules show', cliScheduleViewSchema),
   success('schedules run-now', scheduleHistoryEntrySchema),
+  success('webhooks list', cliWebhooksListSchema),
+  success('webhooks show', cliWebhookViewSchema),
+  success('webhooks test', deliverySchema),
   success('shrink', z.union([shrinkStateSchema, cliShrinkStartedSchema])),
   success('evolution list', cliEvolutionListSchema),
   success('evolution diff', cliEvolutionDiffSchema),

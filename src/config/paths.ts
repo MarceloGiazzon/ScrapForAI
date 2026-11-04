@@ -92,6 +92,11 @@ export function schedulesDir(): string {
   return path.join(dataDir(), 'schedules');
 }
 
+/** Webhooks (T3.3): webhooks/<id>.json (definition, no URL: that is in the credential vault) and webhooks/state/<id>.json (what the channel was told, deliveries). */
+export function webhooksDir(): string {
+  return path.join(dataDir(), 'webhooks');
+}
+
 /** Shrink run states (T5.6): <dataDir>/shrinks/<shrinkId>.json. */
 export function shrinksDir(): string {
   return path.join(dataDir(), 'shrinks');

@@ -1,3 +1,4 @@
+import { assertWebhooksExist } from '../integrations/webhookService.js';
 import { getRoutine } from '../library/routineLibrary.js';
 import { planSuite } from '../orchestrator/suiteRunner.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
@@ -68,6 +69,8 @@ export async function saveScheduleDefinition(id: string, body: unknown, nowMs = 
     if (error instanceof CronError) throw new ScheduleError(400, 'InvalidSchedule', error.message);
     throw error;
   }
+
+  await assertWebhooksExist(schedule.notify);
 
   const { target } = schedule;
   switch (target.kind) {

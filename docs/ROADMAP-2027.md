@@ -801,6 +801,11 @@ homologação útil.
 
 ### T3.3 — Notificações por webhook · M
 
+> **Implementada em 2026-11-03** (`src/integrations/`, ver AGENTS.md, "Webhook notifications"). Presets generic/Slack/Teams/Google Chat; só transições (verde→vermelho, vermelho→verde) e resumo diário
+> opcional; a URL fica no cofre de credenciais (`webhook-<id>`) e nenhuma leitura a devolve; egress por `ALLOWED_NOTIFY_ORIGINS` (conferido ao salvar e a cada envio, sem seguir redirecionamentos);
+> redação + verificação final antes de sair (teste com segredo sentinela). **Não feito:** o detector de PII (T7.8 ainda não existe), links para o relatório, edição na UI, notificação de execuções
+> que não vêm de um agendamento.
+
 - Webhook genérico com presets para Teams, Slack e Google Chat.
 - Dispara **só em transições** (verde→vermelho, vermelho→verde) e num resumo diário opcional.
   Nunca a cada execução.

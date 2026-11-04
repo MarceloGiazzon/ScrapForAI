@@ -8,7 +8,7 @@ import { snapshotBodySchema } from '../schemas/evolution.schema.js';
 import type { Schedule } from '../schemas/schedule.schema.js';
 import { type SuiteRequest, suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { getSuite, planSuite, startSuite, waitForSuite } from '../orchestrator/suiteRunner.js';
-import type { Dispatched, Dispatcher, RunRef, Settled } from './scheduler.js';
+import type { Dispatched, Dispatcher, RunRef, Settled, SettledFacts } from './scheduler.js';
 
 /**
  * T3.2: starts what a schedule points at. Scheduled runs go through the same queue as everything else, with the lowest priority (`scheduled`),
@@ -45,11 +45,28 @@ const refused = (routine: string): Dispatched => ({
   message: `${routine} uses evaluate/watch, which scheduled runs may not use (SCHEDULED_ALLOW_EVALUATE is off)`,
 });
 
+const MAX_FACT_FAILURES = 5;
+
+/** T3.3: what a notification may say about a finished suite: ids, counts and which variants went wrong (never values). */
+function suiteFacts(state: NonNullable<Awaited<ReturnType<typeof getSuite>>>): SettledFacts {
+  const failures = state.variants
+    .filter((variant) => variant.status === 'failed' || variant.status === 'error')
+    .slice(0, MAX_FACT_FAILURES)
+    .map((variant) => `${variant.variantKey}: ${variant.errorType ?? variant.status}`);
+  return {
+    runId: state.suiteRunId,
+    ...(state.request.buildId ? { buildId: state.request.buildId } : {}),
+    counts: { passed: state.counts.passed, failed: state.counts.failed, error: state.counts.error, notRun: state.counts.notRun },
+    ...(failures.length > 0 ? { failures } : {}),
+  };
+}
+
 function suiteSettled(state: NonNullable<Awaited<ReturnType<typeof getSuite>>>): Settled | undefined {
   if (state.status === 'running') return undefined;
-  if (state.verdict === 'green') return { outcome: 'passed', ...(state.verdictReason ? { message: state.verdictReason } : {}) };
-  if (state.verdict === 'red') return { outcome: 'failed', ...(state.verdictReason ? { message: state.verdictReason } : {}) };
-  return { outcome: 'error', message: state.verdictReason ?? `suite ${state.status}` };
+  const facts = suiteFacts(state);
+  if (state.verdict === 'green') return { outcome: 'passed', ...(state.verdictReason ? { message: state.verdictReason } : {}), facts };
+  if (state.verdict === 'red') return { outcome: 'failed', ...(state.verdictReason ? { message: state.verdictReason } : {}), facts };
+  return { outcome: 'error', message: state.verdictReason ?? `suite ${state.status}`, facts };
 }
 
 async function untilSuiteEnds(id: string): Promise<Settled> {
@@ -99,7 +116,13 @@ export function createDispatcher(): Dispatcher {
           const ref: RunRef = { kind: 'run', id: `${label}` };
           const done = run.then((result): Settled => {
             ref.id = result.jobId;
-            return { outcome: result.status === 'passed' ? 'passed' : 'failed', message: result.status === 'passed' ? result.jobId : `${result.jobId}: ${result.error?.type ?? 'failed'}` };
+            const failedStep = result.failedStepIndex === undefined ? undefined : result.steps[result.failedStepIndex];
+            const failure = result.error ? `${failedStep?.id ? `step ${failedStep.id}` : failedStep ? `step ${failedStep.index}` : 'run'}: ${result.error.type}: ${result.error.message}` : undefined;
+            return {
+              outcome: result.status === 'passed' ? 'passed' : 'failed',
+              message: result.status === 'passed' ? result.jobId : `${result.jobId}: ${result.error?.type ?? 'failed'}`,
+              facts: { runId: result.jobId, ...(result.buildId ? { buildId: result.buildId } : {}), ...(failure && result.status !== 'passed' ? { failures: [failure] } : {}) },
+            };
           });
           return { started: true, run: ref, done };
         }

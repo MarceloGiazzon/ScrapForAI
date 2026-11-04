@@ -32,6 +32,7 @@ const server = new McpServer(
       'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails. ' +
       'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result. ' +
       'To describe a target\'s screens, use the prompt propose_screen_catalog: you propose a catalogue, a person approves and saves it. ' +
+      'Schedules and webhooks (list_schedules, list_webhooks) are read-only here: a person creates them, because they run browsers and send data out unattended. ' +
       'To see how a system evolved between builds, use evolution_diff (two builds) and evolution_query (when did X appear); snapshots themselves are taken by a person or CI.',
   },
 );
@@ -188,6 +189,28 @@ server.registerTool(
   async ({ id }) => {
     try {
       return toToolResult(await getJson(id ? `/v1/schedules/${encodeURIComponent(id)}` : '/v1/schedules'));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'list_webhooks',
+  {
+    title: 'List webhooks',
+    description:
+      'The notification channels stored on the server (Slack, Teams, Google Chat or generic JSON): preset, language, which changes they hear about ' +
+      '(broken / recovered), an optional daily summary, the schedules that notify them and the last deliveries. A channel hears about a CHANGE of a ' +
+      'schedule (green to red, red to green), never about every run. The URL is a secret kept in the server\'s credential vault and is never shown: ' +
+      'only its origin is. Read-only: creating a webhook, changing it or sending a test is a person\'s decision (PUT /v1/webhooks/:id, ' +
+      'POST /v1/webhooks/:id/test), because it sends data out of the server.',
+    inputSchema: z.object({ id: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id }) => {
+    try {
+      return toToolResult(await getJson(id ? `/v1/webhooks/${encodeURIComponent(id)}` : '/v1/webhooks'));
     } catch (error) {
       return toErrorResult(error);
     }

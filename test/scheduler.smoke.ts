@@ -6,14 +6,30 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 
+// T3.3 (last test): the same engine tells a webhook about a CHANGE of verdict, through the real routes and a real Chromium run.
 // T3.2 end to end (real Chromium, the real dispatcher and the real HTTP routes): a schedule is stored through PUT, started with run-now, runs
 // a routine and a vault suite in the job queue at `scheduled` priority, and the history records the verdicts; the bearer token is required to
 // write; an evaluate routine is refused; the second run-now while one is going is skipped.
 
+let siteBroken = false; // the T3.3 test flips this: the page then has no #t
 const site = await new Promise<{ server: http.Server; origin: string }>((resolve) => {
   const server = http.createServer((req, res) => {
     res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(`<!doctype html><title>T</title><h1 id="t">${req.url === '/slow' ? 'slow' : 'ok'}</h1>`);
+    res.end(`<!doctype html><title>T</title>${siteBroken && req.url === '/flip' ? '<p>maintenance</p>' : `<h1 id="t">${req.url === '/slow' ? 'slow' : 'ok'}</h1>`}`);
+  });
+  server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+});
+
+const hookCalls: Array<{ url: string; body: Record<string, any>; raw: string }> = [];
+const hookServer = await new Promise<{ server: http.Server; origin: string }>((resolve) => {
+  const server = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      hookCalls.push({ url: req.url ?? '', body: JSON.parse(raw), raw });
+      res.writeHead(200).end('ok');
+    });
   });
   server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
 });
@@ -29,10 +45,13 @@ process.env.MAX_PARALLEL_JOBS = '3';
 process.env.SCHEDULER_ENABLED = 'true';
 process.env.SCHEDULER_TICK_SECONDS = '3600'; // the clock never fires here: only run-now does
 process.env.ALLOW_EVALUATE = 'true';
+process.env.ALLOWED_NOTIFY_ORIGINS = hookServer.origin;
 
 const express = (await import('express')).default;
 const { apiAuth } = await import('../src/security/apiAuth.js');
 const { schedulesRouter } = await import('../src/routes/schedules.routes.js');
+const { webhooksRouter } = await import('../src/routes/webhooks.routes.js');
+const { credentialsRouter } = await import('../src/routes/credentials.routes.js');
 const { startScheduler, stopScheduler } = await import('../src/scheduler/runtime.js');
 const { saveTarget } = await import('../src/targets/targetStore.js');
 const { saveRoutine } = await import('../src/library/routineService.js');
@@ -41,6 +60,8 @@ const app = express();
 app.use(express.json());
 app.use(apiAuth);
 app.use('/v1/schedules', schedulesRouter);
+app.use('/v1/webhooks', webhooksRouter);
+app.use('/v1/credentials', credentialsRouter);
 const api = app.listen(0);
 await new Promise<void>((resolve) => api.once('listening', resolve));
 const apiUrl = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
@@ -49,6 +70,7 @@ after(async () => {
   stopScheduler();
   await new Promise<void>((resolve) => api.close(() => resolve()));
   await new Promise<void>((resolve) => site.server.close(() => resolve()));
+  await new Promise<void>((resolve) => hookServer.server.close(() => resolve()));
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -158,4 +180,60 @@ test('run-now while the previous run is still going is skipped, and deleting a s
   assert.equal((await call('DELETE', '/v1/schedules/twice', undefined, false)).status, 401);
   assert.equal((await call('DELETE', '/v1/schedules/twice')).status, 204);
   assert.equal((await call('GET', '/v1/schedules/twice')).status, 404);
+});
+
+test('T3.3: a webhook hears about green -> red -> red -> green, once each, with the failing step and run; the URL never comes back', async () => {
+  const scheduler = (await import('../src/scheduler/runtime.js')).getScheduler()!;
+  await saveRoutine('flip', { title: 'flip', targetProfile: 'app', steps: [{ id: 'open', action: 'goto', url: `${site.origin}/flip` }, { id: 'h', action: 'assertVisible', selector: '#t', timeoutMs: 500 }] as never });
+
+  const secretUrl = `${hookServer.origin}/services/T0000/B0000/SUPERSECRETPATHxyz123`;
+  assert.equal((await call('PUT', '/v1/webhooks/chan', { url: secretUrl }, false)).status, 401, 'a webhook sends data out: bearer only');
+  const refusedOrigin = await call('PUT', '/v1/webhooks/evil', { url: 'https://evil.example.com/hook/SUPERSECRETPATHxyz123' });
+  assert.equal(refusedOrigin.status, 400);
+  assert.equal(refusedOrigin.body.error.type, 'NotifyOriginNotAllowed');
+  assert.equal(JSON.stringify(refusedOrigin.body).includes('SUPERSECRET'), false);
+
+  const created = await call('PUT', '/v1/webhooks/chan', { url: secretUrl, preset: 'generic', lang: 'en' });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.urlOrigin, hookServer.origin);
+  assert.equal(JSON.stringify(created.body).includes('SUPERSECRET'), false);
+  assert.equal(JSON.stringify((await call('GET', '/v1/webhooks')).body).includes('SUPERSECRET'), false);
+  assert.equal((await call('GET', '/v1/credentials/webhook-chan')).body.fields.join(), 'url', 'the URL lives in the credential vault');
+  assert.equal((await call('PUT', '/v1/schedules/flip', { cron: '0 8 * * *', target: { kind: 'routine', routineId: 'flip' }, notify: ['ghost'] })).status, 404);
+  assert.equal((await call('PUT', '/v1/schedules/flip', { cron: '0 8 * * *', target: { kind: 'routine', routineId: 'flip' }, notify: ['chan'] })).status, 201);
+
+  const test = await call('POST', '/v1/webhooks/chan/test');
+  assert.equal(test.status, 200);
+  assert.equal(hookCalls.at(-1)!.body.event, 'test');
+  hookCalls.length = 0;
+
+  const runNow = async () => {
+    await call('POST', '/v1/schedules/flip/run-now');
+    await scheduler.idle();
+  };
+  siteBroken = false;
+  await runNow(); // green: nothing to say
+  assert.equal(hookCalls.length, 0);
+  siteBroken = true;
+  await runNow(); // green -> red
+  await runNow(); // still red: silence
+  siteBroken = false;
+  await runNow(); // red -> green
+
+  assert.deepEqual(hookCalls.map((call) => call.body.event), ['broken', 'recovered']);
+  const [broken, recovered] = hookCalls.map((call) => call.body);
+  const field = (body: Record<string, any>, name: string): string | undefined => body.fields.find((f: { name: string }) => f.name === name)?.value;
+  assert.equal(broken!.title, 'flip is failing');
+  assert.match(field(broken!, 'Run')!, /^job_/);
+  assert.match(field(broken!, 'Failures')!, /step h/, 'the failing step is named');
+  assert.equal(field(broken!, 'Target'), 'routine flip');
+  assert.ok(field(recovered!, 'Failing since'));
+  for (const call of hookCalls) assert.equal(call.raw.includes('SUPERSECRET'), false);
+
+  const detail = (await call('GET', '/v1/webhooks/chan')).body;
+  assert.deepEqual(detail.deliveries.map((d: { kind: string; status: string }) => [d.kind, d.status]), [['recovered', 'sent'], ['broken', 'sent'], ['test', 'sent']]);
+  assert.equal(detail.known['schedule:flip'].verdict, 'ok');
+  assert.equal((await call('DELETE', '/v1/webhooks/chan')).status, 409, 'a schedule still notifies it');
+  assert.equal((await call('DELETE', '/v1/schedules/flip')).status, 204);
+  assert.equal((await call('DELETE', '/v1/webhooks/chan')).status, 204);
 });

@@ -6,7 +6,7 @@ export interface LintIssue {
 }
 
 /** Shapes of well-known secrets. Deliberately specific: false positives block legitimate saves. */
-const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
+export const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   { name: 'an OpenAI/Anthropic-style API key (sk-...)', pattern: /\bsk-[A-Za-z0-9_-]{20,}/ },
   { name: 'a GitHub token (gh?_...)', pattern: /\bgh[pousr]_[A-Za-z0-9]{30,}/ },
   { name: 'a GitHub fine-grained token', pattern: /\bgithub_pat_[A-Za-z0-9_]{40,}/ },

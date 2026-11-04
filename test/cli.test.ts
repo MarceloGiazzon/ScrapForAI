@@ -288,7 +288,7 @@ test('routines list, runs show and pin', async () => {
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 26);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 29);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -751,6 +751,69 @@ test('schedules run-now: POSTs with the bearer; a refusal is exit 2 with its typ
   assert.match(refused.stderr, /SchedulerDisabled/);
 
   for (const args of [['schedules'], ['schedules', 'show'], ['schedules', 'run-now'], ['schedules', 'list', 'x'], ['schedules', 'show', 'a', 'b']]) {
+    seen.length = 0;
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);
+  }
+});
+
+// T3.3: `scrapforai webhooks list|show|test`
+
+const webhookView = (extra: Record<string, unknown> = {}) => ({
+  webhook: { id: 'team-chat', preset: 'slack', lang: 'pt', enabled: true, events: ['broken', 'recovered'], dailySummary: { at: '08:00', timezone: 'America/Montevideo' } },
+  createdAt: '2026-11-03T10:00:00.000Z',
+  updatedAt: '2026-11-03T10:00:00.000Z',
+  hasUrl: true,
+  urlOrigin: 'https://hooks.slack.com',
+  originAllowed: true,
+  schedules: ['nightly'],
+  lastDelivery: { at: '2026-11-03T12:00:00.000Z', kind: 'broken', status: 'sent', httpStatus: 200, attempts: 1 },
+  ...extra,
+});
+
+test('webhooks list/show: print the destination origin (never a URL), what the channel knows and the deliveries; --json matches the contract', async () => {
+  handler = (_req, respond) => respond(200, { webhooks: [webhookView(), webhookView({ originAllowed: false, webhook: { ...webhookView().webhook, id: 'blocked' } })] });
+  const list = await cli(['webhooks', 'list']);
+  assert.equal(list.code, 0);
+  assert.match(list.stdout, /on\s+team-chat\s+slack\/pt\s+https:\/\/hooks\.slack\.com\s+schedules: nightly\s+last broken sent/);
+  assert.match(list.stdout, /blocked.*ORIGIN NOT ALLOWED/);
+  assert.equal(validJson((await cli(['webhooks', 'list', '--json'])).stdout).command, 'webhooks list');
+
+  handler = (_req, respond) =>
+    respond(200, {
+      ...webhookView(),
+      known: { 'schedule:nightly': { verdict: 'bad', since: '2026-11-03T12:00:00.000Z' } },
+      deliveries: [{ at: '2026-11-03T12:00:00.000Z', kind: 'broken', status: 'failed', httpStatus: 500, attempts: 2, reason: 'HTTP 500' }],
+    });
+  const show = await cli(['webhooks', 'show', 'team-chat']);
+  assert.match(show.stdout, /knows: schedule:nightly is bad since 2026-11-03T12:00:00.000Z/);
+  assert.match(show.stdout, /broken\s+failed HTTP 500\s+HTTP 500/);
+  assert.match(show.stdout, /daily summary 08:00/);
+  assert.equal(validJson((await cli(['webhooks', 'show', 'team-chat', '--json'])).stdout).command, 'webhooks show');
+  assert.equal(seen.at(-1)!.url, '/v1/webhooks/team-chat');
+});
+
+test('webhooks test: POSTs with the bearer; exit 0 if it arrived, 2 if not (the delivery is still printed); bad usage never reaches the API', async () => {
+  handler = (_req, respond) => respond(200, { at: '2026-11-03T12:00:00.000Z', kind: 'test', status: 'sent', httpStatus: 200, attempts: 1 });
+  const ok = await cli(['webhooks', 'test', 'team-chat', '--json']);
+  assert.equal(ok.code, 0);
+  assert.equal(validJson(ok.stdout).command, 'webhooks test');
+  assert.equal(seen.at(-1)!.method, 'POST');
+  assert.equal(seen.at(-1)!.url, '/v1/webhooks/team-chat/test');
+  assert.equal(seen.at(-1)!.auth, `Bearer ${KEY}`);
+
+  handler = (_req, respond) => respond(502, { at: '2026-11-03T12:00:00.000Z', kind: 'test', status: 'failed', attempts: 0, reason: 'Origin https://x.example.com is not in ALLOWED_NOTIFY_ORIGINS' });
+  const failed = await cli(['webhooks', 'test', 'team-chat']);
+  assert.equal(failed.code, 2);
+  assert.match(failed.stdout, /failed: Origin .* ALLOWED_NOTIFY_ORIGINS/);
+  assert.equal(validJson((await cli(['webhooks', 'test', 'team-chat', '--json'])).stdout).exitCode, 2);
+
+  handler = (_req, respond) => respond(404, { error: { type: 'WebhookNotFound', message: 'Webhook not found' } });
+  const missing = await cli(['webhooks', 'test', 'nope']);
+  assert.equal(missing.code, 2);
+  assert.match(missing.stderr, /WebhookNotFound/);
+
+  for (const args of [['webhooks'], ['webhooks', 'show'], ['webhooks', 'test'], ['webhooks', 'list', 'x'], ['webhooks', 'show', 'a', 'b']]) {
     seen.length = 0;
     assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0, `${args.join(' ')} must not reach the API`);

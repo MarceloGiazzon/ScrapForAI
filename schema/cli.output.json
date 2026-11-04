@@ -1628,6 +1628,93 @@
         },
         "command": {
           "type": "string",
+          "const": "webhooks list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "webhooks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema34"
+              }
+            }
+          },
+          "required": [
+            "webhooks"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "webhooks show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema34"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "webhooks test"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema36"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "shrink"
         },
         "exitCode": {
@@ -1700,7 +1787,7 @@
                   "maximum": 9007199254740991
                 },
                 "currentValues": {
-                  "$ref": "#/$defs/__schema34"
+                  "$ref": "#/$defs/__schema37"
                 },
                 "outcome": {
                   "type": "string",
@@ -1733,10 +1820,10 @@
                       ]
                     },
                     "failing": {
-                      "$ref": "#/$defs/__schema34"
+                      "$ref": "#/$defs/__schema37"
                     },
                     "minimal": {
-                      "$ref": "#/$defs/__schema34"
+                      "$ref": "#/$defs/__schema37"
                     },
                     "minimalJobId": {
                       "type": "string"
@@ -1841,7 +1928,7 @@
                       "maximum": 9007199254740991
                     },
                     "parameterValues": {
-                      "$ref": "#/$defs/__schema34"
+                      "$ref": "#/$defs/__schema37"
                     }
                   },
                   "required": [
@@ -3366,6 +3453,201 @@
       "additionalProperties": false
     },
     "__schema34": {
+      "type": "object",
+      "properties": {
+        "webhook": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "preset": {
+              "default": "generic",
+              "type": "string",
+              "enum": [
+                "generic",
+                "slack",
+                "teams",
+                "googlechat"
+              ]
+            },
+            "lang": {
+              "default": "en",
+              "type": "string",
+              "enum": [
+                "en",
+                "pt",
+                "es"
+              ]
+            },
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "events": {
+              "default": [
+                "broken",
+                "recovered"
+              ],
+              "minItems": 1,
+              "maxItems": 2,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema35"
+              }
+            },
+            "dailySummary": {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "timezone": {
+                  "default": "America/Montevideo",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "required": [
+                "at",
+                "timezone"
+              ],
+              "additionalProperties": false
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "id",
+            "preset",
+            "lang",
+            "enabled",
+            "events"
+          ],
+          "additionalProperties": false
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "hasUrl": {
+          "type": "boolean"
+        },
+        "urlOrigin": {
+          "type": "string"
+        },
+        "originAllowed": {
+          "type": "boolean"
+        },
+        "schedules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastDelivery": {
+          "$ref": "#/$defs/__schema36"
+        },
+        "known": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "type": "string"
+              },
+              "since": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "verdict",
+              "since"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "deliveries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema36"
+          }
+        }
+      },
+      "required": [
+        "webhook",
+        "createdAt",
+        "updatedAt",
+        "hasUrl",
+        "originAllowed",
+        "schedules"
+      ],
+      "additionalProperties": false
+    },
+    "__schema35": {
+      "type": "string",
+      "enum": [
+        "broken",
+        "recovered"
+      ]
+    },
+    "__schema36": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "broken",
+            "recovered",
+            "summary",
+            "test"
+          ]
+        },
+        "subject": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "failed",
+            "blocked"
+          ]
+        },
+        "httpStatus": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "kind",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "__schema37": {
       "type": "object",
       "propertyNames": {
         "type": "string"

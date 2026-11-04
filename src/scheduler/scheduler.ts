@@ -13,9 +13,34 @@ import { getSchedule, listSchedules, updateState } from './scheduleStore.js';
  */
 
 export type RunRef = { kind: 'run' | 'suite' | 'snapshot'; id: string };
+
+/** What a notification may say about the run, in plain strings and numbers (T3.3). The notifier cleans every string before it leaves. */
+export interface SettledFacts {
+  runId?: string;
+  buildId?: string;
+  counts?: Record<string, number>;
+  /** At most a handful of short lines, e.g. "crud@v2/cred:admin: AssertionFailed". */
+  failures?: string[];
+}
+
 export interface Settled {
   outcome: 'passed' | 'failed' | 'error';
   message?: string;
+  facts?: SettledFacts;
+}
+
+/** A scheduled occurrence reached a result (or could not start). Handed to `onSettled` once the history is written. */
+export interface SettledEvent {
+  schedule: Schedule;
+  outcome: ScheduleHistoryEntry['outcome'];
+  /** The occurrence. */
+  at: string;
+  finishedAt: string;
+  message?: string;
+  run?: RunRef;
+  facts?: SettledFacts;
+  manual: boolean;
+  recovered: boolean;
 }
 
 export type Dispatched =
@@ -33,6 +58,10 @@ export interface SchedulerOptions {
   now?: () => number;
   tickMs?: number;
   onError?: (message: string, error: unknown) => void;
+  /** T3.3: called after an occurrence's result is in the history. Runs apart from the schedule (a slow webhook never delays the next occurrence). */
+  onSettled?: (event: SettledEvent) => Promise<unknown>;
+  /** T3.3: called on each tick (daily summaries). One at a time: a tick that finds the previous call still going skips it. */
+  onTick?: (nowMs: number) => Promise<unknown>;
 }
 
 const MISSED_NOTE = 'the server was not running (or the tick was late) at this time';
@@ -42,6 +71,9 @@ export class Scheduler {
   private readonly live = new Map<string, Promise<void>>();
   private timer: NodeJS.Timeout | undefined;
   private ticking: Promise<void> = Promise.resolve();
+  /** Notification work in flight (T3.3), so `idle()` can wait for it. */
+  private readonly background = new Set<Promise<unknown>>();
+  private tickWork: Promise<unknown> | undefined;
 
   constructor(private readonly options: SchedulerOptions) {
     this.now = options.now ?? Date.now;
@@ -66,6 +98,28 @@ export class Scheduler {
   async idle(): Promise<void> {
     await this.ticking;
     await Promise.all([...this.live.values()]);
+    while (this.background.size > 0) await Promise.all([...this.background]);
+  }
+
+  private track(work: Promise<unknown>): void {
+    this.background.add(work);
+    void work.finally(() => this.background.delete(work));
+  }
+
+  private emitSettled(event: SettledEvent): void {
+    const { onSettled } = this.options;
+    if (!onSettled) return;
+    this.track(onSettled(event).catch((error) => this.options.onError?.(`notification for schedule ${event.schedule.id}`, error)));
+  }
+
+  private startTickWork(): void {
+    const { onTick } = this.options;
+    if (!onTick || this.tickWork) return;
+    const work = onTick(this.now())
+      .catch((error) => this.options.onError?.('scheduler tick work failed', error))
+      .finally(() => void (this.tickWork = undefined));
+    this.tickWork = work;
+    this.track(work);
   }
 
   isRunning(scheduleId: string): boolean {
@@ -87,6 +141,7 @@ export class Scheduler {
         this.options.onError?.(`schedule ${schedule.id}`, error);
       }
     }
+    this.startTickWork();
   }
 
   private async process(schedule: Schedule): Promise<void> {
@@ -171,6 +226,8 @@ export class Scheduler {
         },
         atIso,
       );
+      // It never started, so nobody will say it again: a target that cannot run is news for the channel too.
+      this.emitSettled({ schedule, outcome: entry.outcome, at: atIso, finishedAt: firedAt, message: dispatched.message, manual: options.manual === true, recovered: options.recovered });
       return entry;
     }
 
@@ -188,13 +245,22 @@ export class Scheduler {
 
     const finished = dispatched.done
       .catch((error): Settled => ({ outcome: 'error', message: error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 500) : String(error) }))
-      .then((settled) => this.settle(schedule.id, atIso, firedAt, settled))
+      .then((settled) => this.settle(schedule, atIso, firedAt, settled, dispatched.run, { manual: options.manual === true, recovered: options.recovered }))
       .finally(() => void this.live.delete(schedule.id));
     this.live.set(schedule.id, finished);
     return entry;
   }
 
-  private async settle(scheduleId: string, atIso: string, firedAt: string, settled: Settled): Promise<void> {
+  private async settle(
+    schedule: Schedule,
+    atIso: string,
+    firedAt: string,
+    settled: Settled,
+    run: RunRef,
+    // `quiet`: the result is a guess (the process that ran it died and nothing says how it ended): recorded, but not announced as a failure.
+    flags: { manual: boolean; recovered: boolean; quiet?: boolean },
+  ): Promise<void> {
+    const scheduleId = schedule.id;
     const finishedAt = new Date(this.now()).toISOString();
     await updateState(
       scheduleId,
@@ -209,6 +275,18 @@ export class Scheduler {
       },
       atIso,
     );
+    if (flags.quiet) return;
+    this.emitSettled({
+      schedule,
+      outcome: settled.outcome,
+      at: atIso,
+      finishedAt,
+      ...(settled.message ? { message: settled.message } : {}),
+      run,
+      ...(settled.facts ? { facts: settled.facts } : {}),
+      manual: flags.manual,
+      recovered: flags.recovered,
+    });
   }
 
   /** At startup: a run recorded as in progress belongs to a previous process. Ask what became of it; if unknown, it is an error. */
@@ -218,12 +296,10 @@ export class Scheduler {
       const running = state.running;
       if (!running || this.live.has(schedule.id)) continue;
 
-      const settled: Settled = (await this.options.dispatcher.settledState({ kind: running.kind, id: running.id }).catch(() => undefined)) ?? {
-        outcome: 'error',
-        message: 'the server stopped while this run was in progress',
-      };
+      const known = await this.options.dispatcher.settledState({ kind: running.kind, id: running.id }).catch(() => undefined);
+      const settled: Settled = known ?? { outcome: 'error', message: 'the server stopped while this run was in progress' };
       const entry = lastWhere(state.history, (candidate) => candidate.at === running.at && candidate.run?.id === running.id);
-      await this.settle(schedule.id, running.at, entry?.firedAt ?? running.startedAt, settled);
+      await this.settle(schedule, running.at, entry?.firedAt ?? running.startedAt, settled, { kind: running.kind, id: running.id }, { manual: entry?.manual === true, recovered: entry?.recovered === true, quiet: known === undefined });
     }
   }
 }

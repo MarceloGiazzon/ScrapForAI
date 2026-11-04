@@ -165,6 +165,11 @@ Recurring runs are schedules (`list_schedules`: cron + time zone + target, next 
 because they start browsers unattended. `schedulerRunning: false` means nothing fires on its own. A scheduled run never uses `evaluate`/`watch`, and an occurrence that finds the previous run
 still going is recorded as `skipped-overlap`, so a long run is not a pile-up.
 
+A schedule can tell a chat channel when its verdict CHANGES (`list_webhooks`: Slack, Teams, Google Chat or plain JSON; which schedules notify it; its last deliveries). It says "broken" when a
+green schedule turns red and "recovered" when it comes back, and nothing in between, so a red schedule is not a stream of messages. You can read webhooks but not create, change or test them: a person
+does, because they send data out of the server. The URL is a secret kept in the credential vault and is never shown to you (only its origin). Do not put anything secret in a routine's error text
+hoping it will be hidden: the notifier removes vault values and token shapes, but the right fix is not to print them.
+
 To try many samples at once, give `run_suite` `samples: N` (and optionally `seed`): every routine that draws values runs once per sample `0..N-1`
 (edge values first), a routine with no parameters runs once. `get_suite_result` then returns, per variant, `sample`, `parameters` (what was typed) and
 `extracted` (a short copy of what was read), and `seed` for the whole suite: replaying the suite with that seed repeats every row. Remember the edge

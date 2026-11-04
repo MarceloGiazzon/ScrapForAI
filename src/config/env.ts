@@ -118,6 +118,11 @@ export const envSchema = z.object({
   // Scheduled runs never use evaluate/watch (arbitrary in-page JavaScript, unattended) unless this is true.
   SCHEDULED_ALLOW_EVALUATE: booleanFromEnv,
 
+  // --- Notifications (T3.3) ---
+  // The only origins a webhook may post to. Empty = nothing leaves the server. Exact origins (scheme + host + port), no wildcards.
+  ALLOWED_NOTIFY_ORIGINS: originListFromEnv,
+  NOTIFY_TIMEOUT_MS: integerFromEnv.default(10000),
+
   // --- Web UI ---
   UI_ENABLED: booleanFromEnv,
   SESSION_TTL_MINUTES: integerFromEnv.default(480),
@@ -159,7 +164,7 @@ function readLiveDotEnv(): Record<string, string> {
   return dotenv.parse(readFileSync(dotEnvPath));
 }
 
-export function getLiveAllowedOrigins(key: 'ALLOWED_TARGET_ORIGINS' | 'ALLOWED_RESOURCE_ORIGINS'): string[] {
+export function getLiveAllowedOrigins(key: 'ALLOWED_TARGET_ORIGINS' | 'ALLOWED_RESOURCE_ORIGINS' | 'ALLOWED_NOTIFY_ORIGINS'): string[] {
   // Union the hot-reloadable .env file value with the value the server was launched with
   // in process.env (e.g. a task runner / harness that injects an allowlisted origin via the
   // environment instead of editing .env). The previous `liveValue ?? process.env[key]` made
