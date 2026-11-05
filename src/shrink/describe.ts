@@ -10,6 +10,8 @@ import type { ShrinkParameter } from './shrink.js';
 export function describeParameter(parameter: Parameter): ShrinkParameter {
   const { name } = parameter;
   if ('cases' in parameter) return { name, shape: { kind: 'opaque', baseline: parameter.cases[0]! } };
+  // A table row is one case with its own expected result: shrinkService stops before this (there is nothing to shrink).
+  if ('fromTable' in parameter) return { name, shape: { kind: 'opaque', baseline: '' } };
 
   const generator = parameter.generator;
   switch (generator.type) {

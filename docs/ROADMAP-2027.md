@@ -1055,9 +1055,12 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.5 — Oráculo de fórmulas · M
 
-> **Implementada em 2026-11-03, sem as tabelas CSV** (`src/oracle/`, ver AGENTS.md, "Formula oracle"). Feito: `assertEquals` com `expr` ou `value`, parser próprio sem `eval`
-> (`+ - * / ^`, comparações, `round`, `floor`, `ceil`, `min`, `max`, `abs`, `if` preguiçoso), localidade `en`/`pt`/`es`, tolerância absoluta/relativa, variáveis de parâmetros e
-> extraídos, fórmulas de rotinas incluídas acompanhando o renome. **Pendente:** `expected: { table: 'casos.csv' }` (tabelas guardadas na biblioteca).
+> **Implementada em 2026-11-03; tabelas CSV em 2026-11-05** (`src/oracle/`, `src/tables/`, ver AGENTS.md, "Formula oracle" e "Case tables"). Feito: `assertEquals` com `expr` ou `value`, parser próprio sem `eval`
+> (`+ - * / ^`, comparações, `round`, `floor`, `ceil`, `min`, `max`, `if` preguiçoso), localidade `en`/`pt`/`es`, tolerância absoluta/relativa, variáveis de parâmetros e
+> extraídos, fórmulas de rotinas incluídas acompanhando o renome. **Tabelas de casos:** `PUT /v1/tables/:id` guarda o CSV em versões imutáveis; um parâmetro lê uma coluna
+> (`fromTable`) e `expected: { table: { id, version?, column } }` lê a célula esperada; **a linha é o `sample` da execução**, então as entradas e o resultado esperado são sempre a mesma linha
+> (uma suíte com `samples` = nº de linhas roda todos os casos). Diferença do texto original: a referência é `{ id, version?, column }` (a tabela é uma entidade versionada da biblioteca, não um
+> nome de arquivo) e não há `expected` por busca de linha. Não feito: ler `.xlsx`, editar a tabela na UI, produto cartesiano de várias tabelas.
 
 **Por quê:** testar "o cálculo está certo" exige saber o resultado esperado para cada entrada
 gerada.

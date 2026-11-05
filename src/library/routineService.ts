@@ -7,7 +7,8 @@ import { sanitizeParameterName } from '../schemas/parameters.schema.js';
 import { mapLeaves } from '../schemas/stepTree.js';
 import { expandIncludes } from './includeExpander.js';
 import { resolveJobFile } from '../evidence/locate.js';
-import { resolveExplorationRequest } from '../runner/resolveRequest.js';
+import { RequestResolutionError, resolveExplorationRequest } from '../runner/resolveRequest.js';
+import { loadTableRef, tableRefsOf } from '../tables/resolveTables.js';
 import { runExploration } from '../runner/runExploration.js';
 import { explorationRequestSchema } from '../schemas/explorationRequest.schema.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
@@ -192,6 +193,16 @@ export async function saveRoutine(
     { steps: content.steps, teardown: content.teardown, ...(content.parameters ? { parameters: content.parameters } : {}), ...(content.actors ? { actors: content.actors } : {}) },
     { targetProfile: content.targetProfile, selfId: id },
   );
+
+  // T5.5: a table of cases the routine refers to must exist and have the column (a version, when named). Included routines are checked at run time.
+  for (const ref of tableRefsOf(content.parameters ?? [], [...content.steps, ...(content.teardown ?? [])])) {
+    try {
+      await loadTableRef(ref);
+    } catch (error) {
+      if (error instanceof RequestResolutionError) throw new RoutineLibraryError(error.status, error.name, error.message);
+      throw error;
+    }
+  }
 
   const vaultValues = await listAllCredentialValues();
   const issues = [...lintRoutineSteps([...content.steps, ...(content.teardown ?? [])], vaultValues), ...lintParameters(content.parameters ?? [], vaultValues), ...lintRoutineDoc(content.doc, vaultValues)];

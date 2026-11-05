@@ -7,7 +7,7 @@ import { docStepSchema } from './docStep.schema.js';
 import { HTTP_MAX_REQUEST_BODY_CHARS, HTTP_METHODS, HTTP_SENSITIVE_RESPONSE_HEADERS } from './httpMethods.js';
 import { PII_SURFACES } from '../security/piiDetectors.js';
 import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
-import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
+import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema, tableRefSchema } from './parameters.schema.js';
 import { countSteps, extractedNamesOf, leafSteps, PARALLEL_ACTION, someStep, walkSteps, walkWithPath } from './stepTree.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
@@ -243,7 +243,12 @@ const assertEqualsStep = z
     ...baseStep,
     action: z.literal('assertEquals'),
     actual: z.object({ extracted: safeName }).strict(),
-    expected: z.union([z.object({ expr: expectedExpression }).strict(), z.object({ value: z.string().min(1).max(100) }).strict()]),
+    expected: z.union([
+      z.object({ expr: expectedExpression }).strict(),
+      z.object({ value: z.string().min(1).max(100) }).strict(),
+      // T5.5: the cell of the run's row (its `sample`) in a stored table of cases, read with `locale`. The server turns it into `value` before the run.
+      z.object({ table: tableRefSchema }).strict(),
+    ]),
     tolerance: z
       .object({ absolute: z.number().finite().nonnegative().optional(), relative: z.number().finite().nonnegative().optional() })
       .strict()

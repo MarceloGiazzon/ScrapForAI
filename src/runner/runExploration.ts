@@ -617,6 +617,8 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
           case 'assertEquals': {
             // T5.5: a formula over the run's parameters and extracted values (src/oracle). Pure; no page access.
             let outcome: ReturnType<typeof checkAssertEquals>;
+            // A table reference is turned into its cell before the run (resolveTables); seeing one here means a code path skipped that.
+            if ('table' in step.expected) throw new StepExecutionError('assertEquals: the expected table was not resolved before the run');
             try {
               outcome = checkAssertEquals({
                 actual: step.actual,
@@ -1164,6 +1166,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     ...(request.parameterRecord ? { parameters: request.parameterRecord } : {}),
     ...(request.autoLogin ? { autoLogin: request.autoLogin } : {}),
     ...(request.includes ? { includes: request.includes } : {}),
+    ...(request.tables ? { tables: request.tables } : {}),
     ...(request.teardown
       ? { teardown: teardownSteps, teardownStatus: teardownSteps.length === request.teardown.length && teardownSteps.every((s) => s.status === 'passed') ? ('passed' as const) : ('failed' as const) }
       : {}),

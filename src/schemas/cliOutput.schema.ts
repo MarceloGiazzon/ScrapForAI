@@ -50,6 +50,14 @@ export const cliRoutinesResultSchema = z
   })
   .strict();
 
+/** T5.5: tables of cases (`tables list|show|save`). The CSV is in `show`/`save` as the stored table; `--out` writes it to a file. */
+const cliTableSchema = z.object({ id: z.string(), version: z.number(), columns: z.array(z.string()), rowCount: z.number(), sha256: z.string(), csv: z.string() }).passthrough();
+export const cliTablesListSchema = z
+  .object({ tables: z.array(z.object({ id: z.string(), version: z.number(), columns: z.array(z.string()), rowCount: z.number(), sha256: z.string() }).passthrough()) })
+  .strict();
+export const cliTablesShowSchema = z.object({ table: cliTableSchema, versions: z.array(z.number()), file: z.string().optional() }).strict();
+export const cliTablesSaveSchema = z.object({ table: cliTableSchema, created: z.boolean() }).strict();
+
 export const cliRunsShowResultSchema = z
   .object({ summary: runSummarySchema, evidenceAvailable: z.boolean(), detail: z.unknown().optional() })
   .strict();
@@ -276,6 +284,9 @@ export const cliOutputSchema = z.union([
   success('suite', z.union([suiteStateSchema, cliSuiteStartedSchema])),
   success('routines list', cliRoutinesResultSchema),
   success('routines lint', cliRoutinesLintSchema),
+  success('tables list', cliTablesListSchema),
+  success('tables show', cliTablesShowSchema),
+  success('tables save', cliTablesSaveSchema),
   success('runs show', cliRunsShowResultSchema),
   success('pin', cliPinResultSchema),
   success('report', cliReportSchema),

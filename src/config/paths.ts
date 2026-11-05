@@ -171,6 +171,15 @@ export function routineLibraryDir(): string {
   return override ? path.resolve(override) : path.join(dataDir(), 'library');
 }
 
+/**
+ * Tables of cases (T5.5): <id>/v<N>.json + current.json, like the routine library. CASE_TABLE_DIR may point into a git repository so
+ * the expected results of a calculation are reviewed in PRs.
+ */
+export function caseTableDir(): string {
+  const override = process.env.CASE_TABLE_DIR?.trim();
+  return override ? path.resolve(override) : path.join(dataDir(), 'tables');
+}
+
 /** Encrypted credential vault (T1.2). Never exported by the API. */
 export function credentialVaultFile(): string {
   return path.join(dataDir(), 'credentials.enc.json');

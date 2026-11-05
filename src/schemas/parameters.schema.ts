@@ -80,6 +80,20 @@ const withGeneratorChecks = <T extends z.ZodType<Generator>>(schema: T) =>
 
 export const checkedGeneratorSchema = withGeneratorChecks(generatorSchema);
 
+/**
+ * T5.5: a column of a stored table of cases (`PUT /v1/tables/:id`). Without `version` the CURRENT one is used, so pin it for a reproducible
+ * proof. The table is read by the server before the run (the runner never sees a reference): a parameter's column becomes its `cases`, the
+ * `assertEquals` expectation becomes the cell of the same row, and the row is the run's `sample` (wrapping, like any `cases`).
+ */
+export const tableRefSchema = z
+  .object({
+    id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
+    version: z.number().int().positive().optional(),
+    column: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
+  })
+  .strict();
+export type TableRef = z.infer<typeof tableRefSchema>;
+
 export const parameterSchema = z.union([
   z
     .object({
@@ -90,6 +104,8 @@ export const parameterSchema = z.union([
     })
     .strict(),
   z.object({ name: parameterName, cases: z.array(z.string().max(5000)).min(1).max(500) }).strict(),
+  // The values are the column of a stored table, one per row (T5.5). Resolved to `cases` by the server before the run.
+  z.object({ name: parameterName, fromTable: tableRefSchema }).strict(),
 ]);
 
 export type Parameter = z.output<typeof parameterSchema>;

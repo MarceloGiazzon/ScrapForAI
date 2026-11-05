@@ -182,6 +182,13 @@ The formula may use the run's parameters and extracted values by name, `+ - * / 
 no code runs. Say the page's number format with `locale` (`en` 1,234.56; `pt`/`es` 1.234,56): it is never guessed. A failure reports the difference and the inputs. Use `tolerance`
 only for a gap you have decided to accept.
 
+**When the right answers come from a person (a spreadsheet of cases), keep them in a table**: `save_case_table { id, csv }` (header row of column names, one row per case, `,` or `;`; the next
+version is immutable and the same CSV again makes none), `list_case_tables` to see them. Then `parameters: [{ name: "qty", fromTable: { id: "prices", column: "qty" } }]` and
+`expected: { table: { id: "prices", column: "total" } }` (read with the step `locale`, so a pt table can hold `1.234,56`). **The run's `sample` is the row** (it wraps past the last one like any
+`cases`), so the typed values and the expected cell are always the same line; a suite with `samples` = the number of rows runs every case and its table shows which row failed. Pin `version`
+in a routine you want to reproduce (without it the CURRENT version is read; `result.tables` says which one ran). Not for shrinking (a row is one case: there is nothing smaller) and not with
+`parameterValues` (400). A secret in a cell is refused. Two tables in one run must have the same number of rows.
+
 **Same flow on two environments or builds** (dev x staging, GeneXus 17 x 18, Java x .NET): `run_differential { routines: [{ routineId }], left: { targetProfile }, right: { targetProfile } }` (left = baseline,
 right = candidate; each side may name its own `credentialSet` and `buildId`) returns a `differentialId` at once; follow with `get_differential_result` (`waitSeconds`). The routine MUST open its target with
 `goto "$targetUrl"`, or both sides open the same address (the response warns). It compares step status, extracted values (with tolerance), console errors that are NEW on the right, the shape of the

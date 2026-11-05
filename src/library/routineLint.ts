@@ -54,6 +54,18 @@ export function lintParameters(parameters: Array<{ name: string; cases?: string[
   return issues;
 }
 
+/** T5.5: a stored table of cases is kept in the library and may be reviewed in git, so each of its cells is held to the same rule as a typed value. */
+export function lintCaseTable(table: { columns: string[]; rows: string[][] }, vaultValues: string[]): LintIssue[] {
+  const issues: LintIssue[] = [];
+  table.rows.forEach((row, rowIndex) => {
+    row.forEach((text, columnIndex) => {
+      const problem = secretProblem(text, vaultValues);
+      if (problem) issues.push({ path: `rows.${rowIndex + 1}.${table.columns[columnIndex]}`, message: problem });
+    });
+  });
+  return issues;
+}
+
 /**
  * Refuses routines that embed a secret. Messages name the step and the kind of problem but never
  * echo the offending text, so an error response cannot leak what it is refusing.

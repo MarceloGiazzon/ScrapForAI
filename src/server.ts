@@ -33,6 +33,7 @@ import { shrinksRouter } from './routes/shrinks.routes.js';
 import { startScheduler } from './scheduler/runtime.js';
 import { suitesRouter } from './routes/suites.routes.js';
 import { auditRouter, teamRouter } from './routes/team.routes.js';
+import { tablesRouter } from './routes/tables.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
 import { metricsRouter } from './routes/metrics.routes.js';
 import { executiveRouter } from './routes/executive.routes.js';
@@ -174,6 +175,7 @@ app.use('/v1/vault', vaultRouter);
 app.use('/v1/permissions', permissionsRouter);
 app.use('/v1/evolution', evolutionRouter);
 app.use('/v1/routines', routinesRouter);
+app.use('/v1/tables', tablesRouter);
 app.use('/v1/targets', targetsRouter);
 app.use('/v1/credentials', credentialsRouter);
 

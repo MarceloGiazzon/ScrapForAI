@@ -32,6 +32,7 @@ const server = new McpServer(
       'Once a routine works, keep it: save_routine with fromJobId (or steps) stores it as an immutable ' +
       'version in the routine library; list_routines / get_routine / run_routine reuse it without re-authoring. ' +
       'Put login in its own routine and "include" it; put cleanup in "teardown" so it runs even when a step fails. ' +
+      'To test a calculation with known answers, keep the cases in a table (save_case_table, list_case_tables): parameters fromTable and assertEquals expected.table read one row per sample. ' +
       'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result. ' +
       'To describe a target\'s screens, use the prompt propose_screen_catalog: you propose a catalogue, a person approves and saves it. ' +
       'Schedules and webhooks (list_schedules, list_webhooks) are read-only here; get_performance shows which step got slower and in which build: a person creates them, because they run browsers and send data out unattended. ' +
@@ -679,6 +680,46 @@ server.registerTool(
   async ({ id, version }) => {
     try {
       return toToolResult(await getJson(routinePath(id, version)));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'list_case_tables',
+  {
+    title: 'List tables of cases',
+    description:
+      'Tables of cases stored on the server (CSV, one row per case): id, current version, columns, number of cases. With an id, returns that table (its CSV included), ' +
+      'at its current version or at a pinned one. A parameter takes a column ({ name, fromTable: { id, version?, column } }) and assertEquals takes the expected cell ' +
+      '({ expected: { table: { id, version?, column } } }); the run\'s `sample` is the row, so the inputs and the expected result of a row always go together.',
+    inputSchema: z.object({ id: safeName.optional(), version: versionField }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id, version }) => {
+    try {
+      return toToolResult(await getJson(id ? `/v1/tables/${encodeURIComponent(id)}${version ? `?version=${version}` : ''}` : '/v1/tables'));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'save_case_table',
+  {
+    title: 'Save a table of cases',
+    description:
+      'Store a table of cases as the next immutable version (the same CSV again makes no new version). The first row names the columns (letters, digits, _ and -); each ' +
+      'other row is one case; "," or ";" separate cells (a spreadsheet saved in pt/es uses ";" and a decimal comma: set the step locale to match). At most 500 cases and ' +
+      '20 columns. A secret in a cell is refused (422), like in a routine. Pin `version` in the references of a routine you want to reproduce later.',
+    inputSchema: z.object({ id: safeName, title: z.string().min(1).max(200).optional(), csv: z.string().min(1).max(200_000) }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async ({ id, ...content }) => {
+    try {
+      return toToolResult(await putJson(`/v1/tables/${encodeURIComponent(id)}`, content));
     } catch (error) {
       return toErrorResult(error);
     }

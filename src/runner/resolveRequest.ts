@@ -5,6 +5,7 @@ import type { ExplorationRequest, ExplorationStep, RunnableLeaf, RunnableStep } 
 import type { ParameterRecord } from '../schemas/parameters.schema.js';
 import { DEFAULT_HTTP_METHODS, type HttpMethod } from '../schemas/httpMethods.js';
 import { someStep } from '../schemas/stepTree.js';
+import { resolveTables, type TableUse } from '../tables/resolveTables.js';
 import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
@@ -53,6 +54,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   includes?: IncludedRoutineRef[];
   /** T5.3: the values the run's parameters take for its seed and sample. Absent when the run uses no parameter. */
   parameterRecord?: ParameterRecord;
+  /** T5.5: the version of every table of cases the run read (the current one when the reference named none), recorded in the result. */
+  tables?: TableUse[];
   /** The request as written (include steps intact), kept so a good run can be saved as a routine. */
   unexpanded?: { steps: ExplorationStep[]; teardown?: ExplorationStep[] };
   /** Set only when `credentialSet` was used; drives the per-fill origin check. */
@@ -161,13 +164,21 @@ export async function resolveExplorationRequest(
       `httpRequest uses ${[...new Set(refused)].join(', ')}, which ${request.targetProfile ? `target profile "${request.targetProfile}" does not allow` : 'a run without a target profile does not allow'} (allowed: ${allowedHttp.join(', ')}); list the methods in the profile's http.allowedMethods`,
     );
   }
+  // T5.5: a column of a stored table of cases becomes the `cases` of a parameter, and an expected cell the literal of the run's row.
+  const tabled = await resolveTables<RunnableStep>({
+    steps: expanded.steps,
+    ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
+    ...(request.parameters || expanded.parameters.length > 0 ? { parameters: [...(request.parameters ?? []), ...expanded.parameters] } : {}),
+    ...(request.sample === undefined ? {} : { sample: request.sample }),
+    ...(request.parameterValues ? { hasFixedValues: true } : {}),
+  });
   // T5.3: parameters and inline generators become concrete values (the seed is returned, so a run can be replayed).
   let parameterized: ReturnType<typeof resolveParameters<RunnableStep>>;
   try {
     parameterized = resolveParameters<RunnableStep>({
-      steps: expanded.steps,
-      ...(expanded.teardown.length > 0 ? { teardown: expanded.teardown } : {}),
-      ...(request.parameters || expanded.parameters.length > 0 ? { parameters: [...(request.parameters ?? []), ...expanded.parameters] } : {}),
+      steps: tabled.steps,
+      ...(tabled.teardown && tabled.teardown.length > 0 ? { teardown: tabled.teardown } : {}),
+      ...(tabled.parameters ? { parameters: tabled.parameters } : {}),
       ...(request.seed ? { seed: request.seed } : {}),
       ...(request.sample === undefined ? {} : { sample: request.sample }),
       ...(request.parameterValues ? { fixed: request.parameterValues } : {}),
@@ -202,6 +213,7 @@ export async function resolveExplorationRequest(
     // The schema keeps `parallel` out of a teardown (and the expander re-checks the expanded list), so these are all leaf steps.
     ...(parameterized.teardown && parameterized.teardown.length > 0 ? { teardown: parameterized.teardown as RunnableLeaf[] } : {}),
     ...(parameterized.record ? { parameterRecord: parameterized.record } : {}),
+    ...(tabled.tables ? { tables: tabled.tables } : {}),
     // Kept "as written" whenever the steps were rewritten (includes expanded, inline generators turned into parameters), so a good
     // run saves as the routine its author wrote, not as the expansion.
     ...(expanded.includes.length > 0 || parameterized.record

@@ -91,6 +91,12 @@ Commands
   routines lint <routineId|file.json|-> [--target id] [--strict]
                                     (the authoring conventions as code: GX001 login submit without a gate (error), GX002 login without logout teardown, WT001 fixed wait, SEL001 positional selector;
                                      exit 1 on an error, or on any finding with --strict; a routine can accept a finding with lintSuppress { rule, reason })
+  tables list
+  tables show <id> [--version N] [--out file.csv]
+  tables save <id> <file.csv|-> [--title text]
+                                    (tables of cases, T5.5: a CSV whose rows are cases. A parameter takes a column ({ name, fromTable: { id, version?, column } }) and an assertEquals the
+                                     expected cell ({ expected: { table: { id, version?, column } } }); the run's sample is the row. Versioned and immutable; saving the same CSV again makes no
+                                     new version; a secret in a cell is refused; exit 0 done, 2 anything else)
   runs show <jobId> [--full]
   pin <jobId> --reason "..." [--ref ref] [--keep-trace]
   report <jobId|suiteRunId> --out <file> [--format html|pdf] [--lang en|pt|es]
@@ -385,7 +391,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' || command === 'users' || command === 'pack' ? `${command} ${second ?? ''}`.trim() : command === 'audit' && second === 'verify' ? 'audit verify' : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' || command === 'users' || command === 'pack' || command === 'tables' ? `${command} ${second ?? ''}`.trim() : command === 'audit' && second === 'verify' ? 'audit verify' : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -1617,6 +1623,55 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const { routines } = response.body as { routines: Array<Record<string, any>> };
       const text = routines.length === 0 ? 'No routines saved.\n' : `${routines.map((r) => `${r.id}  v${r.version}  ${r.status}  ${r.targetProfile}  ${r.title}${r.tags?.length ? `  [${r.tags.join(', ')}]` : ''}`).join('\n')}\n`;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'routines list', exitCode: 0, result: { routines } as never }, text);
+      return 0;
+    }
+
+    if (command === 'tables list') {
+      const { values } = parseArgs({ args: rest, options: common });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const response = await api('GET', '/v1/tables');
+      if (response.status !== 200) throw errorOf(response);
+      const { tables } = response.body as { tables: Array<Record<string, any>> };
+      const text = tables.length === 0 ? 'No tables of cases saved.\n' : `${tables.map((t) => `${t.id}  v${t.version}  ${t.rowCount} case(s)  [${t.columns.join(', ')}]${t.title ? `  ${t.title}` : ''}`).join('\n')}\n`;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'tables list', exitCode: 0, result: { tables } as never }, text);
+      return 0;
+    }
+
+    if (command === 'tables show') {
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, version: { type: 'string' }, out: { type: 'string' } } });
+      asJson = values.json === true;
+      const [id] = positionals;
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai tables show <id> [--version N] [--out file.csv]');
+      if (values.version !== undefined && !/^[1-9]\d{0,8}$/.test(values.version)) throw new CliError('UsageError', '--version must be a positive integer');
+      if (values.out && !io.writeFile) throw new CliError('CliFailure', 'writing files is not available here');
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const response = await api('GET', `/v1/tables/${encodeURIComponent(id)}${values.version ? `?version=${values.version}` : ''}`);
+      if (response.status !== 200) throw errorOf(response);
+      const body = response.body as { table: Record<string, any>; versions: number[] };
+      if (values.out) await io.writeFile!(values.out, Buffer.from(body.table.csv as string, 'utf8'));
+      const head = `${body.table.id}  v${body.table.version} (versions: ${body.versions.join(', ')})  ${body.table.rowCount} case(s)  sha256 ${String(body.table.sha256).slice(0, 12)}\ncolumns: ${(body.table.columns as string[]).join(', ')}\n`;
+      emit(
+        { cliSchema: CLI_SCHEMA_VERSION, command: 'tables show', exitCode: 0, result: { ...body, ...(values.out ? { file: values.out } : {}) } as never },
+        values.out ? `${head}written to ${values.out}\n` : `${head}\n${body.table.csv}`,
+      );
+      return 0;
+    }
+
+    if (command === 'tables save') {
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, title: { type: 'string' } } });
+      asJson = values.json === true;
+      const [id, source] = positionals;
+      if (!id || !source || positionals.length !== 2) throw new CliError('UsageError', 'usage: scrapforai tables save <id> <file.csv|-> [--title text]');
+      const csv = source === '-' ? await (io.readStdin ?? (async () => { throw new Error('stdin is not available'); }))() : await (io.readFile ?? (async () => { throw new Error('files are not available'); }))(source);
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const response = await api('PUT', `/v1/tables/${encodeURIComponent(id)}`, { ...(values.title ? { title: values.title } : {}), csv });
+      if (response.status !== 200 && response.status !== 201) throw errorOf(response);
+      const body = response.body as { table: Record<string, any>; created: boolean };
+      emit(
+        { cliSchema: CLI_SCHEMA_VERSION, command: 'tables save', exitCode: 0, result: body as never },
+        `${body.created ? `Saved ${body.table.id} as v${body.table.version}` : `No change: ${body.table.id} stays at v${body.table.version}`} (${body.table.rowCount} case(s), columns: ${(body.table.columns as string[]).join(', ')})\n`,
+      );
       return 0;
     }
 

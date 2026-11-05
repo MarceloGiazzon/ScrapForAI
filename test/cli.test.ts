@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 59);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 62);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1623,4 +1623,52 @@ test('pack build writes a zip with the templates, the guides and a manifest', as
   const { readZip } = await import('../src/evidence/zip.js');
   const names = readZip(written!.data).map((entry) => entry.name);
   for (const name of ['MANIFEST.sha256', 'templates/targets/genexus-dev.target.json', 'docs/genexus-pack/README.es.md', 'docs/genexus-pack/README.pt.md', 'skill/scrapforai/SKILL.md']) assert.ok(names.includes(name), name);
+});
+
+// T5.5: `scrapforai tables list|show|save`
+
+test('tables: list, show (to the screen or a file), save from a file or stdin; usage errors never reach the API', async () => {
+  const table = { id: 'prices', version: 2, title: 'Prices', columns: ['qty', 'total'], rowCount: 2, sha256: 'a'.repeat(64), csv: 'qty,total\n1,10\n2,20\n', createdAt: '2026-11-05T00:00:00.000Z' };
+
+  handler = (_req, respond) => respond(200, { tables: [{ id: 'prices', version: 2, title: 'Prices', columns: table.columns, rowCount: 2, sha256: table.sha256, createdAt: table.createdAt }] });
+  const list = await cli(['tables', 'list', '--json']);
+  assert.equal(list.code, 0);
+  assert.equal(seen[0]!.url, '/v1/tables');
+  assert.equal(validJson(list.stdout).command, 'tables list');
+  assert.match((await cli(['tables', 'list'])).stdout, /prices\s+v2\s+2 case\(s\)\s+\[qty, total\]\s+Prices/);
+
+  handler = (_req, respond) => respond(200, { table, versions: [1, 2] });
+  const shown = await cli(['tables', 'show', 'prices', '--version', '2']);
+  assert.equal(shown.code, 0);
+  assert.equal(seen[0]!.url, '/v1/tables/prices?version=2');
+  assert.match(shown.stdout, /prices\s+v2 \(versions: 1, 2\)\s+2 case\(s\)/);
+  assert.match(shown.stdout, /qty,total\n1,10\n2,20\n/);
+  const written: Array<{ path: string; text: string }> = [];
+  const toFile = await cli(['tables', 'show', 'prices', '--out', 'p.csv', '--json'], { writeFile: async (path, data) => void written.push({ path, text: data.toString('utf8') }) });
+  assert.equal(toFile.code, 0);
+  assert.deepEqual(written, [{ path: 'p.csv', text: table.csv }]);
+  assert.equal(validJson(toFile.stdout).result.file, 'p.csv');
+
+  handler = (_req, respond) => respond(201, { table, created: true });
+  const saved = await cli(['tables', 'save', 'prices', 'p.csv', '--title', 'Prices', '--json'], { readFile: async () => table.csv });
+  assert.equal(saved.code, 0);
+  assert.equal(seen[0]!.method, 'PUT');
+  assert.equal(seen[0]!.url, '/v1/tables/prices');
+  assert.deepEqual(seen[0]!.body, { title: 'Prices', csv: table.csv });
+  assert.equal(validJson(saved.stdout).command, 'tables save');
+  const same = await cli(['tables', 'save', 'prices', '-'], { readStdin: async () => table.csv });
+  assert.equal(same.code, 0);
+  handler = (_req, respond) => respond(200, { table, created: false });
+  assert.match((await cli(['tables', 'save', 'prices', '-'], { readStdin: async () => table.csv })).stdout, /No change: prices stays at v2/);
+
+  handler = (_req, respond) => respond(400, { error: { type: 'InvalidCaseTable', message: 'line 2: has 1 cell(s) but the header has 2' } });
+  const refused = await cli(['tables', 'save', 'prices', '-'], { readStdin: async () => 'a,b\n1\n' });
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /InvalidCaseTable/);
+
+  seen = [];
+  for (const args of [['tables'], ['tables', 'show'], ['tables', 'show', 'a', 'b'], ['tables', 'show', 'a', '--version', 'x'], ['tables', 'save'], ['tables', 'save', 'a'], ['tables', 'save', 'a', 'b', 'c']]) {
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+  }
+  assert.equal(seen.length, 0);
 });

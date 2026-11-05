@@ -156,6 +156,8 @@ export const explorationResultSchema = z.object({
   autoLogin: z.object({ routineId: z.string(), version: z.number().int().positive(), gate: z.boolean() }).optional(),
   /** Routines expanded into this run by `include`, with the versions actually used (T1.4). */
   includes: z.array(z.object({ routineId: z.string(), version: z.number().int().positive(), sha256: z.string() })).optional(),
+  /** T5.5: the tables of cases the run read, with the version actually used (present only when the run used one). */
+  tables: z.array(z.object({ id: z.string(), version: z.number().int().positive(), sha256: z.string(), rows: z.number().int().positive() }).strict()).optional(),
   /** Teardown step results (T1.4), apart from `steps`. Present only when the run had a teardown. */
   teardown: z.array(stepResultSchema).optional(),
   /**

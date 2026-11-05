@@ -112,6 +112,9 @@ export const envSchema = z.object({
   // --- Routine library (T1.3) --- read lazily by config/paths.ts; declared here for documentation.
   ROUTINE_LIBRARY_DIR: z.string().min(1).optional(),
 
+  // --- Tables of cases (T5.5) --- read lazily by config/paths.ts; declared here for documentation.
+  CASE_TABLE_DIR: z.string().min(1).optional(),
+
   // --- Run history index (separate retention from evidence above) ---
   HISTORY_RETENTION_DAYS: integerFromEnv.default(90),
   HISTORY_MAX_RUNS: integerFromEnv.default(5000),

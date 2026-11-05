@@ -182,6 +182,12 @@ async function worker(entry: Active, source: Source): Promise<void> {
     parameters: [...(routine.parameters ?? []), ...expanded.parameters],
   });
   const known = declared.parameters.filter((parameter) => Object.hasOwn(failing!.values, parameter.name));
+  // T5.5: with a table each row is ONE case with its own expected result; another value for a column would no longer match it. The failing row is already the input.
+  if (known.some((parameter) => 'fromTable' in parameter)) {
+    state.outcome = 'no-parameters';
+    state.summary = 'the values come from a table of cases: a row is one case with its own expected result, so the failing row is already the smallest input (nothing to shrink)';
+    return;
+  }
   if (known.length === 0) {
     state.outcome = 'no-parameters';
     state.summary = 'the routine draws no generated value: there is nothing to shrink';

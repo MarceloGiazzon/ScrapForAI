@@ -282,6 +282,8 @@ export function valueAt(parameter: Parameter, index: number, seed: string): Gene
   if ('cases' in parameter) {
     return { value: parameter.cases[index % parameter.cases.length]!, source: 'case', index: index % parameter.cases.length };
   }
+  // The server replaces a table reference with `cases` before any value is drawn (resolveTables); reaching this is a bug, not a user error.
+  if ('fromTable' in parameter) throw new Error(`parameter "${parameter.name}" still refers to a table: it must be resolved before values are drawn`);
   const edges = parameter.includeBoundaries ? boundaryValues(parameter.generator) : [];
   if (index < edges.length) return { value: edges[index]!, source: 'boundary', index };
   const draw = index - edges.length;
@@ -291,5 +293,6 @@ export function valueAt(parameter: Parameter, index: number, seed: string): Gene
 /** How many edge values a parameter has before its random ones begin (cases: all of them, they cycle). */
 export function edgeCount(parameter: Parameter): number {
   if ('cases' in parameter) return parameter.cases.length;
+  if ('fromTable' in parameter) return 0;
   return parameter.includeBoundaries ? boundaryValues(parameter.generator).length : 0;
 }
