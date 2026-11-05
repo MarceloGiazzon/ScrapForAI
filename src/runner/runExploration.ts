@@ -845,6 +845,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               step,
               baseUrl: normalizedTargetUrl,
               allowedMethods: request.httpMethods,
+              parameters: request.parameterRecord?.values,
               timeoutMs: timeout,
             });
             extracted[step.name] = redactSecrets(outcome.summary, knownSecrets) as unknown as JsonValue;

@@ -1,6 +1,7 @@
 import type { APIRequestContext } from 'playwright';
 
-import { DEFAULT_HTTP_METHODS, HTTP_MAX_RESPONSE_BYTES, HTTP_SENSITIVE_RESPONSE_HEADERS } from '../schemas/httpMethods.js';
+import { DEFAULT_HTTP_METHODS, HTTP_MAX_REQUEST_BODY_CHARS, HTTP_MAX_RESPONSE_BYTES, HTTP_SENSITIVE_RESPONSE_HEADERS } from '../schemas/httpMethods.js';
+import { fillPlaceholders, MissingPlaceholderValue } from '../schemas/httpTemplate.js';
 import type { JsonValue } from '../schemas/explorationResult.schema.js';
 import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { readJsonPath } from './buildProbe.js';
@@ -68,6 +69,8 @@ export async function executeHttpRequest(options: {
   step: HttpStepInput;
   baseUrl: string;
   allowedMethods?: readonly string[] | undefined;
+  /** The run's parameter values (T5.3), for the `{{name}}` placeholders of the url and body. */
+  parameters?: Readonly<Record<string, string>> | undefined;
   timeoutMs: number;
 }): Promise<HttpOutcome> {
   const { step } = options;
@@ -77,13 +80,27 @@ export async function executeHttpRequest(options: {
     throw new HttpStepError(`${method} is not allowed for this target (allowed: ${allowed.join(', ')}); the target profile lists them in http.allowedMethods`);
   }
 
-  const url = resolveHttpUrl(step.url, options.baseUrl);
+  // `{{parameter}}` placeholders are filled FIRST, so the allowlist check sees the address that will really be called.
+  let rawUrl = step.url;
+  let body = step.body;
+  try {
+    rawUrl = fillPlaceholders(step.url, options.parameters ?? {}, 'url');
+    if (body !== undefined) body = fillPlaceholders(body, options.parameters ?? {}, 'body');
+  } catch (error) {
+    if (error instanceof MissingPlaceholderValue) throw new HttpStepError(error.message);
+    throw error;
+  }
+  if (body !== undefined && body.length > HTTP_MAX_REQUEST_BODY_CHARS) {
+    throw new HttpStepError(`the body is ${body.length} characters once its parameters are filled in (limit ${HTTP_MAX_REQUEST_BODY_CHARS})`);
+  }
+
+  const url = resolveHttpUrl(rawUrl, options.baseUrl);
   const response = await options.client.fetch(url, {
     method,
     maxRedirects: 0,
     timeout: options.timeoutMs,
     failOnStatusCode: false,
-    ...(step.body === undefined ? {} : { data: step.body, headers: { 'content-type': step.contentType ?? 'application/json' } }),
+    ...(body === undefined ? {} : { data: body, headers: { 'content-type': step.contentType ?? 'application/json' } }),
   });
 
   const status = response.status();

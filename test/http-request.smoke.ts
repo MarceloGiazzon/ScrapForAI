@@ -49,6 +49,9 @@ const site = await listen(async (req, res) => {
     // The defect: a discount is applied from 1000 units on, by mistake.
     return json(200, { total: qty >= 1000 ? qty * price - 1 : qty * price });
   }
+  if (url.startsWith('/api/echo/')) {
+    return json(200, { segment: decodeURIComponent(url.slice('/api/echo/'.length)) });
+  }
   if (url === '/api/boom') {
     res.writeHead(500, { 'content-type': 'text/plain' });
     return res.end('java.lang.NullPointerException\n\tat com.acme.Secret.run(Secret.java:12) SENTINEL-BODY-TEXT');
@@ -147,6 +150,55 @@ test('a server rule is checked with the oracle: the total is wrong from 1000 uni
   assert.equal(result.steps[result.failedStepIndex!]!.id, 'rule');
   assert.match(result.steps[result.failedStepIndex!]!.error!.message, /1999/);
   assert.equal(calls.filter((call) => call.url === '/api/price').every((call) => call.contentType === 'application/json'), true, 'JSON is the default content type');
+});
+
+test('parameters reach the body and the url: each sample is one call, and the oracle finds the boundary', async () => {
+  const steps = [
+    {
+      id: 'price',
+      action: 'httpRequest',
+      name: 'p',
+      method: 'POST',
+      url: '/api/price',
+      body: '{"qty": {{qty}}, "price": 2}',
+      extract: [{ name: 'total', json: 'total' }],
+    },
+    { id: 'rule', action: 'assertEquals', actual: { extracted: 'total' }, expected: { expr: 'qty * 2' } },
+  ];
+  const withSample = async (sample: number) => {
+    const request = explorationRequestSchema.parse({
+      targetProfile: 'api-app',
+      steps,
+      parameters: [{ name: 'qty', cases: ['999', '1000'] }],
+      seed: 'http-params',
+      sample,
+    });
+    return runExploration(await resolveExplorationRequest(request));
+  };
+
+  const ok = await withSample(0);
+  assert.equal(ok.status, 'passed', JSON.stringify(ok.error));
+  assert.equal(ok.extracted.total, 1998);
+  assert.equal(ok.parameters?.values.qty, '999', 'the value that was sent is in the record');
+
+  const bad = await withSample(1);
+  assert.equal(bad.status, 'failed');
+  assert.equal(bad.steps[bad.failedStepIndex!]!.id, 'rule');
+  assert.match(bad.steps[bad.failedStepIndex!]!.error!.message, /qty=1000/);
+  assert.equal(bad.parameters?.sample, 1);
+  assert.ok(calls.some((call) => call.url === '/api/price'), 'the call really went out');
+});
+
+test('a hostile value in the url is one encoded segment: it cannot add a path, a query or another host', async () => {
+  const request = explorationRequestSchema.parse({
+    targetProfile: 'api-app',
+    steps: [{ id: 'echo', action: 'httpRequest', name: 'e', method: 'GET', url: '/api/echo/{{who}}', extract: [{ name: 'seen', json: 'segment' }] }],
+    parameters: [{ name: 'who', cases: ['a b/../c?x=1#y'] }],
+  });
+  const result = await runExploration(await resolveExplorationRequest(request));
+  assert.equal(result.status, 'passed', JSON.stringify(result.error));
+  assert.equal(result.extracted.seen, 'a b/../c?x=1#y', 'the server saw the whole value as ONE segment');
+  assert.ok(calls.some((call) => call.url === '/api/echo/a%20b%2F..%2Fc%3Fx%3D1%23y'));
 });
 
 test('an error page is never copied: the result names the status, not the stack trace', async () => {

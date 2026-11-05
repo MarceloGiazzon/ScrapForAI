@@ -8,6 +8,7 @@ import {
   parameterName,
   sanitizeParameterName,
 } from '../schemas/parameters.schema.js';
+import { placeholderNames } from '../schemas/httpTemplate.js';
 import { leafSteps, mapLeaves, someStep } from '../schemas/stepTree.js';
 import { valueAt } from './generators.js';
 
@@ -39,6 +40,9 @@ interface StepLike {
   action: string;
   valueFromParameter?: string;
   valueFromGenerator?: GeneratorInput;
+  /** `httpRequest` only (T5.7). */
+  url?: string;
+  body?: string;
 }
 
 export interface ResolveInput<T extends StepLike> {
@@ -58,12 +62,19 @@ export interface ResolveOutput<T extends StepLike> {
   record?: ParameterRecord;
 }
 
-const usesParameters = (step: StepLike): boolean => step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined;
+/** T5.7: parameters an `httpRequest` names inside its url and body as `{{name}}`. */
+export const placeholderParameters = (step: StepLike): string[] =>
+  step.action === 'httpRequest' ? [...new Set([...placeholderNames(step.url), ...placeholderNames(step.body)])] : [];
 
-/** Names a step list refers to through `valueFromParameter`. */
+const usesParameters = (step: StepLike): boolean =>
+  step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined || placeholderParameters(step).length > 0;
+
+/** Names a step list refers to through `valueFromParameter` or a `{{name}}` placeholder. */
 export function referencedParameters(steps: StepLike[]): string[] {
   // Inside a `parallel` block too (T6.5).
-  return [...new Set([...leafSteps(steps)].flatMap((step) => (step.valueFromParameter !== undefined ? [step.valueFromParameter] : [])))];
+  return [
+    ...new Set([...leafSteps(steps)].flatMap((step) => [...(step.valueFromParameter !== undefined ? [step.valueFromParameter] : []), ...placeholderParameters(step)])),
+  ];
 }
 
 /**

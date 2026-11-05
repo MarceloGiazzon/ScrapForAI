@@ -3,6 +3,7 @@ import { renameVariables } from '../oracle/expression.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { type ExplorationStep, explorationRequestSchema, type RunnableLeaf, type RunnableStep } from '../schemas/explorationRequest.schema.js';
 import { type Parameter, sanitizeParameterName } from '../schemas/parameters.schema.js';
+import { renamePlaceholders } from '../schemas/httpTemplate.js';
 import { countSteps } from '../schemas/stepTree.js';
 import { getRoutine } from './routineLibrary.js';
 
@@ -66,6 +67,13 @@ function withScopedParameter(step: RunnableLeaf, scope: Map<string, string>): Ru
   if (step.action === 'assertEquals' && 'expr' in step.expected && scope.size > 0) {
     const expr = renameVariables(step.expected.expr, scope);
     return expr === step.expected.expr ? step : ({ ...step, expected: { expr } } as RunnableLeaf);
+  }
+  // T5.7: the {{name}} placeholders in the url and body of an httpRequest follow the same rename.
+  if (step.action === 'httpRequest' && scope.size > 0) {
+    const http = step as { url: string; body?: string };
+    const url = renamePlaceholders(http.url, scope);
+    const body = http.body === undefined ? undefined : renamePlaceholders(http.body, scope);
+    return url === http.url && body === http.body ? step : ({ ...step, url, ...(body === undefined ? {} : { body }) } as RunnableLeaf);
   }
   const name = (step as { valueFromParameter?: string }).valueFromParameter;
   const renamed = name === undefined ? undefined : scope.get(name);

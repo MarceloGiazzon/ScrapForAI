@@ -12,6 +12,7 @@ import { runLibraryRoutine } from '../library/routineService.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
+import { placeholderParameters } from '../generators/resolveParameters.js';
 import { someStep } from '../schemas/stepTree.js';
 import { type SuiteRequest, type SuiteState, suiteStateSchema, type VariantState } from '../schemas/suiteRequest.schema.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
@@ -227,7 +228,15 @@ export async function planSuite(request: SuiteRequest): Promise<PlannedVariant[]
 
 type StepList = Array<Record<string, unknown>>;
 // Inside a `parallel` block too (T6.5).
-const drawsValues = (steps: StepList): boolean => someStep(steps, (step) => step.valueFromParameter !== undefined || step.valueFromGenerator !== undefined);
+const drawsValues = (steps: StepList): boolean =>
+  someStep(
+    steps,
+    (step) =>
+      step.valueFromParameter !== undefined ||
+      step.valueFromGenerator !== undefined ||
+      // T5.7: an httpRequest that names a parameter in its url or body ({{name}}).
+      (step.action === 'httpRequest' && placeholderParameters(step as { action: string; url?: string; body?: string }).length > 0),
+  );
 
 /** Does running this routine draw any generated value (own parameters, inline generators, or those of an included routine)? */
 async function isParametric(routine: NonNullable<Awaited<ReturnType<typeof getRoutine>>>): Promise<boolean> {

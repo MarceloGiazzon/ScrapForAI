@@ -5,6 +5,7 @@ import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
 import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
 import { docStepSchema } from './docStep.schema.js';
 import { HTTP_MAX_REQUEST_BODY_CHARS, HTTP_METHODS, HTTP_SENSITIVE_RESPONSE_HEADERS } from './httpMethods.js';
+import { placeholderNames, placeholderProblems } from './httpTemplate.js';
 import { PII_SURFACES } from '../security/piiDetectors.js';
 import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema, tableRefSchema } from './parameters.schema.js';
@@ -462,6 +463,8 @@ const httpRequestStep = z
     if (step.contentType !== undefined && step.body === undefined) {
       ctx.addIssue({ code: 'custom', path: ['contentType'], message: 'contentType only goes with a body' });
     }
+    // `{{parameter}}` placeholders (httpTemplate.ts): the url takes the bare form only, since it percent-encodes every value.
+    for (const problem of placeholderProblems(step.url, 'url')) ctx.addIssue({ code: 'custom', path: ['url'], message: problem });
     const seen = new Set<string>([step.name]);
     (step.extract ?? []).forEach((entry, index) => {
       if (seen.has(entry.name)) ctx.addIssue({ code: 'custom', path: ['extract', index, 'name'], message: `"${entry.name}" is already used by this step (its name or another extract entry)` });
@@ -817,6 +820,17 @@ function validateParameterReferences(routine: RoutineForValidation, ctx: z.Refin
       const name = (step as { valueFromParameter?: string }).valueFromParameter;
       if (name !== undefined && !declared.has(name)) {
         ctx.addIssue({ code: 'custom', path: [...path, 'valueFromParameter'], message: `parameter "${name}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
+      }
+      // T5.7: an httpRequest names parameters inside its url and body as {{name}}.
+      if ((step as { action?: string }).action === 'httpRequest') {
+        const http = step as { url?: string; body?: string };
+        for (const [field, text] of [['url', http.url], ['body', http.body]] as const) {
+          for (const placeholder of placeholderNames(text)) {
+            if (!declared.has(placeholder)) {
+              ctx.addIssue({ code: 'custom', path: [...path, field], message: `{{${placeholder}}}: parameter "${placeholder}" is not declared (declared: ${[...declared].join(', ') || 'none'})` });
+            }
+          }
+        }
       }
     }
   }
