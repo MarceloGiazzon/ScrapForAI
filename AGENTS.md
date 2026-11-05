@@ -229,8 +229,13 @@ step limits, artifact retention, etc.).
   `[fs]` line in the last two, so the cause is the best explanation, not a proven one. **UPDATE: it came back** (`routine-library.smoke`, "No manifest for this run", 404) in
   one full run after the fix, with NO `[fs]`/`[evidence]` line in the output, and passed 3 of 3 in isolation: so it is NOT (only) a transient EPERM. Still open (not seen again in two full runs on 2026-11-05).
   `GET /v1/runs/:jobId/manifest` used to answer one 404 for three causes and swallow a read error without a trace (`.catch(() => undefined)`); it now says which one (no evidence folder / folder without
-  `manifest.json` / manifest unreadable) and the last two print `[evidence] ...` on stderr. If the failure comes back, that line (or its absence, which would point at `findJobDir`'s `existsSync`, which
-  answers `false` for ANY error including a transient `EPERM`) tells where to look. `findJobDir` itself is not retried yet.
+  `manifest.json` / manifest unreadable) and the last two print `[evidence] ...` on stderr. If the failure comes back, that line (or its absence, which would point at `findJobDir`'s folder check) tells where to look.
+  **It came back once more** (third full smoke run of 2026-11-05, `parameters.smoke` "a generated CPF...": `buildRunReport` -> `EvidenceNotFound` for a run that had just finished, again with NO `[fs]`
+  line; the retention is 4 h and nothing else removes a folder, so it was not a prune). The two silent spots on that path now leave a trace and are hardened: `findJobDir` checks the folder with
+  `directoryExists` (`src/evidence/locate.ts`: `statSync`, ENOENT/ENOTDIR = absent, a transient code is retried 6 times and prints `[fs] ... on the folder of <job>`, anything else prints
+  `[evidence] could not check the folder of <job>: <code>`), and the report's `readJson` prints `[evidence] <file> of <job> could not be read: <code>` (a missing file stays quiet). Whether this
+  fixes it is NOT known: it was added because `existsSync` answering `false` for a transient `EPERM` is the one mechanism found that fits "no log line, never in isolation". If it recurs with one of
+  those lines, the cause is the one named; if it recurs with none, the cause is elsewhere (suspects left: `result.json` read while another process has it, a `JSON.parse` of a half-written file).
 - **Frames wait to exist** (`resolveFrameWhenReady` in `src/runner/runExploration.ts`): a step with `frame: { urlContains | name | index }` used to resolve the frame at the instant it started, and when the
   iframe was injected by the script of the click just before (a GeneXus prompt) the step raced the browser: it fell back to the MAIN frame and waited out its whole timeout for a selector that lives in the
   iframe (`gx-prompt-select` failed 2 of 2 on one run, 3 of 3 passing on another: the smoke looked flaky, the bug was the race). Now the frame is resolved AFTER the step's `delayMs`/`waitFor` and gets up to

@@ -25,7 +25,7 @@ const { createSession, SESSION_COOKIE_NAME } = await import('../src/security/ses
 const { runsRouter } = await import('../src/routes/runs.routes.js');
 const { pruneExpiredArtifacts } = await import('../src/artifacts/artifactStore.js');
 const { buildManifest, writeManifest, readManifest, verifyManifest } = await import('../src/evidence/manifest.js');
-const { findJobDir } = await import('../src/evidence/locate.js');
+const { findJobDir, directoryExists } = await import('../src/evidence/locate.js');
 const { pinnedEvidenceDir } = await import('../src/config/paths.js');
 const { appendRun, getRun, pruneHistory, resetRunHistoryForTests } = await import('../src/history/runHistoryStore.js');
 
@@ -191,6 +191,29 @@ test('GET manifest: a missing folder, a missing manifest and an unreadable one a
   assert.match(log, /\[evidence\] job_nomanifest1 has an evidence folder \(artifacts\) but no manifest\.json/);
   assert.match(log, /\[evidence\] manifest of job_badmanifest1 exists but could not be read/);
   assert.ok(!log.includes('job_nofolder1'), 'an unknown id is not worth a log line');
+});
+
+test('directoryExists: a folder is true; absent, a file, and a path under a file are false and say nothing', async () => {
+  const dir = await makeJob('job_exists1');
+  const stderr: string[] = [];
+  const realWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    stderr.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+
+  try {
+    assert.equal(directoryExists(dir), true);
+    assert.equal(directoryExists(path.join(env.ARTIFACT_DIR, 'job_exists_not_there')), false);
+    assert.equal(directoryExists(path.join(dir, 'result.json')), false, 'a file is not a job folder');
+    assert.equal(directoryExists(path.join(dir, 'result.json', 'below')), false, 'ENOTDIR counts as absent');
+  } finally {
+    process.stderr.write = realWrite;
+  }
+
+  assert.deepEqual(stderr, [], 'ordinary absence is not worth a log line');
+  assert.equal(findJobDir('job_exists1')?.location, 'artifacts');
+  assert.equal(findJobDir('job_exists_not_there'), undefined);
 });
 
 test('pinning twice is idempotent; keepTrace keeps the trace', async () => {

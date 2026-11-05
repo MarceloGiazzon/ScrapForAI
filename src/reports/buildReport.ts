@@ -24,7 +24,12 @@ async function readJson<T>(jobId: string, name: string): Promise<T | undefined> 
   if (!file) return undefined;
   try {
     return JSON.parse(await readFileRetry(file, 'utf8')) as T;
-  } catch {
+  } catch (error) {
+    // The caller turns this into "evidence not found"; without this line a file that is there but unreadable looks the same as one that expired.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      process.stderr.write(`[evidence] ${name} of ${jobId} could not be read: ${code ?? (error instanceof Error ? error.message : String(error))}\n`);
+    }
     return undefined;
   }
 }
