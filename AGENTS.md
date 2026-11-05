@@ -216,8 +216,9 @@ step limits, artifact retention, etc.).
   no such field). **CSS is never stubbed** (the schema refuses `stylesheet` by name: visibility depends on it); fetch/xhr/script/document are not resources
   and are untouched. An explicit `resourcePolicy.stub` (subset of image/media/font) wins over the profile, so `stub: []` under `functional` stubs nothing
   (but screenshots/trace stay off). Available on a direct run, `POST /v1/routines/:id/run` / `run_routine` (`profile`), a suite (`profile`) and
-  `scrapforai run --profile`; deliberately NOT on regression-vault runs (proof needs full evidence). **The acceptance benchmark is still pending**
-  (3 real routines x 10 runs per profile on WmsOffice): `npm run bench:profile -- <routine>... --runs 10`. The speed-up is measured, not promised.
+  `scrapforai run --profile`; deliberately NOT on regression-vault runs (proof needs full evidence). **Benchmark done 2026-11-05** (3 real routines x 10 runs per profile on
+  WmsOffice, `docs/T5.2-BENCHMARK.md`): step outcomes identical in all 60 runs (acceptance met), but NO speed-up measured (medians within -10.5%..+7.1%, noise, local target).
+  Repeat on a remote target with heavy images before claiming speed: `npm run bench:profile -- <routine>... --runs 10`. The speed-up is measured, not promised.
 - **Transient file errors on Windows** (`src/storage/transientIo.ts`): Windows briefly answers `EPERM`/`EBUSY`/`EACCES` when another process (antivirus,
   indexer) holds a file that was just written. Evidence reads and writes (manifest hash and read, `result.json`, screenshots for reports and
   snapshots, pin, export) and the atomic rename go through `retryTransient` / `readFileRetry` (6 attempts, growing pause; any other error is thrown

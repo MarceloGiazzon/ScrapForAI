@@ -996,11 +996,11 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T5.2 — Perfil funcional · P
 
-> **Implementada em 2026-11-03, com o benchmark pendente.** Código e testes prontos (ver AGENTS.md, "Functional profile"). **O critério
-> de aceite ainda não está cumprido:** falta rodar 3 rotinas reais × 10 execuções em cada perfil contra o WmsOffice e publicar os números
-> aqui. O script está pronto: `npm run bench:profile -- <rotina> <rotina> <rotina> --runs 10` (servidor no ar, rotinas salvas); ele sai
-> com 1 se algum resultado de step diferir entre os perfis e imprime a tabela para colar neste arquivo. O smoke com fixture local já
-> prova "nenhuma mudança de resultado nos steps" num caso controlado.
+> **Implementada em 2026-11-03; benchmark feito em 2026-11-05.** Código e testes prontos (ver AGENTS.md, "Functional profile").
+> **Critério de aceite cumprido:** 3 rotinas reais (`reg-216`, `reg-218`, `wms-smoke-movimento`) × 10 execuções em cada perfil contra o
+> WmsOffice, resultados dos steps idênticos nas 60 execuções. **Ganho de tempo não medido:** a diferença das medianas ficou entre
+> -10,5% e +7,1%, sem sinal consistente (ruído; alvo local). Números e leitura em `docs/T5.2-BENCHMARK.md`. Repetir contra um alvo
+> remoto com imagens pesadas antes de prometer velocidade: `npm run bench:profile -- <rotina>... --runs 10`.
 
 **Especificação:**
 - `options.profile: 'full' | 'functional'` (default `full`), mais um `options.resourcePolicy`
