@@ -1,3 +1,4 @@
+import { autoDraftBugReports } from '../bugreport/autoDraft.js';
 import { env } from '../config/env.js';
 import { notifySettled, sendDueSummaries } from '../integrations/notifier.js';
 import { createDispatcher } from './dispatcher.js';
@@ -15,7 +16,8 @@ export async function startScheduler(onError: (message: string, error: unknown) 
     tickMs: Math.max(1, env.SCHEDULER_TICK_SECONDS) * 1000,
     onError,
     // T3.3: webhooks hear about CHANGES of a schedule's verdict, and once a day if they asked. Neither can fail a run.
-    onSettled: (event) => notifySettled(event),
+    // T9.1: a failed run also prepares a bug report, when an integration asks for it. Independent of the webhook: one slow or broken does not hold the other.
+    onSettled: (event) => Promise.all([notifySettled(event), autoDraftBugReports(event).catch((error) => onError(`bug report for schedule ${event.schedule.id}`, error))]),
     onTick: () => sendDueSummaries(),
   });
   await instance.start();

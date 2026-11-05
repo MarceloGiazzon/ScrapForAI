@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 40);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 49);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1306,4 +1306,170 @@ test('manual show: what the last build wrote; no manual yet is exit 2 with its t
   const none = await cli(['manual', 'show', 'app', '--json']);
   assert.equal(none.code, 2);
   assert.equal(JSON.parse(none.stdout).error.type, 'ManualNotFound');
+});
+
+// ---- T9.1: bug reports and integrations ----------------------------------------------------------------------------------------------------------
+
+const bugReportBody = (over: Record<string, unknown> = {}) => ({
+  id: 'bug_abc123',
+  status: 'draft',
+  createdAt: '2026-11-04T13:00:00.000Z',
+  updatedAt: '2026-11-04T13:00:00.000Z',
+  lang: 'en',
+  signature: { hash: '0123456789abcdef', key: 'cart-total / step total / StepExecutionError', subject: 'cart-total', stepId: 'total', errorType: 'StepExecutionError' },
+  source: { jobId: 'job_x' },
+  targetProfile: 'shop',
+  title: '[ScrapForAI] cart-total failed at step total: StepExecutionError',
+  body: '## Where\n\n- Page: `https://dev.example.com/cart`\n',
+  redactions: 2,
+  occurrenceCount: 1,
+  occurrences: [{ jobId: 'job_x', at: '2026-11-04T13:00:00.000Z', via: 'manual' }],
+  attempts: [],
+  ...over,
+});
+
+test('bug-report create: POSTs the run, says whether it is new, rebuilt or a recurrence, and never sends anything; --json matches the contract', async () => {
+  handler = (_req, respond) => respond(201, { report: bugReportBody(), created: true, refreshed: false });
+  const created = await cli(['bug-report', 'create', '--from-job', 'job_x', '--shrink', 'shrink_1', '--lang', 'pt']);
+  assert.equal(created.code, 0);
+  assert.equal(seen[0]!.method, 'POST');
+  assert.equal(seen[0]!.url, '/v1/bug-reports');
+  assert.deepEqual(seen[0]!.body, { fromJobId: 'job_x', shrinkId: 'shrink_1', lang: 'pt' });
+  assert.equal(seen[0]!.auth, `Bearer ${KEY}`);
+  assert.match(created.stdout, /Draft bug_abc123 created: cart-total \/ step total \/ StepExecutionError/);
+  assert.match(created.stdout, /2 value\(s\) masked/);
+  assert.match(created.stdout, /approve and send: scrapforai bug-report send bug_abc123/);
+  assert.equal(validJson((await cli(['bug-report', 'create', '--from-job', 'job_x', '--json'])).stdout).command, 'bug-report create');
+
+  handler = (_req, respond) => respond(200, { report: bugReportBody({ occurrenceCount: 3, status: 'sent', issue: { integrationId: 'gh', number: 42, url: 'https://github.com/acme/shop/issues/42', sentAt: 'x' } }), created: false, refreshed: false });
+  const again = await cli(['bug-report', 'create', '--from-job', 'job_y']);
+  assert.match(again.stdout, /already has bug_abc123 \(sent\); the occurrence was added/);
+  assert.match(again.stdout, /3 occurrence\(s\)/);
+  assert.match(again.stdout, /issue: #42 https:\/\/github\.com\/acme\/shop\/issues\/42/);
+
+  handler = (_req, respond) => respond(200, { report: bugReportBody(), created: false, refreshed: true });
+  assert.match((await cli(['bug-report', 'create', '--from-job', 'job_z'])).stdout, /unsent draft bug_abc123 was rebuilt from this run/);
+
+  for (const args of [['bug-report', 'create'], ['bug-report', 'create', 'extra', '--from-job', 'job_x'], ['bug-report', 'create', '--from-job', 'job_x', '--lang', 'fr']]) {
+    seen.length = 0;
+    const bad = await cli(args);
+    assert.equal(bad.code, 2, args.join(' '));
+    assert.equal(seen.length, 0, 'bad usage never reaches the API');
+  }
+  handler = (_req, respond) => respond(409, { error: { type: 'RunNotFailed', message: 'Run job_ok did not fail' } });
+  const refused = await cli(['bug-report', 'create', '--from-job', 'job_ok']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /RunNotFailed/);
+});
+
+test('bug-report list / show: a row per report, the issue text on screen or in a file', async () => {
+  handler = (_req, respond) => respond(200, { bugReports: [{ ...bugReportBody({ occurrenceCount: 4 }), body: undefined }, { ...bugReportBody({ id: 'bug_def456', status: 'sent', issue: { integrationId: 'gh', number: 7, url: 'https://x', sentAt: 'y' } }), body: undefined }] });
+  const list = await cli(['bug-report', 'list', '--status', 'draft']);
+  assert.equal(seen[0]!.url, '/v1/bug-reports?status=draft');
+  assert.match(list.stdout, /bug_abc123\s+draft\s+x4\s+cart-total \/ step total \/ StepExecutionError/);
+  assert.match(list.stdout, /bug_def456\s+sent.*-> #7/);
+  assert.equal(validJson((await cli(['bug-report', 'list', '--json'])).stdout).command, 'bug-report list');
+
+  handler = (_req, respond) => respond(200, bugReportBody());
+  const shown = await cli(['bug-report', 'show', 'bug_abc123']);
+  assert.equal(seen[0]!.url, '/v1/bug-reports/bug_abc123');
+  assert.match(shown.stdout, /^bug_abc123\s+draft\s+x1/);
+  assert.match(shown.stdout, /# \[ScrapForAI\] cart-total failed at step total: StepExecutionError\n\n## Where/);
+  assert.equal(validJson((await cli(['bug-report', 'show', 'bug_abc123', '--json'])).stdout).command, 'bug-report show');
+
+  const written: Array<{ path: string; data: string }> = [];
+  const toFile = await cli(['bug-report', 'show', 'bug_abc123', '--out', 'issue.md'], { writeFile: async (file: string, data: Buffer) => void written.push({ path: file, data: data.toString('utf8') }) });
+  assert.equal(toFile.code, 0);
+  assert.equal(written[0]!.path, 'issue.md');
+  assert.ok(written[0]!.data.startsWith('# [ScrapForAI] cart-total failed'));
+  assert.match(toFile.stdout, /Issue text written to issue\.md/);
+
+  seen.length = 0;
+  assert.equal((await cli(['bug-report', 'show'])).code, 2);
+  assert.equal(seen.length, 0);
+});
+
+test('bug-report send: exit 0 only when the issue exists; a refusal or a blocked text exits 2 and says the report is still a draft', async () => {
+  const sentReport = bugReportBody({ status: 'sent', issue: { integrationId: 'gh', number: 42, url: 'https://github.com/acme/shop/issues/42', sentAt: 'x' } });
+  handler = (_req, respond) => respond(200, { status: 'sent', attempt: { at: 'x', integrationId: 'gh', status: 'sent' }, report: sentReport });
+  const ok = await cli(['bug-report', 'send', 'bug_abc123', '--integration', 'gh']);
+  assert.equal(ok.code, 0);
+  assert.equal(seen[0]!.url, '/v1/bug-reports/bug_abc123/send');
+  assert.deepEqual(seen[0]!.body, { integrationId: 'gh' });
+  assert.match(ok.stdout, /Sent as issue #42 https:\/\/github\.com\/acme\/shop\/issues\/42/);
+  assert.equal(validJson((await cli(['bug-report', 'send', 'bug_abc123', '--json'])).stdout).command, 'bug-report send');
+  assert.deepEqual(seen[0]!.body, {}, 'no integration named: the server picks the only one that serves the profile');
+
+  handler = (_req, respond) => respond(502, { status: 'failed', attempt: { at: 'x', integrationId: 'gh', status: 'failed', httpStatus: 401, reason: 'the token was rejected (HTTP 401)' }, report: bugReportBody() });
+  const failed = await cli(['bug-report', 'send', 'bug_abc123']);
+  assert.equal(failed.code, 2);
+  assert.match(failed.stdout, /Not sent \(failed\): the token was rejected \(HTTP 401\)\. The report is still a draft\./);
+
+  handler = (_req, respond) => respond(422, { status: 'blocked', attempt: { at: 'x', integrationId: 'gh', status: 'blocked', reason: 'the report still contained a credential vault value after cleaning; nothing was sent' }, report: bugReportBody() });
+  const blocked = await cli(['bug-report', 'send', 'bug_abc123', '--json']);
+  assert.equal(blocked.code, 2);
+  assert.equal(validJson(blocked.stdout).result.status, 'blocked');
+
+  handler = (_req, respond) => respond(409, { error: { type: 'BugReportNotDraft', message: 'Already sent as issue #42' } });
+  const twice = await cli(['bug-report', 'send', 'bug_abc123']);
+  assert.equal(twice.code, 2);
+  assert.match(twice.stderr, /BugReportNotDraft/);
+});
+
+test('bug-report dismiss / resolve: POST the decision with its note', async () => {
+  handler = (_req, respond) => respond(200, bugReportBody({ status: 'dismissed' }));
+  const dismissed = await cli(['bug-report', 'dismiss', 'bug_abc123', '--note', 'known']);
+  assert.equal(seen[0]!.url, '/v1/bug-reports/bug_abc123/dismiss');
+  assert.deepEqual(seen[0]!.body, { note: 'known' });
+  assert.match(dismissed.stdout, /bug_abc123 is now dismissed/);
+  assert.equal(validJson((await cli(['bug-report', 'dismiss', 'bug_abc123', '--json'])).stdout).command, 'bug-report dismiss');
+
+  handler = (_req, respond) => respond(200, bugReportBody({ status: 'resolved' }));
+  const resolved = await cli(['bug-report', 'resolve', 'bug_abc123']);
+  assert.equal(seen[0]!.url, '/v1/bug-reports/bug_abc123/resolve');
+  assert.match(resolved.stdout, /is now resolved/);
+  assert.equal(validJson((await cli(['bug-report', 'resolve', 'bug_abc123', '--json'])).stdout).command, 'bug-report resolve');
+});
+
+const integrationView = (over: Record<string, unknown> = {}) => ({
+  integration: { id: 'gh', kind: 'github', enabled: true, repo: 'acme/shop', apiBaseUrl: 'https://api.github.com', labels: ['scrapforai'], targetProfiles: [], onScheduledFailure: 'draft', lang: 'en' },
+  createdAt: '2026-11-04T12:00:00.000Z',
+  updatedAt: '2026-11-04T12:00:00.000Z',
+  hasToken: true,
+  apiOrigin: 'https://api.github.com',
+  originAllowed: true,
+  ...over,
+});
+
+test('integrations list / show / test: the destination and whether there is a token, never the token; test exits 2 when the repository cannot be read', async () => {
+  handler = (_req, respond) => respond(200, { integrations: [integrationView(), integrationView({ originAllowed: false, hasToken: false, integration: { ...integrationView().integration, id: 'blocked' } })] });
+  const list = await cli(['integrations', 'list']);
+  assert.match(list.stdout, /on\s+gh\s+github acme\/shop\s+https:\/\/api\.github\.com\s+on scheduled failure: draft/);
+  assert.match(list.stdout, /blocked.*ORIGIN NOT ALLOWED.*NO TOKEN/);
+  assert.equal(validJson((await cli(['integrations', 'list', '--json'])).stdout).command, 'integrations list');
+
+  handler = (_req, respond) => respond(200, integrationView());
+  const show = await cli(['integrations', 'show', 'gh']);
+  assert.equal(seen[0]!.url, '/v1/integrations/gh');
+  assert.match(show.stdout, /token: stored \(write-only\)/);
+  assert.match(show.stdout, /target profiles: any/);
+  assert.equal(validJson((await cli(['integrations', 'show', 'gh', '--json'])).stdout).command, 'integrations show');
+
+  handler = (_req, respond) => respond(200, { ok: true, issuesEnabled: true });
+  const ok = await cli(['integrations', 'test', 'gh']);
+  assert.equal(ok.code, 0);
+  assert.equal(seen[0]!.method, 'POST');
+  assert.equal(seen[0]!.url, '/v1/integrations/gh/test');
+  assert.equal(validJson((await cli(['integrations', 'test', 'gh', '--json'])).stdout).command, 'integrations test');
+
+  handler = (_req, respond) => respond(502, { ok: false, reason: 'the token was rejected (HTTP 401)', httpStatus: 401 });
+  const failed = await cli(['integrations', 'test', 'gh']);
+  assert.equal(failed.code, 2);
+  assert.match(failed.stdout, /failed: the token was rejected \(HTTP 401\) \(HTTP 401\)/);
+
+  for (const args of [['integrations'], ['integrations', 'show'], ['integrations', 'test'], ['integrations', 'list', 'x']]) {
+    seen.length = 0;
+    assert.equal((await cli(args)).code, 2, args.join(' '));
+    assert.equal(seen.length, 0);
+  }
 });

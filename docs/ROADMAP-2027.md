@@ -1454,6 +1454,19 @@ lentidão e flakiness.
 - Egress restrito por `ALLOWED_INTEGRATION_ORIGINS`; token no cofre; payload passa pela redação
   **e** pelo caçador de PII (T7.8) antes de sair.
 
+> **Implementada em 2026-11-04, sem a parte que depende da T3.6** (`src/bugreport/`, `src/integrations/{integrationPolicy,githubIssues,integrationStore,integrationService}.ts`, ver AGENTS.md, "Bug reports"). `POST /v1/bug-reports { fromJobId, shrinkId? }`
+> transforma uma execução que FALHOU num **rascunho** de issue (título e corpo Markdown exatamente como seriam enviados, em en/pt/es): onde aconteceu, o passo e o erro, os passos, erros de console e falhas de rede, a menor entrada que falha (quando
+> se passa o `shrinkId` de uma redução terminada **da mesma falha**), "desde quando" e um comando que repete a execução. **Deduplicação** por assinatura = rotina + passo que falhou + TIPO do erro (sem versão, perfil, build nem mensagem): a mesma
+> falha de novo é uma ocorrência do relatório que já existe; `resolved` (decisão de uma pessoa) faz a próxima ocorrência abrir um relatório NOVO que aponta para o antigo. **Modo rascunho por padrão:** `POST /v1/bug-reports/:id/send` (só com o token
+> bearer) é a aprovação e a única coisa que sai do servidor. Uma execução **agendada** que falha prepara o rascunho sozinha apenas se uma integração servir o perfil dela (`onScheduledFailure`: `draft` padrão, `send` é o envio automático, opt-in).
+> Adaptador: GitHub Issues (D8; Azure DevOps e Jira por demanda). **Desvios e decisões fora do texto:** (1) **a captura de tela nunca vai**: o GitHub não tem API para anexá-la e uma imagem não pode ser verificada quanto a dados pessoais; a issue cita a
+> execução. (2) **Sem nova tentativa:** criar uma issue não é idempotente (um pedido que estourou o tempo pode ter chegado) e uma segunda issue é pior que um envio que falhou e uma pessoa repete. (3) Redirecionamentos não são seguidos, o corpo de uma
+> resposta de erro nunca é lido, e uma falha é descrita por código e frase fixa, nunca pelo token. (4) O texto é limpo de novo **na hora de enviar**, com o cofre como está agora, e `findLeak` confere título, corpo e labels: um segredo que sobra
+> bloqueia o envio. (5) Tudo que vem da página vai dentro de bloco de código com cerca maior que qualquer sequência de crases nele, para não poder mencionar ninguém (`@nome` notifica), ligar uma issue nem embutir imagem. (6) `http` só vale para
+> localhost: um token bearer não deve cruzar uma rede em texto claro. (7) "Desde quando" vem só da série de execuções (T3.4): a última execução que passou e a primeira que falhou depois dela, com os builds e se mudaram. É uma janela, não um
+> diagnóstico. **Fica de fora:** a lista de **suspeitos do bisect (T3.6 não existe; o `ChangeSource` do NPDev/GeneXus Server é `[cross-repo]`)**, Azure DevOps/Jira, anexar a captura, procurar na issue pela marca antes de criar (a deduplicação é local),
+> comentar ou reabrir a issue quando a falha volta, tela no console web.
+
 ### T9.2 — Manual vivo · G
 
 **Especificação:**

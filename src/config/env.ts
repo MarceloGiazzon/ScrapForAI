@@ -128,6 +128,11 @@ export const envSchema = z.object({
   ALLOWED_NOTIFY_ORIGINS: originListFromEnv,
   NOTIFY_TIMEOUT_MS: integerFromEnv.default(10000),
 
+  // --- Issue trackers (T9.1) ---
+  // The only origins a bug report may be sent to (the integration's API base URL). Empty = nothing leaves the server. Exact origins, no wildcards.
+  ALLOWED_INTEGRATION_ORIGINS: originListFromEnv,
+  INTEGRATION_TIMEOUT_MS: integerFromEnv.default(15000),
+
   // --- Performance series (T3.4) ---
   // Baseline = median of the last PERF_BASELINE_RUNS green runs that came BEFORE the last PERF_RECENT_RUNS; alert when the median of those recent runs
   // is above baseline x PERF_ALERT_RATIO and also at least PERF_MIN_DELTA_MS slower (a 20 ms step that takes 30 ms is noise).
@@ -187,7 +192,7 @@ function readLiveDotEnv(): Record<string, string> {
   return dotenv.parse(readFileSync(dotEnvPath));
 }
 
-export function getLiveAllowedOrigins(key: 'ALLOWED_TARGET_ORIGINS' | 'ALLOWED_RESOURCE_ORIGINS' | 'ALLOWED_NOTIFY_ORIGINS'): string[] {
+export function getLiveAllowedOrigins(key: 'ALLOWED_TARGET_ORIGINS' | 'ALLOWED_RESOURCE_ORIGINS' | 'ALLOWED_NOTIFY_ORIGINS' | 'ALLOWED_INTEGRATION_ORIGINS'): string[] {
   // Union the hot-reloadable .env file value with the value the server was launched with
   // in process.env (e.g. a task runner / harness that injects an allowlisted origin via the
   // environment instead of editing .env). The previous `liveValue ?? process.env[key]` made

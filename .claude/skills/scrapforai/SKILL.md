@@ -126,6 +126,26 @@ From `docs/npdev-testing-guide.md`:
 
 Do not add an item "to have one": a green-from-the-start scenario has no RED to prove. Ask the user.
 
+## Telling people about a bug (bug report)
+
+A failed run can become a **draft issue**. `draft_bug_report { fromJobId, shrinkId?, lang? }` reads the run's evidence and writes: where it happened
+(application, environment, build, page), the failing step and error, the steps, console and network failures, the smallest failing input (pass the `shrinkId`
+of a **finished** `shrink_failure` of the same failure), "since when" (the last passing run and the first failing one after it, and whether the build changed:
+a window, not a diagnosis) and a command that repeats the run. Then `list_bug_reports { id }` shows it exactly as it would be sent.
+
+- **Drafting sends nothing, and you cannot send.** A person reads the draft and approves it (`scrapforai bug-report send <id>`), because that is the one
+  step that leaves the server. Say so; do not look for another way to get it into the tracker. `list_integrations` shows where it could go.
+- **One report per failure** (same routine, same step, same error type). The same failure again is an occurrence of the report that exists
+  (`created: false`), not another report. By hand on an **unsent** draft, the draft is rebuilt from the run you named; a dismissed or sent report only counts.
+  A report a person marked `resolved` that comes back opens a new one that points at it.
+- **Draft the right run.** It must have FAILED because the application misbehaves (same test as for the vault), and its evidence must still exist
+  (`EvidenceNotFound`: pin runs you will report on). A run that passed is `RunNotFailed`.
+- **What is cleaned, and what is not.** Vault values, secret shapes and personal data (CPF, cards, e-mail...) are masked; the page address has no query;
+  anything the page wrote is in a code block, so it cannot mention a person or link anything. **The screenshot is never attached**: an image cannot be checked
+  for personal data, so the issue names the run and the evidence holds it. Do not paste a value from a page into a report by hand.
+- A scheduled run that fails drafts a report on its own **only** when an integration serves its profile (`onScheduledFailure`: `draft` is the default,
+  `send` is opt-in). It skips runs that could not execute, quarantined variants, passes on a new attempt and runs that drew generated values (edge values fail on purpose).
+
 ## Checking who can do what (permission matrix)
 
 Use it when the question is about roles: "can a seller open Settings?", "did this build give a role a new access?".
@@ -344,6 +364,8 @@ A routine tagged `doc` is also a chapter of the manual of its target profile. Yo
 | `RoutineLintError` (422) | A literal (or a `doc` caption) looks like a secret | Replace with `valueFromCredential`; rewrite the caption |
 | `NoDocRoutines` (404) / `ManualBuildRunning` (409) | A manual build found no active routine tagged `doc` for the target / one is already running | Tag the routines `doc`; wait for the running build |
 | `DocFigureError` | A `doc.highlight` matched no visible element | Fix the selector, or the step before it; the build wrote nothing |
+| `RunNotFailed` (409) / `EvidenceNotFound` (404) | `draft_bug_report` on a run that passed / whose evidence expired | Pick the failed run; pin runs you will report on |
+| `ShrinkDoesNotMatch` / `ShrinkRunning` (409) | The shrink is about another failure / has not finished | Use the shrink of THIS failure; wait for `get_shrink_result` to end |
 | `StillRed` | The fix did not work on that build | Report it; do not retry until something changed |
 | `ValidationError` | The request does not match the schema | Fetch `GET /v1/schema/…` and fix the shape |
 | `PinnedQuotaExceeded` (409) | The pinned store is full | Tell the user; nothing is deleted automatically |

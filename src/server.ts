@@ -40,6 +40,8 @@ import { healthRouter } from './routes/health.routes.js';
 import { summaryRouter } from './routes/summary.routes.js';
 import { vaultRouter } from './routes/vault.routes.js';
 import { webhooksRouter } from './routes/webhooks.routes.js';
+import { bugReportsRouter } from './routes/bugReports.routes.js';
+import { integrationsRouter } from './routes/integrations.routes.js';
 import { apiAuth } from './security/apiAuth.js';
 import { redactSecrets } from './security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from './security/validateTargetUrl.js';
@@ -155,6 +157,8 @@ app.post('/v1/manual/builds', explorationLimiter); // a manual build drives brow
 app.use('/v1/manual', manualRouter);
 app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/webhooks', webhooksRouter);
+app.use('/v1/integrations', integrationsRouter);
+app.use('/v1/bug-reports', bugReportsRouter);
 app.use('/v1/metrics', metricsRouter);
 app.use('/v1/health', healthRouter);
 app.use('/v1/summary', summaryRouter);

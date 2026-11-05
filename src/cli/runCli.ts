@@ -62,6 +62,11 @@ Commands
                                      new console errors, network shape, time. Exit 0 same, 1 different, 2 a side could not run. The routine must open its target with goto "$targetUrl")
   schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
   webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
+  integrations list | show <id> | test <id>   (issue trackers a bug report can go to; test reads the repository with the stored token and creates nothing, exit 2 if it cannot)
+  bug-report create --from-job <jobId> [--shrink <shrinkId>] [--lang en|pt|es]
+  bug-report list [--status draft|sent|dismissed|resolved] | show <id> [--out file.md] | send <id> [--integration id] | dismiss <id> [--note t] | resolve <id> [--note t]
+                                    (a failed run becomes a DRAFT issue, cleaned of secrets and personal data; the same failure is one report with a count. 'send' is the approval and the only
+                                     thing that leaves the server: exit 0 sent, 2 not sent. A scheduled failure drafts one by itself only if an integration asks for it)
   perf list | alerts | show <routineId> [--version N] [--profile full|functional] [--fail-on-alert]
                                     (how long each step takes over time: baseline = median of the last 20 green runs, alert when the last 3 are >30% slower; --fail-on-alert exits 1)
   flaky list | show <routineId> [--version N] [--profile full|functional] [--fail-on-suggestion]
@@ -372,7 +377,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'perf' || command === 'flaky' || command === 'manual' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' ? `${command} ${second ?? ''}`.trim() : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -1072,6 +1077,128 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const exitCode: ExitCode = sent.status === 200 ? 0 : 2;
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'webhooks test', exitCode, result: delivery as never }, `${delivery.status}${delivery.httpStatus ? ` (HTTP ${delivery.httpStatus})` : ''}${delivery.reason ? `: ${delivery.reason}` : ''}\n`);
       return exitCode;
+    }
+
+    if (command === 'integrations list' || command === 'integrations show' || command === 'integrations test') {
+      // T9.1: where a bug report can be sent. Creating and editing one is `PUT /v1/integrations/:id` (the token is a secret and goes to the server's
+      // credential vault: it is never a command-line argument, which would end up in shell history).
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: common });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [id] = positionals;
+
+      if (command === 'integrations list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai integrations list');
+        const response = await api('GET', '/v1/integrations');
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { integrations: Array<Record<string, any>> };
+        const lines = body.integrations.map(
+          (item) =>
+            `${item.integration.enabled ? 'on ' : 'off'}  ${item.integration.id}  ${item.integration.kind} ${item.integration.repo}  ${item.apiOrigin}${item.originAllowed ? '' : '  (ORIGIN NOT ALLOWED)'}${item.hasToken ? '' : '  (NO TOKEN)'}  on scheduled failure: ${item.integration.onScheduledFailure}`,
+        );
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'integrations list', exitCode: 0, result: body as never }, `${lines.length === 0 ? 'No integrations.' : lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', `usage: scrapforai ${command} <integrationId>`);
+      if (command === 'integrations show') {
+        const response = await api('GET', `/v1/integrations/${encodeURIComponent(id)}`);
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as Record<string, any>;
+        const lines = [
+          `${body.integration.id}: ${body.integration.enabled ? 'enabled' : 'DISABLED'}  ${body.integration.kind} ${body.integration.repo}  labels ${body.integration.labels.join(',') || '-'}`,
+          `  destination: ${body.apiOrigin}${body.originAllowed ? '' : '  <- not in ALLOWED_INTEGRATION_ORIGINS: nothing is sent'}`,
+          `  token: ${body.hasToken ? 'stored (write-only)' : 'NONE'}`,
+          `  target profiles: ${body.integration.targetProfiles.join(', ') || 'any'}`,
+          `  on a scheduled failure: ${body.integration.onScheduledFailure}  (language ${body.integration.lang})`,
+        ];
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'integrations show', exitCode: 0, result: body as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      // 200 = the token can see the repository, 502 = it cannot. Nothing is created either way.
+      const checked = await api('POST', `/v1/integrations/${encodeURIComponent(id)}/test`);
+      if (checked.status !== 200 && checked.status !== 502) throw errorOf(checked);
+      const check = checked.body as Record<string, any>;
+      const exitCode: ExitCode = checked.status === 200 ? 0 : 2;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'integrations test', exitCode, result: check as never }, check.ok ? 'ok: the token can see the repository and issues are enabled\n' : `failed: ${check.reason ?? 'unknown'}${check.httpStatus ? ` (HTTP ${check.httpStatus})` : ''}\n`);
+      return exitCode;
+    }
+
+    if (['bug-report create', 'bug-report list', 'bug-report show', 'bug-report send', 'bug-report dismiss', 'bug-report resolve'].includes(command)) {
+      // T9.1: a bug report is a draft; `send` is the approval and the only thing that leaves the server. Exit 0 done, 2 anything else (not a test verdict).
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { ...common, 'from-job': { type: 'string' }, shrink: { type: 'string' }, lang: { type: 'string' }, status: { type: 'string' }, out: { type: 'string' }, integration: { type: 'string' }, note: { type: 'string' } },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const [id] = positionals;
+      if (values.lang !== undefined && !['en', 'pt', 'es'].includes(values.lang)) throw new CliError('UsageError', '--lang must be en, pt or es');
+
+      if (command === 'bug-report create') {
+        if (positionals.length !== 0 || !values['from-job']) throw new CliError('UsageError', 'usage: scrapforai bug-report create --from-job <jobId> [--shrink <shrinkId>] [--lang en|pt|es]');
+        const response = await api('POST', '/v1/bug-reports', { fromJobId: values['from-job'], ...(values.shrink ? { shrinkId: values.shrink } : {}), ...(values.lang ? { lang: values.lang } : {}) });
+        if (response.status !== 200 && response.status !== 201) throw errorOf(response);
+        const body = response.body as { report: Record<string, any>; created: boolean; refreshed: boolean };
+        const { report } = body;
+        const lines = [
+          body.created
+            ? `Draft ${report.id} created: ${report.signature.key}`
+            : body.refreshed
+              ? `The unsent draft ${report.id} was rebuilt from this run: ${report.signature.key}`
+              : `This failure already has ${report.id} (${report.status}); the occurrence was added: ${report.signature.key}`,
+          `  ${report.occurrenceCount} occurrence(s)${report.redactions > 0 ? `, ${report.redactions} value(s) masked while cleaning` : ''}`,
+          ...(report.status === 'draft' ? [`  review: scrapforai bug-report show ${report.id}`, `  approve and send: scrapforai bug-report send ${report.id}`] : report.issue ? [`  issue: #${report.issue.number} ${report.issue.url}`] : []),
+        ];
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'bug-report create', exitCode: 0, result: body as never }, `${lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (command === 'bug-report list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai bug-report list [--status draft|sent|dismissed|resolved]');
+        const response = await api('GET', `/v1/bug-reports${values.status ? `?status=${encodeURIComponent(values.status)}` : ''}`);
+        if (response.status !== 200) throw errorOf(response);
+        const body = response.body as { bugReports: Array<Record<string, any>> };
+        const lines = body.bugReports.map((item) => `${item.id}  ${String(item.status).padEnd(9)} x${item.occurrenceCount}  ${item.signature.key}${item.issue ? `  -> #${item.issue.number}` : ''}`);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'bug-report list', exitCode: 0, result: body as never }, `${lines.length === 0 ? 'No bug reports.' : lines.join('\n')}\n`);
+        return 0;
+      }
+
+      if (!id || positionals.length !== 1) throw new CliError('UsageError', `usage: scrapforai ${command} <bugReportId>`);
+      const path = `/v1/bug-reports/${encodeURIComponent(id)}`;
+
+      if (command === 'bug-report show') {
+        if (values.out && !io.writeFile) throw new CliError('CliFailure', 'writing files is not available here');
+        const response = await api('GET', path);
+        if (response.status !== 200) throw errorOf(response);
+        const report = response.body as Record<string, any>;
+        const markdown = `# ${report.title}\n\n${report.body}`;
+        if (values.out) await io.writeFile!(values.out, Buffer.from(markdown, 'utf8'));
+        const header = `${report.id}  ${report.status}  x${report.occurrenceCount}  ${report.signature.key}${report.issue ? `  -> #${report.issue.number} ${report.issue.url}` : ''}\n\n`;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'bug-report show', exitCode: 0, result: report as never }, values.out ? `${header}Issue text written to ${values.out}\n` : `${header}${markdown}`);
+        return 0;
+      }
+
+      if (command === 'bug-report send') {
+        // 200 sent, 502 the tracker did not take it, 422 a secret was still in the text (nothing was sent): the body is the outcome in all three.
+        const response = await api('POST', `${path}/send`, values.integration ? { integrationId: values.integration } : {});
+        if (response.status !== 200 && response.status !== 502 && response.status !== 422) throw errorOf(response);
+        const body = response.body as { status: string; attempt: Record<string, any>; report: Record<string, any> };
+        const exitCode: ExitCode = response.status === 200 ? 0 : 2;
+        const text = response.status === 200 ? `Sent as issue #${body.report.issue?.number} ${body.report.issue?.url ?? ''}`.trimEnd() : `Not sent (${body.status}): ${body.attempt.reason ?? 'unknown'}. The report is still a draft.`;
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'bug-report send', exitCode, result: body as never }, `${text}\n`);
+        return exitCode;
+      }
+
+      // dismiss | resolve
+      const verb = command === 'bug-report dismiss' ? 'dismiss' : 'resolve';
+      const response = await api('POST', `${path}/${verb}`, values.note ? { note: values.note } : {});
+      if (response.status !== 200) throw errorOf(response);
+      const report = response.body as Record<string, any>;
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: command as 'bug-report dismiss', exitCode: 0, result: report as never }, `${report.id} is now ${report.status}\n`);
+      return 0;
     }
 
     if (command === 'differential') {

@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
+import { bugReportRequestSchema } from '../schemas/bugReport.schema.js';
 import { buildCatalogPrompt, type CatalogPromptProfile } from './catalogPrompt.js';
 import { domInspectionRequestSchema } from '../schemas/domInspectionRequest.schema.js';
 import { mcpExplorationRequestSchema, safeName } from '../schemas/explorationRequest.schema.js';
@@ -34,6 +35,8 @@ const server = new McpServer(
       'For "which role can do what", use a permission matrix: save_permission_matrix -> run_permission_matrix -> get_permission_matrix_result. ' +
       'To describe a target\'s screens, use the prompt propose_screen_catalog: you propose a catalogue, a person approves and saves it. ' +
       'Schedules and webhooks (list_schedules, list_webhooks) are read-only here; get_performance shows which step got slower and in which build: a person creates them, because they run browsers and send data out unattended. ' +
+      'A failed run can become a draft issue with draft_bug_report (cleaned of secrets and personal data; one report per failure, the same failure again is counted); ' +
+      'you cannot send it: a person approves it, because that is what leaves the server. ' +
       'To see how a system evolved between builds, use evolution_diff (two builds) and evolution_query (when did X appear); snapshots themselves are taken by a person or CI.',
   },
 );
@@ -212,6 +215,72 @@ server.registerTool(
   async ({ id }) => {
     try {
       return toToolResult(await getJson(id ? `/v1/webhooks/${encodeURIComponent(id)}` : '/v1/webhooks'));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'draft_bug_report',
+  {
+    title: 'Draft a bug report from a failed run',
+    description:
+      'Turns a FAILED run (fromJobId, while its evidence exists: pin it if you need it later) into a DRAFT issue: title, where it happened (application, ' +
+      'environment, build, page), the step and error, the steps, console and network failures, the smallest failing input when you pass the shrinkId of a ' +
+      'finished shrink_failure of the same failure, the last passing run and the first failing one after it (and whether the build changed), and a command that ' +
+      'repeats it. Everything that came from the page is cleaned first: vault values, secret shapes and personal data are masked, and it is placed in code ' +
+      'blocks so it cannot mention anyone or link anything; the screenshot is never attached (an image cannot be checked for personal data). ONE report per ' +
+      'failure signature (same routine, same step, same error type): the same failure again adds an occurrence to the report that exists, and the answer ' +
+      'says created: false. This tool sends NOTHING and cannot: a person reads the draft and approves it (scrapforai bug-report send), because that is the ' +
+      'one step that leaves the server. Use list_bug_reports to read it back.',
+    inputSchema: bugReportRequestSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  async (args) => {
+    try {
+      return toToolResult(await postJson('/v1/bug-reports', args));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'list_bug_reports',
+  {
+    title: 'List or read bug reports',
+    description:
+      'The bug report drafts on the server, newest first: status (draft = waiting for a person, sent = an issue exists, dismissed, resolved), the failure ' +
+      'signature, how many times it happened and the issue number once it was sent. With id you get one in full, including the title and body exactly as ' +
+      'they would be sent. Read-only: sending, dismissing and resolving are a person\'s decisions.',
+    inputSchema: z.object({ id: z.string().regex(/^bug_[A-Za-z0-9_-]{1,40}$/).optional(), status: z.enum(['draft', 'sent', 'dismissed', 'resolved']).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id, status }) => {
+    try {
+      return toToolResult(await getJson(id ? `/v1/bug-reports/${encodeURIComponent(id)}` : `/v1/bug-reports${status ? `?status=${status}` : ''}`));
+    } catch (error) {
+      return toErrorResult(error);
+    }
+  },
+);
+
+server.registerTool(
+  'list_integrations',
+  {
+    title: 'List issue-tracker integrations',
+    description:
+      'Where bug reports can be sent (today: GitHub Issues): repository, labels, the target profiles each one serves and what it does on its own when a ' +
+      'SCHEDULED run fails (ignore, draft = prepare a report for a person to approve [default], or send). The token is a secret in the server\'s credential ' +
+      'vault and is never shown: only whether there is one. Read-only: creating an integration or testing it is a person\'s decision ' +
+      '(PUT /v1/integrations/:id), because it sends data out of the server.',
+    inputSchema: z.object({ id: z.string().regex(/^[a-zA-Z0-9_-]{1,60}$/).optional() }).strict(),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ id }) => {
+    try {
+      return toToolResult(await getJson(id ? `/v1/integrations/${encodeURIComponent(id)}` : '/v1/integrations'));
     } catch (error) {
       return toErrorResult(error);
     }

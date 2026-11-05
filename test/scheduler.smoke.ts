@@ -34,6 +34,25 @@ const hookServer = await new Promise<{ server: http.Server; origin: string }>((r
   server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
 });
 
+// T9.1: a stand-in for the issue tracker (GitHub Issues API). It records every request and "creates" an issue for each POST.
+const trackerCalls: Array<{ method: string; url: string; auth: string | undefined; raw: string }> = [];
+const trackerServer = await new Promise<{ server: http.Server; origin: string }>((resolve) => {
+  const server = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      trackerCalls.push({ method: req.method ?? '', url: req.url ?? '', auth: req.headers.authorization, raw: Buffer.concat(chunks).toString('utf8') });
+      if (req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ has_issues: true }));
+        return;
+      }
+      const number = trackerCalls.filter((entry) => entry.method === 'POST').length;
+      res.writeHead(201, { 'content-type': 'application/json' }).end(JSON.stringify({ number, html_url: `https://tracker.example/acme/shop/issues/${number}` }));
+    });
+  });
+  server.listen(0, '127.0.0.1', () => resolve({ server, origin: `http://127.0.0.1:${(server.address() as AddressInfo).port}` }));
+});
+
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrapforai-scheduler-smoke-'));
 const API_KEY = 'test-api-key-1234567890';
 process.env.SCRAPFORAI_API_KEY = API_KEY;
@@ -46,12 +65,15 @@ process.env.SCHEDULER_ENABLED = 'true';
 process.env.SCHEDULER_TICK_SECONDS = '3600'; // the clock never fires here: only run-now does
 process.env.ALLOW_EVALUATE = 'true';
 process.env.ALLOWED_NOTIFY_ORIGINS = hookServer.origin;
+process.env.ALLOWED_INTEGRATION_ORIGINS = trackerServer.origin;
 
 const express = (await import('express')).default;
 const { apiAuth } = await import('../src/security/apiAuth.js');
 const { schedulesRouter } = await import('../src/routes/schedules.routes.js');
 const { webhooksRouter } = await import('../src/routes/webhooks.routes.js');
 const { credentialsRouter } = await import('../src/routes/credentials.routes.js');
+const { bugReportsRouter } = await import('../src/routes/bugReports.routes.js');
+const { integrationsRouter } = await import('../src/routes/integrations.routes.js');
 const { startScheduler, stopScheduler } = await import('../src/scheduler/runtime.js');
 const { saveTarget } = await import('../src/targets/targetStore.js');
 const { saveRoutine } = await import('../src/library/routineService.js');
@@ -62,6 +84,8 @@ app.use(apiAuth);
 app.use('/v1/schedules', schedulesRouter);
 app.use('/v1/webhooks', webhooksRouter);
 app.use('/v1/credentials', credentialsRouter);
+app.use('/v1/bug-reports', bugReportsRouter);
+app.use('/v1/integrations', integrationsRouter);
 const api = app.listen(0);
 await new Promise<void>((resolve) => api.once('listening', resolve));
 const apiUrl = `http://127.0.0.1:${(api.address() as AddressInfo).port}`;
@@ -71,6 +95,7 @@ after(async () => {
   await new Promise<void>((resolve) => api.close(() => resolve()));
   await new Promise<void>((resolve) => site.server.close(() => resolve()));
   await new Promise<void>((resolve) => hookServer.server.close(() => resolve()));
+  await new Promise<void>((resolve) => trackerServer.server.close(() => resolve()));
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
@@ -236,4 +261,92 @@ test('T3.3: a webhook hears about green -> red -> red -> green, once each, with 
   assert.equal((await call('DELETE', '/v1/webhooks/chan')).status, 409, 'a schedule still notifies it');
   assert.equal((await call('DELETE', '/v1/schedules/flip')).status, 204);
   assert.equal((await call('DELETE', '/v1/webhooks/chan')).status, 204);
+});
+
+test('T9.1: a failing scheduled run drafts a bug report only when an integration asks; a person approves the sending; `send` is opt-in', async () => {
+  const scheduler = (await import('../src/scheduler/runtime.js')).getScheduler()!;
+  const TOKEN = 'ghp_SMOKEtokenFORtestingOnly0123456789abcdef';
+  const reports = async () => ((await call('GET', '/v1/bug-reports')).body.bugReports as Array<Record<string, any>>);
+  const runNow = async (schedule: string) => {
+    await call('POST', `/v1/schedules/${schedule}/run-now`);
+    await scheduler.idle();
+  };
+  await call('PUT', '/v1/schedules/bugs-routine', { cron: '0 9 * * *', target: { kind: 'routine', routineId: 'broken' } });
+  await call('PUT', '/v1/schedules/bugs-suite', { cron: '0 10 * * *', target: { kind: 'suite', suite: { name: 'both', items: [{ routineId: 'home' }, { routineId: 'broken' }] } } });
+
+  // 1. No integration: a failure is recorded as before and leaves NO report (nobody asked for files).
+  await runNow('bugs-routine');
+  assert.equal((await call('GET', '/v1/schedules/bugs-routine')).body.history[0].outcome, 'failed');
+  assert.deepEqual(await reports(), []);
+
+  // 2. An integration in its default mode: the failure prepares a DRAFT and sends nothing. Writing it needs the bearer token.
+  const config = { repo: 'acme/shop', apiBaseUrl: trackerServer.origin, token: TOKEN, labels: ['scrapforai', 'bug'] };
+  assert.equal((await call('PUT', '/v1/integrations/tracker', config, false)).status, 401);
+  const created = await call('PUT', '/v1/integrations/tracker', config);
+  assert.equal(created.status, 201);
+  assert.equal(JSON.stringify(created.body).includes(TOKEN), false, 'the token never comes back');
+  assert.equal(created.body.integration.onScheduledFailure, 'draft');
+  assert.equal((await call('POST', '/v1/integrations/tracker/test')).status, 200);
+  trackerCalls.length = 0;
+
+  await runNow('bugs-routine');
+  let [report] = await reports();
+  assert.equal((await reports()).length, 1);
+  assert.equal(report!.status, 'draft');
+  assert.equal(report!.occurrenceCount, 1);
+  assert.equal(report!.signature.stepId, 'h');
+  assert.equal(trackerCalls.length, 0, 'draft mode: nothing left the server');
+
+  // The same failure again, and the same failure through a suite, are occurrences of that report.
+  await runNow('bugs-routine');
+  await runNow('bugs-suite');
+  const all = await reports();
+  assert.equal(all.length, 1, 'one failure, one report');
+  assert.equal(all[0]!.occurrenceCount, 3);
+
+  const detail = (await call('GET', `/v1/bug-reports/${all[0]!.id}`)).body;
+  assert.match(detail.title, /^\[ScrapForAI\] broken failed at step h: /);
+  assert.ok(detail.body.includes(`${site.origin}/`), 'the page the run opened');
+  assert.ok(detail.body.includes('`assertVisible`'));
+  assert.ok(detail.body.includes('scrapforai run broken --version 1 --target app'));
+  assert.equal(JSON.stringify(detail).includes(TOKEN), false);
+
+  // 3. The approval (bearer only) is the one thing that sends; afterwards a recurrence is counted, never sent again.
+  assert.equal((await call('POST', `/v1/bug-reports/${detail.id}/send`, {}, false)).status, 401);
+  const sent = await call('POST', `/v1/bug-reports/${detail.id}/send`, {});
+  assert.equal(sent.status, 200);
+  assert.equal(sent.body.report.issue.number, 1);
+  const posts = trackerCalls.filter((entry) => entry.method === 'POST');
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0]!.url, '/repos/acme/shop/issues');
+  assert.equal(posts[0]!.auth, `Bearer ${TOKEN}`);
+  assert.equal(posts[0]!.raw.includes(TOKEN), false);
+  assert.deepEqual(JSON.parse(posts[0]!.raw).labels, ['scrapforai', 'bug']);
+
+  await runNow('bugs-routine');
+  assert.equal(trackerCalls.filter((entry) => entry.method === 'POST').length, 1, 'already an issue: not sent again');
+  const afterSent = (await call('GET', `/v1/bug-reports/${detail.id}`)).body;
+  assert.equal(afterSent.status, 'sent');
+  assert.equal(afterSent.occurrenceCount, 4);
+
+  // 4. `send` is opt-in: with it, a NEW failure becomes an issue with no one in the loop.
+  await saveRoutine('broken2', { title: 'broken2', targetProfile: 'app', steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }, { id: 'other', action: 'assertVisible', selector: '#nope2', timeoutMs: 500 }] as never });
+  await call('PUT', '/v1/schedules/bugs-auto', { cron: '0 11 * * *', target: { kind: 'routine', routineId: 'broken2' } });
+  const mode = await call('PUT', '/v1/integrations/tracker', { repo: 'acme/shop', apiBaseUrl: trackerServer.origin, onScheduledFailure: 'send' });
+  assert.equal(mode.status, 200, 'the stored token is kept when only the mode changes');
+  assert.equal(mode.body.hasToken, true);
+  await runNow('bugs-auto');
+  const final = await reports();
+  assert.equal(final.length, 2);
+  const auto = final.find((item) => item.signature.stepId === 'other')!;
+  assert.equal(auto.status, 'sent');
+  assert.equal(auto.issue.number, 2);
+  assert.equal(trackerCalls.filter((entry) => entry.method === 'POST').length, 2);
+
+  // 5. `ignore` turns it off again.
+  await call('PUT', '/v1/integrations/tracker', { repo: 'acme/shop', apiBaseUrl: trackerServer.origin, onScheduledFailure: 'ignore' });
+  await saveRoutine('broken3', { title: 'broken3', targetProfile: 'app', steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }, { id: 'third', action: 'assertVisible', selector: '#nope3', timeoutMs: 500 }] as never });
+  await call('PUT', '/v1/schedules/bugs-ignored', { cron: '0 13 * * *', target: { kind: 'routine', routineId: 'broken3' } });
+  await runNow('bugs-ignored');
+  assert.equal((await reports()).length, 2, 'ignore: the failure is recorded in the schedule, no report');
 });

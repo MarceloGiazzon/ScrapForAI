@@ -117,6 +117,16 @@ export function webhooksDir(): string {
   return path.join(dataDir(), 'webhooks');
 }
 
+/** Issue-tracker integrations (T9.1): integrations/<id>.json (definition, no token: that is in the credential vault). */
+export function integrationsDir(): string {
+  return path.join(dataDir(), 'integrations');
+}
+
+/** Bug reports (T9.1): bug-reports/<id>.json, one per distinct failure signature. */
+export function bugReportsDir(): string {
+  return path.join(dataDir(), 'bug-reports');
+}
+
 /** Performance series (T3.4): metrics/<routineId>.jsonl, one line per run of a library routine. */
 export function metricsDir(): string {
   return path.join(dataDir(), 'metrics');

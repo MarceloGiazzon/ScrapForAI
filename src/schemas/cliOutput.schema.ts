@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 import { runSummarySchema } from '../history/runSummary.js';
+import { attemptSchema, bugReportSchema } from './bugReport.schema.js';
 import { snapshotRunStateSchema } from './evolution.schema.js';
+import { integrationSchema } from './integration.schema.js';
 import { matrixRunStateSchema } from './permissionMatrix.schema.js';
 import { scheduleHistoryEntrySchema, scheduleSchema } from './schedule.schema.js';
 import { shrinkStateSchema } from './shrink.schema.js';
@@ -145,6 +147,19 @@ const cliWebhookViewSchema = z
   .strict();
 export const cliWebhooksListSchema = z.object({ webhooks: z.array(cliWebhookViewSchema) }).strict();
 
+/** `integrations list|show|test` (T9.1). Never a token: only whether there is one. */
+const cliIntegrationViewSchema = z
+  .object({ integration: integrationSchema, createdAt: z.string(), updatedAt: z.string(), hasToken: z.boolean(), apiOrigin: z.string(), originAllowed: z.boolean() })
+  .strict();
+export const cliIntegrationsListSchema = z.object({ integrations: z.array(cliIntegrationViewSchema) }).strict();
+export const cliIntegrationViewResultSchema = cliIntegrationViewSchema;
+export const cliIntegrationTestSchema = z.object({ ok: z.boolean(), reason: z.string().optional(), httpStatus: z.number().optional(), issuesEnabled: z.boolean().optional() }).strict();
+
+/** `bug-report create|list|show|send|dismiss|resolve` (T9.1). A list row is the report without its body, attempts and occurrences. */
+export const cliBugReportCreateSchema = z.object({ report: bugReportSchema, created: z.boolean(), refreshed: z.boolean() }).strict();
+export const cliBugReportListSchema = z.object({ bugReports: z.array(z.object({ id: z.string(), status: z.string(), title: z.string(), occurrenceCount: z.number() }).passthrough()) }).strict();
+export const cliBugReportSendSchema = z.object({ status: z.enum(['sent', 'failed', 'blocked']), attempt: attemptSchema, report: bugReportSchema }).strict();
+
 /** `perf list|alerts|show` (T3.4): passed through as the API returns them (shapes: metrics/perfAnalysis.ts, perfService.ts). */
 export const cliPerfListSchema = z.object({ routines: z.array(z.object({ routineId: z.string(), runs: z.number(), greenRuns: z.number(), alerts: z.array(z.unknown()) }).passthrough()) }).strict();
 export const cliPerfAlertsSchema = z.object({ count: z.number(), alerts: z.array(z.object({ routineId: z.string(), series: z.string(), baselineMs: z.number(), recentMs: z.number() }).passthrough()) }).strict();
@@ -278,6 +293,15 @@ export const cliOutputSchema = z.union([
   success('webhooks list', cliWebhooksListSchema),
   success('webhooks show', cliWebhookViewSchema),
   success('webhooks test', deliverySchema),
+  success('integrations list', cliIntegrationsListSchema),
+  success('integrations show', cliIntegrationViewResultSchema),
+  success('integrations test', cliIntegrationTestSchema),
+  success('bug-report create', cliBugReportCreateSchema),
+  success('bug-report list', cliBugReportListSchema),
+  success('bug-report show', bugReportSchema),
+  success('bug-report send', cliBugReportSendSchema),
+  success('bug-report dismiss', bugReportSchema),
+  success('bug-report resolve', bugReportSchema),
   success('perf list', cliPerfListSchema),
   success('perf alerts', cliPerfAlertsSchema),
   success('perf show', cliPerfShowSchema),

@@ -1903,6 +1903,333 @@
         },
         "command": {
           "type": "string",
+          "const": "integrations list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "integrations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema42"
+              }
+            }
+          },
+          "required": [
+            "integrations"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "integrations show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema42"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "integrations test"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "httpStatus": {
+              "type": "number"
+            },
+            "issuesEnabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ok"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report create"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "report": {
+              "$ref": "#/$defs/__schema45"
+            },
+            "created": {
+              "type": "boolean"
+            },
+            "refreshed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "report",
+            "created",
+            "refreshed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report list"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "bugReports": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "occurrenceCount": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "title",
+                  "occurrenceCount"
+                ],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": [
+            "bugReports"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report show"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema45"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report send"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "failed",
+                "blocked"
+              ]
+            },
+            "attempt": {
+              "$ref": "#/$defs/__schema46"
+            },
+            "report": {
+              "$ref": "#/$defs/__schema45"
+            }
+          },
+          "required": [
+            "status",
+            "attempt",
+            "report"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report dismiss"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema45"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "bug-report resolve"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema45"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "perf list"
         },
         "exitCode": {
@@ -2452,7 +2779,7 @@
                   "maximum": 9007199254740991
                 },
                 "currentValues": {
-                  "$ref": "#/$defs/__schema42"
+                  "$ref": "#/$defs/__schema47"
                 },
                 "outcome": {
                   "type": "string",
@@ -2485,10 +2812,10 @@
                       ]
                     },
                     "failing": {
-                      "$ref": "#/$defs/__schema42"
+                      "$ref": "#/$defs/__schema47"
                     },
                     "minimal": {
-                      "$ref": "#/$defs/__schema42"
+                      "$ref": "#/$defs/__schema47"
                     },
                     "minimalJobId": {
                       "type": "string"
@@ -2593,7 +2920,7 @@
                       "maximum": 9007199254740991
                     },
                     "parameterValues": {
-                      "$ref": "#/$defs/__schema42"
+                      "$ref": "#/$defs/__schema47"
                     }
                   },
                   "required": [
@@ -4791,6 +5118,339 @@
       "additionalProperties": false
     },
     "__schema42": {
+      "type": "object",
+      "properties": {
+        "integration": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/__schema4"
+            },
+            "kind": {
+              "default": "github",
+              "type": "string",
+              "enum": [
+                "github"
+              ]
+            },
+            "enabled": {
+              "default": true,
+              "type": "boolean"
+            },
+            "repo": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$"
+            },
+            "apiBaseUrl": {
+              "default": "https://api.github.com",
+              "type": "string",
+              "maxLength": 300,
+              "format": "uri"
+            },
+            "labels": {
+              "default": [
+                "scrapforai"
+              ],
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema43"
+              }
+            },
+            "targetProfiles": {
+              "default": [],
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema4"
+              }
+            },
+            "onScheduledFailure": {
+              "default": "draft",
+              "type": "string",
+              "enum": [
+                "ignore",
+                "draft",
+                "send"
+              ]
+            },
+            "lang": {
+              "default": "en",
+              "$ref": "#/$defs/__schema44"
+            },
+            "notes": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "enabled",
+            "repo",
+            "apiBaseUrl",
+            "labels",
+            "targetProfiles",
+            "onScheduledFailure",
+            "lang"
+          ],
+          "additionalProperties": false
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "hasToken": {
+          "type": "boolean"
+        },
+        "apiOrigin": {
+          "type": "string"
+        },
+        "originAllowed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "integration",
+        "createdAt",
+        "updatedAt",
+        "hasToken",
+        "apiOrigin",
+        "originAllowed"
+      ],
+      "additionalProperties": false
+    },
+    "__schema43": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "pattern": "^[^,\\u0000-\\u001F\\u007F]+$"
+    },
+    "__schema44": {
+      "type": "string",
+      "enum": [
+        "en",
+        "pt",
+        "es"
+      ]
+    },
+    "__schema45": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^bug_[A-Za-z0-9_-]{1,40}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "sent",
+            "dismissed",
+            "resolved"
+          ]
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "lang": {
+          "$ref": "#/$defs/__schema44"
+        },
+        "signature": {
+          "type": "object",
+          "properties": {
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "key": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "stepId": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string"
+            },
+            "errorType": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "hash",
+            "key",
+            "subject",
+            "stepId",
+            "errorType"
+          ],
+          "additionalProperties": false
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string"
+            },
+            "shrinkId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "jobId"
+          ],
+          "additionalProperties": false
+        },
+        "targetProfile": {
+          "$ref": "#/$defs/__schema4"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "redactions": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "occurrenceCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "occurrences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "jobId": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              },
+              "buildId": {
+                "type": "string"
+              },
+              "targetProfile": {
+                "type": "string"
+              },
+              "via": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "schedule"
+                ]
+              }
+            },
+            "required": [
+              "jobId",
+              "at",
+              "via"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "issue": {
+          "type": "object",
+          "properties": {
+            "integrationId": {
+              "type": "string"
+            },
+            "number": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "url": {
+              "type": "string"
+            },
+            "sentAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "integrationId",
+            "number",
+            "url",
+            "sentAt"
+          ],
+          "additionalProperties": false
+        },
+        "attempts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema46"
+          }
+        },
+        "recurrenceOf": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "createdAt",
+        "updatedAt",
+        "lang",
+        "signature",
+        "source",
+        "title",
+        "body",
+        "redactions",
+        "occurrenceCount",
+        "occurrences",
+        "attempts"
+      ],
+      "additionalProperties": false
+    },
+    "__schema46": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "integrationId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "sent",
+            "failed",
+            "blocked"
+          ]
+        },
+        "httpStatus": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "integrationId",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "__schema47": {
       "type": "object",
       "propertyNames": {
         "type": "string"
