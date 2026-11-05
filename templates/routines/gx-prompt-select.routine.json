@@ -1,0 +1,27 @@
+{
+  "title": "Prompt: pick a value from the lookup window",
+  "description": "Template (T10.2). A GeneXus Prompt: a button next to a field opens a window with a list, and picking a row fills the field of the form. This template assumes the prompt opens INSIDE the page (a popup layer with an iframe, which is what the frame step reaches by a part of its URL). A prompt that opens a separate browser window is not reachable by these steps: change the prompt's window mode in the model or test it through its URL. Logs in, opens the form, opens the prompt, filters it with a known value, picks the first row and checks that the form now shows the description of what was picked. It only reads; nothing is saved. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["prompt", "genexus", "read-only"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine." }],
+  "parameters": [{ "name": "searchText", "cases": ["REPLACE_SEARCH_TEXT"] }],
+  "steps": [
+    { "id": "auth", "label": "Log in", "action": "include", "routineId": "login", "version": 1 },
+    { "id": "open-form", "label": "Open the form that has the prompt", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "form-ready", "label": "The prompt button is on screen", "action": "waitForSelector", "selector": "REPLACE_PROMPT_BUTTON_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "open-prompt", "label": "Open the prompt", "action": "click", "selector": "REPLACE_PROMPT_BUTTON_SELECTOR", "timeoutMs": 10000 },
+    { "id": "prompt-ready", "label": "The prompt's filter is on screen, inside its window", "action": "waitForSelector", "selector": "REPLACE_PROMPT_FILTER_SELECTOR", "state": "visible", "frame": { "urlContains": "REPLACE_PROMPT_URL_TOKEN" }, "timeoutMs": 20000 },
+    { "id": "prompt-type", "label": "Type the value to look for, in the prompt", "action": "fill", "selector": "REPLACE_PROMPT_FILTER_SELECTOR", "valueFromParameter": "searchText", "frame": { "urlContains": "REPLACE_PROMPT_URL_TOKEN" }, "timeoutMs": 10000 },
+    { "id": "prompt-search", "label": "Search in the prompt", "action": "click", "selector": "REPLACE_PROMPT_SEARCH_SELECTOR", "frame": { "urlContains": "REPLACE_PROMPT_URL_TOKEN" }, "timeoutMs": 10000 },
+    { "id": "prompt-settled", "label": "Wait for the prompt's grid (any frame counts)", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "prompt-has-rows", "label": "The prompt lists at least one row", "action": "assertCount", "selector": "REPLACE_PROMPT_ROW_SELECTOR", "operator": ">=", "count": 1, "frame": { "urlContains": "REPLACE_PROMPT_URL_TOKEN" } },
+    { "id": "prompt-pick", "label": "Pick the first row", "action": "click", "selector": "REPLACE_PROMPT_PICK_SELECTOR", "frame": { "urlContains": "REPLACE_PROMPT_URL_TOKEN" }, "timeoutMs": 10000 },
+    { "id": "back-on-form", "label": "The prompt closed and the form updated", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "form-shows-pick", "label": "The form shows the description of the row that was picked", "action": "assertTextContains", "selector": "REPLACE_RESULT_SELECTOR", "text": "REPLACE_EXPECTED_TEXT", "timeoutMs": 10000 },
+    { "id": "no-leak", "label": "No stack trace or SQL error on screen", "action": "assertNoTextMatches" },
+    { "id": "shot", "label": "Evidence", "action": "screenshot", "name": "after-prompt" }
+  ]
+}

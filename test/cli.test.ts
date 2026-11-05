@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 57);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 59);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1557,4 +1557,70 @@ test('audit: filters go to the API; verify exits 1 when the chain is broken', as
   assert.equal(broken.code, 1);
   assert.equal(validJson(broken.stdout).command, 'audit verify');
   assert.match((await cli(['audit', 'verify'])).stdout, /DOES NOT VERIFY[\s\S]*#4/);
+});
+
+test('pack apply: fills the GeneXus templates, saves the profile first and then the routines; --dry-run and a missing answer send nothing', async () => {
+  const fs = await import('node:fs');
+  const example = fs.readFileSync(new URL('../templates/genexus-pack.answers.example.json', import.meta.url), 'utf8');
+  const readFile = async () => example;
+
+  handler = (_req, respond) => respond(200, { saved: true });
+  const dry = await cli(['pack', 'apply', 'answers.json', '--dry-run', '--json'], { readFile });
+  assert.equal(dry.code, 0, dry.stderr);
+  assert.equal(seen.length, 0, 'a dry run sends nothing');
+  const dryJson = validJson(dry.stdout);
+  assert.equal(dryJson.command, 'pack apply');
+  assert.equal(dryJson.result.dryRun, true);
+  assert.deepEqual(dryJson.result.items.map((item: any) => item.path), ['/v1/targets/app-dev', '/v1/routines/login', '/v1/routines/smoke-page', '/v1/routines/work-with-search']);
+
+  const applied = await cli(['pack', 'apply', 'answers.json'], { readFile });
+  assert.equal(applied.code, 0, applied.stderr);
+  assert.match(applied.stdout, /saved\s+PUT \/v1\/targets\/app-dev/);
+  assert.match(applied.stdout, /routines are drafts/);
+  assert.equal(seen.length, 4, 'one PUT per item');
+
+  const order: Array<{ method: string; url: string; auth?: string; body: any }> = [];
+  handler = (req, respond) => {
+    order.push(req as never);
+    respond(201, { ok: true });
+  };
+  await cli(['pack', 'apply', 'answers.json'], { readFile });
+  assert.deepEqual(order.map((entry) => `${entry.method} ${entry.url}`), [
+    'PUT /v1/targets/app-dev', 'PUT /v1/routines/login', 'PUT /v1/routines/smoke-page', 'PUT /v1/routines/work-with-search',
+  ]);
+  assert.equal(order[0]!.body.platform, 'genexus');
+  assert.equal(order[1]!.body.targetProfile, 'app-dev', 'the routines point at the profile the answers named');
+  assert.equal(order.every((entry) => entry.auth === `Bearer ${KEY}`), true);
+  assert.doesNotMatch(JSON.stringify(order.map((entry) => entry.body)), /REPLACE_[A-Z0-9]/, 'nothing is left to replace (the prose "REPLACE_*" of a description is not a placeholder)');
+
+  // An answer that is missing: nothing at all is sent, and the message names it.
+  const incomplete = JSON.stringify({ ...JSON.parse(example), values: { ...JSON.parse(example).values, REPLACE_BASE_URL: '' } });
+  order.length = 0;
+  const refused = await cli(['pack', 'apply', 'answers.json'], { readFile: async () => incomplete });
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /PackIncomplete/);
+  assert.match(refused.stderr, /REPLACE_BASE_URL/);
+  assert.equal(order.length, 0, 'not one item was sent');
+
+  // The API refuses an item: it stops there and says what was already saved.
+  handler = (req, respond) => (req.url.startsWith('/v1/routines/login') ? respond(400, { error: { type: 'ValidationError', message: 'no' } }) : respond(200, { ok: true }));
+  const stopped = await cli(['pack', 'apply', 'answers.json'], { readFile });
+  assert.equal(stopped.code, 2);
+  assert.match(stopped.stderr, /Items saved before it stay saved/);
+
+  for (const args of [['pack'], ['pack', 'apply'], ['pack', 'apply', 'a.json', 'b.json'], ['pack', 'build']]) {
+    const bad = await cli(args, { readFile });
+    assert.equal(bad.code, 2, args.join(' '));
+  }
+});
+
+test('pack build writes a zip with the templates, the guides and a manifest', async () => {
+  let written: { path: string; data: Buffer } | undefined;
+  const result = await cli(['pack', 'build', '--out', 'pack.zip', '--json'], { writeFile: async (path, data) => void (written = { path, data }) });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(validJson(result.stdout).command, 'pack build');
+  assert.equal(written?.path, 'pack.zip');
+  const { readZip } = await import('../src/evidence/zip.js');
+  const names = readZip(written!.data).map((entry) => entry.name);
+  for (const name of ['MANIFEST.sha256', 'templates/targets/genexus-dev.target.json', 'docs/genexus-pack/README.es.md', 'docs/genexus-pack/README.pt.md', 'skill/scrapforai/SKILL.md']) assert.ok(names.includes(name), name);
 });

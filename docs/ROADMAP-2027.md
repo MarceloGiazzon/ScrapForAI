@@ -1563,6 +1563,12 @@ num host sempre ligado.
 Modelos de perfil de alvo, a Skill (T8.7), rotinas-modelo (login GAM, Work With, prompts) e
 documentação em es/pt.
 
+> **Implementado (2026-11-05)**, ver `docs/genexus-pack/README.es.md` e `README.pt.md`. Dois perfis de alvo (`templates/targets/`: dev e staging, com `platform: genexus`, porta de login e sonda de build), rotinas-modelo novas
+> `gx-work-with-search`, `gx-transaction-insert` (com limpeza no `teardown`) e `gx-prompt-select` (prompt em iframe), `scrapforai pack apply answers.json [--dry-run]` (preenche os modelos, valida contra os schemas reais, não envia nada
+> enquanto faltar um valor, salva primeiro o perfil, depois o login, depois as telas) e `pack build` (zip com manifesto). Guias em espanhol e português. O smoke (`test/genexus-pack.smoke.ts`) instala o pacote pela API real e roda os modelos no Chromium
+> contra uma aplicação simulada que imita GeneXus, cada um com um controle com defeito que o deixa vermelho no passo certo. **Fica de fora:** rodar contra uma aplicação GeneXus 17/18 ou NPDev real (todo seletor é um valor a confirmar), regras de
+> `platform: npdev`, modelos de edição inline, abas, combo dinâmico, upload/download, guia próprio em inglês.
+
 ### T10.3 — Piloto externo · M
 
 Uma empresa, 6 semanas, critérios de sucesso definidos **antes** de começar e reuniões

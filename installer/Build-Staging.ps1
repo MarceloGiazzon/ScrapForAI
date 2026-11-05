@@ -49,6 +49,8 @@ New-Item -ItemType Directory -Path $AppDir -Force | Out-Null
 
 Copy-Item (Join-Path $Root "dist")            (Join-Path $AppDir "dist")   -Recurse
 Copy-Item (Join-Path $Root "public")          (Join-Path $AppDir "public") -Recurse
+# T10.2: `scrapforai pack apply` reads the target profile and routine templates from app/templates (two folders up from dist/pack).
+Copy-Item (Join-Path $Root "templates")       (Join-Path $AppDir "templates") -Recurse
 Copy-Item (Join-Path $Root "package.json")    $AppDir
 Copy-Item (Join-Path $Root "package-lock.json") $AppDir
 Copy-Item (Join-Path $Root ".env.example")    $Staging
@@ -64,6 +66,7 @@ if ($Light) {
 $DocsDir = Join-Path $Staging "docs"
 New-Item -ItemType Directory -Path $DocsDir -Force | Out-Null
 Copy-Item (Join-Path $Root "_userManual") (Join-Path $DocsDir "_userManual") -Recurse
+Copy-Item (Join-Path $Root "docs/genexus-pack") (Join-Path $DocsDir "genexus-pack") -Recurse   # T10.2: GeneXus pack guides (es, pt)
 # axe-core is MPL-2.0 (D7, T7.4): the notice travels with every package, next to the unmodified package in app\node_modules.
 Copy-Item (Join-Path $Root "THIRD-PARTY-NOTICES.md") (Join-Path $DocsDir "THIRD-PARTY-NOTICES.md")
 

@@ -3640,6 +3640,56 @@
         },
         "command": {
           "type": "string",
+          "const": "pack apply"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema48"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
+          "const": "pack build"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/__schema1"
+        },
+        "result": {
+          "$ref": "#/$defs/__schema48"
+        }
+      },
+      "required": [
+        "cliSchema",
+        "command",
+        "exitCode",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "cliSchema": {
+          "$ref": "#/$defs/__schema0"
+        },
+        "command": {
+          "type": "string",
           "const": "users list"
         },
         "exitCode": {

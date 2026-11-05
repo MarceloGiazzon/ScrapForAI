@@ -6,6 +6,7 @@
   "status": "draft",
   "targetProfile": "REPLACE_TARGET_PROFILE",
   "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine." }],
   "steps": [
     {
       "id": "auth",

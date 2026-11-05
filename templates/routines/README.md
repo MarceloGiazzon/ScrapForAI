@@ -8,6 +8,9 @@ Starting points for the routines the regression vault needs. They are **template
 |---|---|
 | `gx-login.routine.json` | GeneXus (GAM) login with a login gate and a logout `teardown`. Save once as the routine `login`. |
 | `gx-smoke-page.routine.json` | The shape of a vault item: `include` the login (pinned version), reach a page, assert, screenshot. |
+| `gx-work-with-search.routine.json` | The most common GeneXus screen (T10.2): a Work With list with a filter. Searches a known value and checks the grid and that no raw error reaches the screen. Read-only. |
+| `gx-transaction-insert.routine.json` | A Transaction form (T10.2): inserts a record with a generated unique code, finds it in the list (exactly one row) and deletes it in the `teardown`. Changes data. |
+| `gx-prompt-select.routine.json` | A Prompt (T10.2): opens the lookup window, filters it, picks a row and checks that the form shows what was picked. Needs the prompt to open inside the page (an iframe). Read-only. |
 | `chaos-save-500.routine.json` | Controlled chaos (T7.2): the save call answers HTTP 500 once; the page must say so in its own words and print no raw error. |
 | `chaos-search-slow.routine.json` | The search call arrives 10 s late (the real request goes through); the page must show a loading state and recover. |
 | `chaos-json-corrupt.routine.json` | The API answers 200 with a truncated JSON body (the server is not called); the page must neither crash nor print a parser error. |
@@ -83,6 +86,18 @@ They use actors (T6.4) and, for the two races, `parallel` (T6.5). Things to know
 | `REPLACE_APPROVE_SELECTOR` | The control that approves the open request |
 | `REPLACE_STATUS_URL` | The page where the requester sees the state of requests ("my requests") |
 | `REPLACE_STATUS_SELECTOR` | The element that shows the state of the request after the search |
+| `REPLACE_SEARCH_TEXT` | `gx-work-with-search`, `gx-prompt-select`: a value that exists in your test data (a code, a name). It is stored in the routine as a parameter, so it must not be a secret |
+| `REPLACE_SEARCH_BUTTON_SELECTOR` | The button that runs the search of the Work With list |
+| `REPLACE_FIRST_ROW_TEXT_SELECTOR` | An element of the first grid row that shows the searched value (GeneXus ids look like `span_vNAME_0001`: the `_0001` is the row) |
+| `REPLACE_DELETE_SELECTOR` | `gx-transaction-insert` teardown: the control of the first row that starts a deletion |
+| `REPLACE_CONFIRM_DELETE_SELECTOR` | `gx-transaction-insert` teardown: the control that confirms it (often the transaction's Confirm button in delete mode) |
+| `REPLACE_PROMPT_BUTTON_SELECTOR` | The button or icon next to the field that opens the prompt |
+| `REPLACE_PROMPT_URL_TOKEN` | A part of the prompt window's URL (GeneXus: the prompt object's name, e.g. `hprompt`). It selects the frame the `gx-prompt-select` steps run in |
+| `REPLACE_PROMPT_FILTER_SELECTOR`, `REPLACE_PROMPT_SEARCH_SELECTOR` | The filter field and the search button, INSIDE the prompt |
+| `REPLACE_PROMPT_ROW_SELECTOR` | A row of the prompt's grid |
+| `REPLACE_PROMPT_PICK_SELECTOR` | The control of the first row that selects it (a "Select" link or the row itself) |
+| `REPLACE_RESULT_SELECTOR` | The element of the form that shows the description of what was picked |
+| `REPLACE_EXPECTED_TEXT` | That description, as the page writes it |
 | `REPLACE_APPROVED_TEXT` | The text of the approved state, as the page writes it (e.g. `Approved`) |
 
 3. Save it, with the credentials only by name:

@@ -1,0 +1,14 @@
+{
+  "name": "REPLACE_APP_NAME (dev)",
+  "platform": "genexus",
+  "environment": "dev",
+  "baseUrl": "REPLACE_BASE_URL",
+  "credentialSets": ["REPLACE_CREDENTIAL_SET"],
+  "loginRoutine": "login",
+  "loginGate": { "urlContains": "REPLACE_POST_LOGIN_URL_TOKEN", "timeoutMs": 15000 },
+  "buildInfo": { "kind": "selectorText", "url": "REPLACE_BUILD_PAGE_URL", "selector": "REPLACE_BUILD_SELECTOR" },
+  "noiseFilters": [],
+  "surfaces": {},
+  "screens": [{ "id": "home", "name": "Home", "reach": { "url": "REPLACE_HOME_URL" } }],
+  "flags": { "allowDestructive": false, "allowFaults": false, "maxSessionsPerCredential": 1 }
+}

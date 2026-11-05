@@ -1,0 +1,40 @@
+{
+  "title": "Transaction: insert a record and find it in the list",
+  "description": "Template (T10.2). The other common GeneXus screen: a Transaction form. Logs in, opens the form in insert mode, types a generated unique code, confirms, checks that the page answers without leaking an error, searches the Work With list for the code and expects exactly ONE row. It CHANGES data: the teardown searches the code again and deletes the record, and runs even when a step fails (its failure never replaces the verdict). Add a fill step for every other required field of the form, with valueFromParameter or valueFromCredential. The delete steps depend on how your list deletes (a button per row that opens the transaction in delete mode is assumed): adapt them or, if the list cannot delete, use a disposable data set and remove the teardown. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["transaction", "genexus", "writes-data"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "parameters": [
+    { "name": "code", "generator": { "type": "string", "minLength": 10, "maxLength": 10, "charset": "alnum" }, "includeBoundaries": false }
+  ],
+  "steps": [
+    { "id": "auth", "label": "Log in", "action": "include", "routineId": "login", "version": 1 },
+    { "id": "open-form", "label": "Open the Transaction in insert mode", "action": "goto", "url": "REPLACE_PAGE_URL", "timeoutMs": 30000 },
+    { "id": "form-ready", "label": "The form is on screen", "action": "waitForSelector", "selector": "REPLACE_FIELD_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "type-code", "label": "Type the generated unique code", "action": "fill", "selector": "REPLACE_FIELD_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "blur-code", "label": "Leave the field (GeneXus validates on blur, and a duplicate key is reported here)", "action": "press", "selector": "REPLACE_FIELD_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+    { "id": "confirm", "label": "Confirm", "action": "click", "selector": "REPLACE_TRIGGER_SELECTOR", "timeoutMs": 10000 },
+    { "id": "answer", "label": "The page answers", "action": "waitForSelector", "selector": "REPLACE_MESSAGE_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "keep-answer", "label": "Keep what the page said", "action": "extractText", "selector": "REPLACE_MESSAGE_SELECTOR", "name": "outcome", "timeoutMs": 10000 },
+    { "id": "no-leak", "label": "No stack trace or SQL error on screen", "action": "assertNoTextMatches" },
+    { "id": "open-list", "label": "Open the list", "action": "goto", "url": "REPLACE_LIST_URL", "timeoutMs": 30000 },
+    { "id": "search-ready", "label": "The search field is on screen", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "search-code", "label": "Search for the code", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "search-run", "label": "Run the search", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Enter", "timeoutMs": 10000 },
+    { "id": "search-settled", "label": "Wait for the grid to refresh", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "exactly-one", "label": "Exactly ONE record has that code", "action": "assertCount", "selector": "REPLACE_ROW_SELECTOR", "operator": "=", "count": 1 },
+    { "id": "shot", "label": "Evidence", "action": "screenshot", "name": "after-insert" }
+  ],
+  "teardown": [
+    { "id": "td-open-list", "label": "Cleanup: open the list", "action": "goto", "url": "REPLACE_LIST_URL", "timeoutMs": 30000 },
+    { "id": "td-search-ready", "label": "Cleanup: the search field is on screen", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "td-search-code", "label": "Cleanup: search for the code", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "code", "timeoutMs": 10000 },
+    { "id": "td-search-run", "label": "Cleanup: run the search", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Enter", "timeoutMs": 10000 },
+    { "id": "td-search-settled", "label": "Cleanup: wait for the grid", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "td-delete", "label": "Cleanup: delete the record of the first row", "action": "click", "selector": "REPLACE_DELETE_SELECTOR", "timeoutMs": 10000 },
+    { "id": "td-confirm-delete", "label": "Cleanup: confirm the deletion", "action": "click", "selector": "REPLACE_CONFIRM_DELETE_SELECTOR", "timeoutMs": 10000 },
+    { "id": "td-settled", "label": "Cleanup: wait for the answer", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 }
+  ]
+}

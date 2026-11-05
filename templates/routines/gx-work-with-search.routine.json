@@ -1,0 +1,26 @@
+{
+  "title": "Work With: search the grid",
+  "description": "Template (T10.2). The most common GeneXus screen: a Work With list with a filter. Logs in, opens the list, types a value in the filter, runs the search and checks that the grid shows rows with that value and that no stack trace or SQL error reached the screen. It only READS data. Use a value you know exists (a code from your test data). If your list searches on Enter, replace the search click with a press step. Replace every REPLACE_* value. See templates/routines/README.md.",
+  "tags": ["work-with", "genexus", "read-only"],
+  "surface": "REPLACE_SURFACE",
+  "status": "draft",
+  "targetProfile": "REPLACE_TARGET_PROFILE",
+  "credentialSet": "REPLACE_CREDENTIAL_SET",
+  "lintSuppress": [{ "rule": "GX002", "reason": "The logout is the teardown of the included login routine." }],
+  "parameters": [{ "name": "searchText", "cases": ["REPLACE_SEARCH_TEXT"] }],
+  "steps": [
+    { "id": "auth", "label": "Log in", "action": "include", "routineId": "login", "version": 1 },
+    { "id": "open-list", "label": "Open the Work With list", "action": "goto", "url": "REPLACE_LIST_URL", "timeoutMs": 30000 },
+    { "id": "list-ready", "label": "No request is pending (GeneXus loads the grid with an event)", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "on-the-list", "label": "We are on the list, not bounced to the login", "action": "assertUrlContains", "value": "REPLACE_PAGE_URL_TOKEN" },
+    { "id": "filter-ready", "label": "The filter is on screen", "action": "waitForSelector", "selector": "REPLACE_SEARCH_SELECTOR", "state": "visible", "timeoutMs": 15000 },
+    { "id": "type-filter", "label": "Type the value to search", "action": "fill", "selector": "REPLACE_SEARCH_SELECTOR", "valueFromParameter": "searchText", "timeoutMs": 10000 },
+    { "id": "blur-filter", "label": "Leave the field (GeneXus validates on blur)", "action": "press", "selector": "REPLACE_SEARCH_SELECTOR", "key": "Tab", "timeoutMs": 10000 },
+    { "id": "search", "label": "Run the search", "action": "click", "selector": "REPLACE_SEARCH_BUTTON_SELECTOR", "timeoutMs": 10000 },
+    { "id": "grid-refreshed", "label": "Wait for the grid to refresh", "action": "waitForQuiet", "idleMs": 500, "timeoutMs": 15000 },
+    { "id": "has-rows", "label": "The grid shows at least one row", "action": "assertCount", "selector": "REPLACE_ROW_SELECTOR", "operator": ">=", "count": 1 },
+    { "id": "row-has-value", "label": "The first row shows the value searched", "action": "assertTextContains", "selector": "REPLACE_FIRST_ROW_TEXT_SELECTOR", "text": "REPLACE_SEARCH_TEXT", "timeoutMs": 10000 },
+    { "id": "no-leak", "label": "No stack trace, exception class or SQL error on screen", "action": "assertNoTextMatches" },
+    { "id": "shot", "label": "Evidence", "action": "screenshot", "name": "work-with-result" }
+  ]
+}

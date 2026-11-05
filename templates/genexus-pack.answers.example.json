@@ -1,0 +1,24 @@
+{
+  "target": { "template": "genexus-dev", "id": "app-dev" },
+  "routines": ["login", "smoke-page", "work-with-search"],
+  "values": {
+    "REPLACE_APP_NAME": "My GeneXus application",
+    "REPLACE_BASE_URL": "https://dev.example.com/MyApp/",
+    "REPLACE_CREDENTIAL_SET": "gam-test-user",
+    "REPLACE_POST_LOGIN_URL_TOKEN": "hhome",
+    "REPLACE_LOGOUT_URL": "https://dev.example.com/MyApp/logout",
+    "REPLACE_BUILD_PAGE_URL": "https://dev.example.com/MyApp/hhome",
+    "REPLACE_BUILD_SELECTOR": "#span_vVERSION",
+    "REPLACE_HOME_URL": "https://dev.example.com/MyApp/hhome",
+    "REPLACE_SURFACE": "customers",
+    "REPLACE_PAGE_URL": "https://dev.example.com/MyApp/hcustomers",
+    "REPLACE_PAGE_URL_TOKEN": "hcustomers",
+    "REPLACE_MAIN_SELECTOR": "#GridContainerTbl",
+    "REPLACE_LIST_URL": "https://dev.example.com/MyApp/hcustomers",
+    "REPLACE_SEARCH_SELECTOR": "#vFILTER",
+    "REPLACE_SEARCH_BUTTON_SELECTOR": "#BTNSEARCH",
+    "REPLACE_ROW_SELECTOR": "table#GridContainerTbl tr.gx-row",
+    "REPLACE_FIRST_ROW_TEXT_SELECTOR": "#span_vNAME_0001",
+    "REPLACE_SEARCH_TEXT": "ACME"
+  }
+}

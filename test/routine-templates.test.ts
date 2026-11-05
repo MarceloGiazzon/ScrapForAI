@@ -45,6 +45,20 @@ const DUMMIES: Record<string, string> = {
   REPLACE_STATUS_URL: 'https://dev.example.com/app/hmyrequests',
   REPLACE_STATUS_SELECTOR: '#vSTATUS_0001',
   REPLACE_APPROVED_TEXT: 'Approved',
+  // T10.2 (gx-work-with-search, gx-transaction-insert, gx-prompt-select)
+  REPLACE_SEARCH_TEXT: 'ACME',
+  REPLACE_SEARCH_BUTTON_SELECTOR: '#BTNSEARCH',
+  REPLACE_FIRST_ROW_TEXT_SELECTOR: '#span_vNAME_0001',
+  REPLACE_DELETE_SELECTOR: '#vDELETE_0001',
+  REPLACE_CONFIRM_DELETE_SELECTOR: '#BTNENTER',
+  REPLACE_PROMPT_BUTTON_SELECTOR: '#vPROMPT',
+  REPLACE_PROMPT_URL_TOKEN: 'hprompt',
+  REPLACE_PROMPT_FILTER_SELECTOR: '#vFILTER',
+  REPLACE_PROMPT_SEARCH_SELECTOR: '#BTNSEARCH',
+  REPLACE_PROMPT_ROW_SELECTOR: 'table#GridContainerTbl tr.gx-row',
+  REPLACE_PROMPT_PICK_SELECTOR: '#vSELECT_0001',
+  REPLACE_RESULT_SELECTOR: '#span_vNAME',
+  REPLACE_EXPECTED_TEXT: 'ACME Corp',
 };
 
 const files = readdirSync(dir).filter((f) => f.endsWith('.routine.json'));
@@ -104,4 +118,18 @@ test('the login template gates the login and releases the session', () => {
   };
   assert.ok(login.steps.some((s) => s.action === 'waitForUrlContains'), 'GeneXus convention: gate the login');
   assert.ok((login.teardown ?? []).length > 0, 'GeneXus convention: one session per user, so log out in teardown');
+});
+
+test('the GeneXus screen templates (T10.2) cover Work With, Transaction and Prompt, and keep their promises', () => {
+  for (const file of ['gx-work-with-search.routine.json', 'gx-transaction-insert.routine.json', 'gx-prompt-select.routine.json']) {
+    assert.ok(files.includes(file), file);
+    const body = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as { steps: Array<Record<string, unknown>>; teardown?: unknown[]; tags: string[] };
+    assert.ok(body.steps.some((step) => step.action === 'include' && step.routineId === 'login' && step.version === 1), `${file} includes the login, pinned`);
+    assert.ok(body.steps.some((step) => step.action === 'assertNoTextMatches'), `${file} checks that no raw error reaches the screen`);
+    assert.ok(!body.steps.some((step) => step.action === 'waitForTimeout'), `${file}: wait for the network to be quiet, never for a fixed time (WT001)`);
+  }
+  const insert = JSON.parse(readFileSync(path.join(dir, 'gx-transaction-insert.routine.json'), 'utf8')) as { teardown?: unknown[]; tags: string[] };
+  assert.ok(insert.tags.includes('writes-data') && (insert.teardown ?? []).length > 0, 'a template that changes data says so and cleans up after itself');
+  const prompt = JSON.parse(readFileSync(path.join(dir, 'gx-prompt-select.routine.json'), 'utf8')) as { steps: Array<{ frame?: unknown }> };
+  assert.ok(prompt.steps.filter((step) => step.frame !== undefined).length >= 4, 'the prompt steps run inside its frame');
 });

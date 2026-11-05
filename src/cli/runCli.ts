@@ -60,6 +60,9 @@ Commands
   differential --from-jobs <leftJobId> <rightJobId> [--time-ratio N]
                                     (the same routines against two targets, or two runs that already happened, and what differs: step status, extracted values,
                                      new console errors, network shape, time. Exit 0 same, 1 different, 2 a side could not run. The routine must open its target with goto "$targetUrl")
+  pack apply <answers.json> [--dry-run]   (GeneXus pack: fills the target profile and routine templates from your answers, checks them, and only then saves them:
+                                    the profile, the login, the screens. Nothing is sent while a REPLACE_ value is missing; see docs/genexus-pack/)
+  pack build --out <file.zip>       (the pack as one zip: templates, guides in es/pt, the agent skill; needs a repository checkout)
   users list | create <id> --role viewer|runner|admin [--name n] | set <id> [--role r] [--name n] [--disabled true|false] | delete <id>
         | key-create <id> [--label l] [--expires ISO] | key-revoke <id> <keyId>
                                     (the team of a shared server, admin key only: a key is printed ONCE when it is made and never again. Roles: viewer reads, runner also runs, admin also manages)
@@ -382,7 +385,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' || command === 'users' ? `${command} ${second ?? ''}`.trim() : command === 'audit' && second === 'verify' ? 'audit verify' : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' || command === 'users' || command === 'pack' ? `${command} ${second ?? ''}`.trim() : command === 'audit' && second === 'verify' ? 'audit verify' : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -1035,6 +1038,69 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       const body = response.body as { markdown: string } & Record<string, unknown>;
       if (values.out) await io.writeFile!(values.out, Buffer.from(body.markdown, 'utf8'));
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'summary', exitCode: 0, result: body as never }, values.out ? `Summary written to ${values.out}\n` : body.markdown);
+      return 0;
+    }
+
+    if (command === 'pack apply' || command === 'pack build') {
+      // T10.2: the GeneXus pack. `apply` fills the templates from an answers file, checks every result against the real schemas and only then saves them (the
+      // profile first, then the login, then the screens). `build` zips the pack (templates, guides, skill) from a repository checkout.
+      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { ...common, 'dry-run': { type: 'boolean' }, out: { type: 'string' } } });
+      asJson = values.json === true;
+      const pack = await import('../pack/genexusPack.js');
+
+      if (command === 'pack build') {
+        if (positionals.length !== 0 || !values.out) throw new CliError('UsageError', 'usage: scrapforai pack build --out <file.zip>');
+        let files: Awaited<ReturnType<typeof pack.collectPackFiles>>;
+        try {
+          files = await pack.collectPackFiles(pack.packRoot());
+        } catch (error) {
+          throw new CliError('PackSourceMissing', `pack build needs a repository checkout (templates/, docs/ and .claude/skills/): ${(error as Error).message}`);
+        }
+        const version = (JSON.parse((await import('node:fs')).readFileSync(`${pack.packRoot()}/package.json`, 'utf8')) as { version?: string }).version ?? '0.0.0';
+        const zip = pack.buildPackZip(files, version);
+        await (io.writeFile ?? (async () => { throw new Error('files are not available'); }))(values.out, zip);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'pack build', exitCode: 0, result: { path: values.out, files: files.length, bytes: zip.length } as never }, `Wrote ${values.out} (${files.length} files, ${zip.length} bytes)\n`);
+        return 0;
+      }
+
+      const [answersFile] = positionals;
+      if (!answersFile || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai pack apply <answers.json> [--dry-run]   (see templates/genexus-pack.answers.example.json)');
+      let raw: unknown;
+      try {
+        raw = JSON.parse(await (io.readFile ?? (async () => { throw new Error('files are not available'); }))(answersFile));
+      } catch (error) {
+        throw new CliError('UsageError', `cannot read ${answersFile}: ${(error as Error).message}`);
+      }
+      const parsed = pack.parseAnswers(raw);
+      if (!parsed.answers) throw new CliError('PackAnswersInvalid', `the answers file is not valid:\n${parsed.problems.map((problem) => `  - ${problem}`).join('\n')}`);
+
+      // The real schemas decide what is valid: a profile or a routine that the API would refuse is found here, before anything is sent.
+      const { targetProfileSchema } = await import('../schemas/targetProfile.schema.js');
+      const { mcpSaveRoutineSchema } = await import('../schemas/libraryRoutine.schema.js');
+      const validate = (item: { kind: string; id: string; body: Record<string, unknown> }): string[] => {
+        const result = item.kind === 'target' ? targetProfileSchema.safeParse({ ...item.body, id: item.id }) : mcpSaveRoutineSchema.safeParse({ id: item.id, ...item.body });
+        return result.success ? [] : result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
+      };
+      const plan = pack.planPack(parsed.answers, await pack.loadTemplates(pack.packTemplatesDir()), validate as never);
+      if (plan.problems.length > 0) throw new CliError('PackIncomplete', `nothing was sent. Fix these first:\n${plan.problems.map((problem) => `  - ${problem}`).join('\n')}`);
+
+      const items: Array<{ kind: string; id: string; path: string; template: string; status: 'planned' | 'saved' }> = plan.items.map((item) => ({ kind: item.kind, id: item.id, path: item.path, template: item.template, status: 'planned' }));
+      if (values['dry-run'] !== true) {
+        const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+        for (const [index, item] of plan.items.entries()) {
+          const response = await api('PUT', item.path, item.body);
+          if (response.status !== 200 && response.status !== 201) {
+            const failure = errorOf(response);
+            throw new CliError(failure.type, `${failure.message}\nPUT ${item.path} failed. Items saved before it stay saved; fix the cause and run it again (saving the same content creates no new version).`);
+          }
+          items[index]!.status = 'saved';
+        }
+      }
+      const lines = items.map((item) => `${item.status === 'saved' ? 'saved  ' : 'planned'} PUT ${item.path}   <- ${item.template}`);
+      emit(
+        { cliSchema: CLI_SCHEMA_VERSION, command: 'pack apply', exitCode: 0, result: { dryRun: values['dry-run'] === true, items } as never },
+        `${lines.join('\n')}\n${values['dry-run'] === true ? '(dry run: nothing was sent)\n' : 'Done. The routines are drafts: run each one (scrapforai run <id>), then save it as "status": "active".\n'}`,
+      );
       return 0;
     }
 
