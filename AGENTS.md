@@ -236,6 +236,10 @@ step limits, artifact retention, etc.).
   `[evidence] could not check the folder of <job>: <code>`), and the report's `readJson` prints `[evidence] <file> of <job> could not be read: <code>` (a missing file stays quiet). Whether this
   fixes it is NOT known: it was added because `existsSync` answering `false` for a transient `EPERM` is the one mechanism found that fits "no log line, never in isolation". If it recurs with one of
   those lines, the cause is the one named; if it recurs with none, the cause is elsewhere (suspects left: `result.json` read while another process has it, a `JSON.parse` of a half-written file).
+  **It recurred with none** (fourth smoke run of the same day, `manual.smoke`: `FigureMissing`, "The figure of step open is not in the run's evidence", i.e. `resolveJobFile` answered undefined or the run did not list
+  the screenshot; no `[fs]`/`[evidence]` line), so the transient-`EPERM` explanation is WEAKENED, not confirmed. What is known: each failing file passes alone (`parameters` 3/3, `manual` 3/3, `parallel` 3/3,
+  `performance` 3/3), each full run fails in a different file, the machine is busy (Docker, java, VS Code) and the load-sensitive timing tests (`performance`, `parallel`) fail in the same runs. The manual's error now says
+  whether the run never listed the screenshot or the folder cannot be found. A full-suite failure is only worth chasing when it reproduces ALONE or names a cause in the log.
 - **Frames wait to exist** (`resolveFrameWhenReady` in `src/runner/runExploration.ts`): a step with `frame: { urlContains | name | index }` used to resolve the frame at the instant it started, and when the
   iframe was injected by the script of the click just before (a GeneXus prompt) the step raced the browser: it fell back to the MAIN frame and waited out its whole timeout for a selector that lives in the
   iframe (`gx-prompt-select` failed 2 of 2 on one run, 3 of 3 passing on another: the smoke looked flaky, the bug was the race). Now the frame is resolved AFTER the step's `delayMs`/`waitFor` and gets up to

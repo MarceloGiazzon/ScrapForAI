@@ -177,8 +177,10 @@ async function chapterFrom(routine: Pinned, result: ExplorationResult, files: Ma
     if (stepId === undefined) throw new ManualError(409, 'FigureWithoutId', `A documented step of "${routine.id}" has no id`);
 
     const shot = result.evidence.screenshots.find((item) => item.name === doc.figure);
-    const location = shot ? resolveJobFile(result.jobId, `screenshots/${path.posix.basename(shot.path.replace(/\\/g, '/'))}`) : undefined;
-    if (!location) throw new ManualError(409, 'FigureMissing', `The figure of step "${stepId}" (${routine.id}) is not in the run's evidence`);
+    // Two different causes used to share one message: the run never listed the figure, or its folder/file cannot be found now.
+    if (!shot) throw new ManualError(409, 'FigureMissing', `The figure of step "${stepId}" (${routine.id}) is not in the run's evidence: the run did not list a screenshot named "${doc.figure}" (job ${result.jobId})`);
+    const location = resolveJobFile(result.jobId, `screenshots/${path.posix.basename(shot.path.replace(/\\/g, '/'))}`);
+    if (!location) throw new ManualError(409, 'FigureMissing', `The figure of step "${stepId}" (${routine.id}) is not in the run's evidence: the run listed it but the evidence folder of ${result.jobId} cannot be found now`);
     const png = await readFileRetry(location);
 
     const id = figureIdOf(routine.id, stepId);
