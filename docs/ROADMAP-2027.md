@@ -947,8 +947,10 @@ a deriva detecta, a pasta guarda e mostra.
 
 ### T4.6 — Linha do tempo e consultas · M
 
-> **Implementada em 2026-11-03** **parcialmente**: `GET /v1/evolution/:target/timeline`, `scrapforai evolution timeline` e a ferramenta MCP `evolution_query` ("quando
-> apareceu o campo X?", por tela, por data). **Não feito:** a linha do tempo na UI web. "Entre os builds A e B" é o `evolution_diff`.
+> **Implementada** (API, CLI e MCP em 2026-11-03; UI em 2026-11-05): `GET /v1/evolution/:target/timeline`, `scrapforai evolution timeline`, a ferramenta MCP `evolution_query` ("quando
+> apareceu o campo X?", por tela, por data) e a tela **Evolution** do console web (`public/timeline.html`: builds, mudanças agrupadas por build,
+> filtros de tela/controle/data, primeira aparição de um controle). Somente leitura. "Entre os builds A e B" é o `evolution_diff`.
+> Não feito na tela: ligar uma mudança ao `CHANGES.md`/relatório, e a UI só mostra texto (não há gráfico por tela).
 
 - UI: linha do tempo por tela (quando cada campo e ação apareceu, mudou ou sumiu).
 - MCP `evolution_query`: "quando apareceu o campo X?", "o que mudou na tela Y entre os builds A e

@@ -195,7 +195,7 @@ step limits, artifact retention, etc.).
   `CHANGES.md` into the newer snapshot folder and commits it: the deterministic section always, and the agent's `narrative` (max 20 000 chars)
   after it under "Narrative (AI-generated summary, not verified)" (P7: the server calls no model). `GET .../timeline[?screen=&key=&since=&limit=]`
   lists the changes between consecutive snapshots oldest first, and with `key` says where that control is now and when it was first seen
-  (`isFirstSnapshot: true` = earlier history unknown). Not done: the timeline in the web UI, deriving expected changes from the ledger,
+  (`isFirstSnapshot: true` = earlier history unknown). The web console's **Evolution** screen (`public/timeline.html|js`, T4.6) shows it: snapshots newest first, changes grouped by build (target, screen, control key and since filters; a control's first sighting, with "oldest snapshot = real start unknown"); read-only, only `GET /v1/targets` and `GET /v1/evolution/:target/timeline`. Not done: deriving expected changes from the ledger,
   localizing CHANGES.md (English only). `test/evolution-history.test.ts` covers it end to end without a browser.
   Not in the snapshot yet: `perf.json` (the T3.4 series exists but is not wired in), accessibility summary (T7.5) and the permission matrix (T6.1 results) - those
   producers do not exist or are not wired. `test/evolution-snapshot.smoke.ts` proves no seeded value or password reaches disk, the
@@ -791,7 +791,7 @@ just a thin proxy over it.
 
 ## Web console
 
-The UI (`UI_ENABLED=true`, `public/`) has History, **Executive** (for non-technical readers: tests, regressions caught, quality trend and readiness of each system for its latest build, with the evidence signed for it; read-only), **Health** (one card per target profile: status and reasons, each routine's state, streak, trend and result strip, the vault and the schedules; read-only), **Performance** (sparklines per routine and step, build changes, alerts), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
+The UI (`UI_ENABLED=true`, `public/`) has History, **Executive** (for non-technical readers: tests, regressions caught, quality trend and readiness of each system for its latest build, with the evidence signed for it; read-only), **Health** (one card per target profile: status and reasons, each routine's state, streak, trend and result strip, the vault and the schedules; read-only), **Performance** (sparklines per routine and step, build changes, alerts), **Evolution** (what changed in a target's screens build by build, and when a control first appeared; read-only, `test/ui-timeline.test.ts`, `test/timeline-ui.smoke.ts`), **Vault** (items with status, severity, RED/GREEN proof links, last run, per-item
 "Run", and "Run by impact": paste changed files, see the order and reasons, run the vault as a suite and open its report),
 **Team** (admins: people, roles, keys, audit log; changes need an admin key typed on the page, see Team server), Configuration and Status. It authenticates with a session cookie, so it can only use endpoints a session may call: capturing
 evidence (`add-from-run`, `confirm-green`), pinning and credentials stay bearer-only. `test/ui-vault.test.ts` guards the CSP rules.

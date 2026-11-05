@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Evolution</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="executive.html">Executive</a>
+      <a href="health.html">Health</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="timeline.html">Evolution</a>
+      <a href="config.html">Configuration</a>
+      <a href="team.html">Team</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>How the system evolved</h2>
+      <p class="muted">What changed in a target's screens from one build to the next, read from the stored snapshots: a field, an action or a grid column that appeared, changed or went away, and in which build. Type a control key (its name or id, as in the inventory) to see when it was first seen and where it is now. Only the structure of screens is compared, never the data they hold. This screen only reads: it takes no snapshot and changes nothing.</p>
+      <form class="filters" id="timeline-form">
+        <select id="timeline-target" aria-label="Target profile"></select>
+        <select id="timeline-screen" aria-label="Screen"></select>
+        <input id="timeline-key" type="text" maxlength="200" placeholder="Control key (optional)" aria-label="Control key">
+        <input id="timeline-since" type="date" aria-label="Changes since">
+        <button type="submit" id="timeline-show">Show</button>
+      </form>
+      <p class="muted" id="timeline-summary">Loading…</p>
+    </div>
+    <div id="timeline-builds"></div>
+    <div id="timeline-control"></div>
+    <div id="timeline-events"></div>
+  </main>
+  <script type="module" src="timeline.js"></script>
+</body>
+</html>
