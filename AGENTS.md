@@ -243,9 +243,13 @@ step limits, artifact retention, etc.).
 - **Frames wait to exist** (`resolveFrameWhenReady` in `src/runner/runExploration.ts`): a step with `frame: { urlContains | name | index }` used to resolve the frame at the instant it started, and when the
   iframe was injected by the script of the click just before (a GeneXus prompt) the step raced the browser: it fell back to the MAIN frame and waited out its whole timeout for a selector that lives in the
   iframe (`gx-prompt-select` failed 2 of 2 on one run, 3 of 3 passing on another: the smoke looked flaky, the bug was the race). Now the frame is resolved AFTER the step's `delayMs`/`waitFor` and gets up to
-  `min(step timeout, 5 s)` to appear (`afterWaitFor`/`waitFor` conditions too). If it never appears the answer is still the main frame, as before (`resolveFrame`, the sync one, is unchanged and its test
-  documents it): a step that points at a frame that is not there acts on the main page, which is a hazard when the same selector exists in both (e.g. `#vFILTER`); failing with a clear "no such frame"
-  would be safer but changes what a routine that expects a closed frame to be gone (`assertCount` 0) does, so it was left as a decision. `test/routine-runner.smoke.ts` has the deterministic cases.
+  `min(step timeout, 5 s)` to appear (`afterWaitFor`/`waitFor` conditions too). **A frame that never appears fails the step with `FrameNotFoundError`** ("No such frame: name "x"", `findFrameWhenReady` returns
+  `undefined`; decided 2026-11-05): acting on the main page when the step named a frame is a hazard when the same selector exists in both (e.g. `#vFILTER`), and a fill would land on the page behind a dialog.
+  **Exception, assertions of ABSENCE**: `assertHidden`, `assertCount` whose condition zero meets (`= 0`, `<= 3`; count is 0), `waitForSelector` `hidden`/`detached` and a `waitFor`/`afterWaitFor` selector condition with those
+  states are SATISFIED by a missing frame and do not wait for it to appear (a dialog that closed took its iframe with it); if the page removes the frame WHILE such a check runs ("Frame was detached") that counts as gone too
+  (`orWhenFrameGone`). `assertCount >= 1` and every presence step still fail. Steps that never use a frame (`FRAME_FREE_ACTIONS`: goto, waitForUrlContains, assertUrlContains, screenshot, assertEquals, ...) ignore a `frame`
+  written on them, as before. A routine that relied on the old fallback (a `frame` ref to a frame that does not exist, working on the main page) now fails: that is the point. `resolveFrame` (sync) and
+  `resolveFrameWhenReady` still answer main for callers that want the lenient answer; the runner no longer uses them for steps. `test/frame-missing.smoke.ts` (Chromium, `#vFILTER` in both frames) and `test/routine-runner.smoke.ts`.
 - **Parameters and generators** (`src/generators/`, `src/schemas/parameters.schema.ts`, T5.3): a run or routine declares
   `parameters: [{ name, generator, includeBoundaries? } | { name, cases }]` and a fill/selectOption step takes `valueFromParameter: name`;
   `valueFromGenerator: { type: ... }` on a step is sugar for a parameter of its own (named `gen_<stepId>`, so give such steps an id). Generators:

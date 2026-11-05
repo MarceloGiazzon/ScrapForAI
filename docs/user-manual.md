@@ -755,7 +755,10 @@ By frame index:
 }
 ```
 
-If the frame is not found, ScrapForAI falls back to the main frame.
+A frame that is still being created (an iframe a click injects, such as a GeneXus prompt) is waited for, up to the step's timeout or 5 seconds, whichever is shorter.
+If the frame never appears, the step fails with `FrameNotFoundError` ("No such frame: name \"payment-frame\""); it does **not** run against the main page, where the same selector might exist.
+The exception is a check of absence, which a frame that is gone satisfies without waiting: `assertHidden`, `assertCount` whose condition zero meets (`= 0`, `<= 3`), `waitForSelector` with `state: "hidden"` or `"detached"`, and a `waitFor`/`afterWaitFor` selector condition with those states.
+Steps that never touch a frame (`goto`, `waitForUrlContains`, `assertUrlContains`, `screenshot`, ...) ignore a `frame` written on them, as before.
 
 ### Wait conditions
 

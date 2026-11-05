@@ -116,13 +116,14 @@ const FRAME_APPEAR_GRACE_MS = 5_000;
 const FRAME_POLL_MS = 50;
 
 /**
- * Like `resolveFrame`, but a frame that is still being created gets a moment to appear. An iframe is
+ * The frame a reference points at, waiting up to `min(timeoutMs, 5 s)` for one that is still being created. An iframe is
  * usually injected by the script of the click that precedes the step (a GeneXus prompt, a dialog), so
  * resolving it at the instant the step starts raced with the browser attaching it: the step then ran
  * against the MAIN frame and waited out its whole timeout for a selector that lives in the iframe.
- * When no frame matches within the grace the answer is still main, as `resolveFrame` has always done.
+ * `undefined` when nothing matches within the grace (`timeoutMs` 0 looks once and does not wait), and for
+ * "no reference" the main frame. The runner treats `undefined` as "no such frame" (see `FrameNotFoundError`).
  */
-export async function resolveFrameWhenReady(page: Page, ref: FrameRef | undefined, timeoutMs: number): Promise<Frame> {
+export async function findFrameWhenReady(page: Page, ref: FrameRef | undefined, timeoutMs: number): Promise<Frame | undefined> {
   if (!ref) {
     return page.mainFrame();
   }
@@ -134,18 +135,92 @@ export async function resolveFrameWhenReady(page: Page, ref: FrameRef | undefine
       return found;
     }
     if (Date.now() >= deadline) {
-      return page.mainFrame();
+      return undefined;
     }
     await new Promise((resolve) => setTimeout(resolve, FRAME_POLL_MS));
   }
 }
 
+/**
+ * Like `findFrameWhenReady`, but a frame that never appears answers the MAIN frame, as `resolveFrame` always did.
+ * Kept for callers that want that lenient answer; the runner itself no longer uses it for steps, because acting on
+ * the main page when the step named a frame is a hazard when the same selector exists in both (e.g. `#vFILTER`).
+ */
+export async function resolveFrameWhenReady(page: Page, ref: FrameRef | undefined, timeoutMs: number): Promise<Frame> {
+  return (await findFrameWhenReady(page, ref, timeoutMs)) ?? page.mainFrame();
+}
+
+/** A step (or wait condition) named a frame that does not exist. The error type is `FrameNotFoundError`. */
+export class FrameNotFoundError extends Error {
+  constructor(ref: FrameRef) {
+    super(`No such frame: ${describeFrameRef(ref)}. The step names a frame that is not on the page, so it was not run against the main page.`);
+    this.name = 'FrameNotFoundError';
+  }
+}
+
+function describeFrameRef(ref: FrameRef): string {
+  if ('name' in ref) return `name "${ref.name}"`;
+  if ('urlContains' in ref) return `url containing "${ref.urlContains}"`;
+  return `index ${ref.index}`;
+}
+
+/** Steps that never touch the frame: a `frame` written on them is ignored, as it always was, whether or not that frame exists. */
+const FRAME_FREE_ACTIONS: ReadonlySet<string> = new Set([
+  'goto', 'reload', 'setOffline', 'waitForQuiet', 'waitForUrlContains', 'waitForTimeout', 'setViewport', 'setViewportSize', 'resizeWindow',
+  'waitForResponse', 'assertUrlContains', 'assertEquals', 'screenshot', 'collect', 'setClock', 'injectFault', 'httpRequest', 'waitForElapsed',
+]);
+
+/**
+ * Does a frame that is not there SATISFY this step? Only the assertions of absence: "hidden", "detached", a count that zero meets.
+ * A dialog that closed took its iframe with it, and that is exactly what `assertCount 0` / `assertHidden` / `waitFor hidden` check.
+ */
+function absenceSatisfiedByMissingFrame(step: RunnableLeaf): boolean {
+  switch (step.action) {
+    case 'assertHidden':
+      return true;
+    case 'assertCount':
+      return compareCount(0, step.operator, step.count);
+    case 'waitForSelector':
+      return step.state === 'hidden' || step.state === 'detached';
+    default:
+      return false;
+  }
+}
+
+/**
+ * Runs an ABSENCE check against a frame. If the page removes that frame while the check is running (a dialog that closes itself, which is
+ * what "wait until hidden" is waiting for), Playwright rejects with "Frame was detached"; that rejection is the frame being gone, so
+ * `whenGone` is the answer. Any other error, or a frame that is still attached, is rethrown.
+ */
+async function orWhenFrameGone<T>(frame: Frame, whenGone: T, check: () => Promise<T>): Promise<T> {
+  try {
+    return await check();
+  } catch (error) {
+    if (frame.isDetached()) {
+      return whenGone;
+    }
+    throw error;
+  }
+}
+
 export async function applyWaitCondition(page: Page, frameRef: FrameRef | undefined, condition: WaitCondition): Promise<void> {
-  const frame = await resolveFrameWhenReady(page, frameRef, waitConditionTimeout(condition));
   const timeout = waitConditionTimeout(condition);
+  const usesFrame = condition.selector !== undefined || condition.loadState !== undefined;
+  // "Wait until hidden/detached" is already true when the frame is gone: look once, do not wait for a frame to appear.
+  const absenceOk = condition.selector !== undefined && (condition.state === 'hidden' || condition.state === 'detached');
+  const found = usesFrame ? await findFrameWhenReady(page, frameRef, absenceOk ? 0 : timeout) : page.mainFrame();
+
+  if (!found) {
+    if (absenceOk) {
+      return;
+    }
+    throw new FrameNotFoundError(frameRef!);
+  }
+  const frame = found;
 
   if (condition.selector) {
-    await frame.locator(condition.selector).waitFor({ state: condition.state ?? 'visible', timeout });
+    const wait = () => frame.locator(condition.selector!).waitFor({ state: condition.state ?? 'visible', timeout });
+    await (absenceOk ? orWhenFrameGone(frame, undefined, wait) : wait());
     return;
   }
 
@@ -482,7 +557,18 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         }
 
         // After the delay and the wait: what they wait for may be the very iframe this step targets.
-        const frame = await resolveFrameWhenReady(page, step.frame, timeout);
+        // A frame that never appears is an error, NOT the main page: the same selector may exist in both (`#vFILTER`), and a step
+        // aimed at a prompt would silently act on the page behind it. The exception is an assertion of ABSENCE (hidden, count 0,
+        // wait hidden/detached): a frame that is gone satisfies it, and it does not wait for the frame to show up.
+        const frameUsed = step.frame !== undefined && !FRAME_FREE_ACTIONS.has(step.action);
+        const absenceOk = frameUsed && absenceSatisfiedByMissingFrame(step);
+        const foundFrame = frameUsed ? await findFrameWhenReady(page, step.frame, absenceOk ? 0 : timeout) : page.mainFrame();
+        const frameMissing = foundFrame === undefined;
+        if (frameMissing && !absenceOk) {
+          throw new FrameNotFoundError(step.frame!);
+        }
+        // Only the three absence cases below ever see the fallback; every other action either has its frame or threw above.
+        const frame = foundFrame ?? page.mainFrame();
 
         if (step.afterWaitFor?.response) {
           responseWaiter = waitForResponseCondition(page, step.afterWaitFor);
@@ -592,7 +678,10 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             await frame.locator(step.selector).uncheck({ timeout });
             break;
           case 'waitForSelector':
-            await frame.locator(step.selector).waitFor({ state: step.state, timeout });
+            if (!frameMissing) {
+              const wait = () => frame.locator(step.selector).waitFor({ state: step.state, timeout });
+              await (absenceOk ? orWhenFrameGone(frame, undefined, wait) : wait());
+            }
             break;
           case 'setViewportSize':
             await page.setViewportSize({ width: step.width, height: step.height });
@@ -613,7 +702,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             }
             break;
           case 'assertHidden':
-            if (!(await frame.locator(step.selector).isHidden({ timeout }))) {
+            if (!frameMissing && !(await orWhenFrameGone(frame, true, () => frame.locator(step.selector).isHidden({ timeout })))) {
               throw new StepExecutionError('Expected selector to be hidden');
             }
             break;
@@ -640,7 +729,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             }
             break;
           case 'assertCount': {
-            const count = await frame.locator(step.selector).count();
+            // A frame that is not there holds no element: its count is 0 (and we only got here if 0 meets the condition).
+            const countIn = () => frame.locator(step.selector).count();
+            const count = frameMissing ? 0 : absenceOk ? await orWhenFrameGone(frame, 0, countIn) : await countIn();
             if (!compareCount(count, step.operator, step.count)) {
               throw new StepExecutionError('Expected selector count condition was not met');
             }

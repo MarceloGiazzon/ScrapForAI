@@ -9,7 +9,7 @@ process.env.ALLOWED_RESOURCE_ORIGINS ??= 'https://dev.example.com';
 process.env.CORS_ALLOWED_ORIGINS ??= 'http://localhost:3000';
 
 const { chromium } = await import('playwright');
-const { resolveFrame, resolveFrameWhenReady, applyWaitCondition, runEvaluate, waitForResponseCondition } = await import('../src/runner/runExploration.js');
+const { resolveFrame, resolveFrameWhenReady, findFrameWhenReady, applyWaitCondition, runEvaluate, waitForResponseCondition } = await import('../src/runner/runExploration.js');
 
 let browser: Awaited<ReturnType<typeof chromium.launch>>;
 let context: Awaited<ReturnType<typeof browser.newContext>>;
@@ -113,6 +113,31 @@ test('resolveFrameWhenReady gives up after the timeout and answers main, like re
   const noRefStarted = Date.now();
   assert.equal(await resolveFrameWhenReady(page, undefined, 5000), page.mainFrame());
   assert.ok(Date.now() - noRefStarted < 100);
+});
+
+test('findFrameWhenReady answers undefined for a frame that never appears (the runner turns that into FrameNotFoundError), and waits only when asked to', async () => {
+  await page.setContent('<body></body>');
+  const started = Date.now();
+  assert.equal(await findFrameWhenReady(page, { name: 'never' }, 300), undefined);
+  const waited = Date.now() - started;
+  assert.ok(waited >= 250 && waited < 2000, `waited ${waited} ms`);
+
+  const lookedOnce = Date.now();
+  assert.equal(await findFrameWhenReady(page, { name: 'never' }, 0), undefined, 'timeout 0 looks once');
+  assert.ok(Date.now() - lookedOnce < 100);
+
+  assert.equal(await findFrameWhenReady(page, undefined, 5000), page.mainFrame(), 'no reference = the main frame');
+});
+
+test('applyWaitCondition: a selector condition on a frame that is not there fails, unless it waits for hidden/detached', async () => {
+  await page.setContent('<body><div id="x">x</div></body>');
+  await assert.rejects(applyWaitCondition(page, { name: 'never' }, { selector: '#x', state: 'visible', timeoutMs: 300 }), /No such frame: name "never"/);
+  await assert.rejects(applyWaitCondition(page, { name: 'never' }, { loadState: 'load', timeoutMs: 300 }), (error: Error) => error.name === 'FrameNotFoundError');
+  // The main page HAS #x, visible: only a lookup that wrongly fell back to it could fail these.
+  await applyWaitCondition(page, { name: 'never' }, { selector: '#x', state: 'hidden', timeoutMs: 300 });
+  await applyWaitCondition(page, { name: 'never' }, { selector: '#x', state: 'detached', timeoutMs: 300 });
+  // A condition that does not use a frame ignores the reference.
+  await applyWaitCondition(page, { name: 'never' }, { urlContains: 'about:blank', timeoutMs: 300 });
 });
 
 test('applyWaitCondition resolves when a delayed selector appears', async () => {
