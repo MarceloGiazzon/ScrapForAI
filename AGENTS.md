@@ -227,9 +227,16 @@ step limits, artifact retention, etc.).
   4 of 7 runs with an unrelated test each time ("evidence not found" right after a run: a screenshot unreadable, `evidenceAvailable` false, a missing
   manifest), never in isolation; a real `EPERM` on a rename was captured in one run. After the change 3 consecutive full runs passed 52/52, with no
   `[fs]` line in the last two, so the cause is the best explanation, not a proven one. **UPDATE: it came back** (`routine-library.smoke`, "No manifest for this run", 404) in
-  one full run after the fix, with NO `[fs]`/`[evidence]` line in the output, and passed 3 of 3 in isolation: so it is NOT (only) a transient EPERM. Still open.
-  Next step if it matters: make the manifest route say whether the job folder exists and which files it holds, and log in `findJobDir` when a just-finished
-  job's folder is missing.
+  one full run after the fix, with NO `[fs]`/`[evidence]` line in the output, and passed 3 of 3 in isolation: so it is NOT (only) a transient EPERM. Still open (not seen again in two full runs on 2026-11-05).
+  `GET /v1/runs/:jobId/manifest` used to answer one 404 for three causes and swallow a read error without a trace (`.catch(() => undefined)`); it now says which one (no evidence folder / folder without
+  `manifest.json` / manifest unreadable) and the last two print `[evidence] ...` on stderr. If the failure comes back, that line (or its absence, which would point at `findJobDir`'s `existsSync`, which
+  answers `false` for ANY error including a transient `EPERM`) tells where to look. `findJobDir` itself is not retried yet.
+- **Frames wait to exist** (`resolveFrameWhenReady` in `src/runner/runExploration.ts`): a step with `frame: { urlContains | name | index }` used to resolve the frame at the instant it started, and when the
+  iframe was injected by the script of the click just before (a GeneXus prompt) the step raced the browser: it fell back to the MAIN frame and waited out its whole timeout for a selector that lives in the
+  iframe (`gx-prompt-select` failed 2 of 2 on one run, 3 of 3 passing on another: the smoke looked flaky, the bug was the race). Now the frame is resolved AFTER the step's `delayMs`/`waitFor` and gets up to
+  `min(step timeout, 5 s)` to appear (`afterWaitFor`/`waitFor` conditions too). If it never appears the answer is still the main frame, as before (`resolveFrame`, the sync one, is unchanged and its test
+  documents it): a step that points at a frame that is not there acts on the main page, which is a hazard when the same selector exists in both (e.g. `#vFILTER`); failing with a clear "no such frame"
+  would be safer but changes what a routine that expects a closed frame to be gone (`assertCount` 0) does, so it was left as a decision. `test/routine-runner.smoke.ts` has the deterministic cases.
 - **Parameters and generators** (`src/generators/`, `src/schemas/parameters.schema.ts`, T5.3): a run or routine declares
   `parameters: [{ name, generator, includeBoundaries? } | { name, cases }]` and a fill/selectOption step takes `valueFromParameter: name`;
   `valueFromGenerator: { type: ... }` on a step is sugar for a parameter of its own (named `gen_<stepId>`, so give such steps an id). Generators:

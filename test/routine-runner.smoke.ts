@@ -9,7 +9,7 @@ process.env.ALLOWED_RESOURCE_ORIGINS ??= 'https://dev.example.com';
 process.env.CORS_ALLOWED_ORIGINS ??= 'http://localhost:3000';
 
 const { chromium } = await import('playwright');
-const { resolveFrame, applyWaitCondition, runEvaluate, waitForResponseCondition } = await import('../src/runner/runExploration.js');
+const { resolveFrame, resolveFrameWhenReady, applyWaitCondition, runEvaluate, waitForResponseCondition } = await import('../src/runner/runExploration.js');
 
 let browser: Awaited<ReturnType<typeof chromium.launch>>;
 let context: Awaited<ReturnType<typeof browser.newContext>>;
@@ -73,6 +73,46 @@ test('resolveFrame targets iframes by name and index, and falls back to main', a
 
   const none = resolveFrame(page);
   assert.equal(none, page.mainFrame());
+});
+
+test('resolveFrameWhenReady waits for an iframe that a script injects after the step starts (a GeneXus prompt)', async () => {
+  await page.setContent(
+    '<body><script>setTimeout(function(){var f=document.createElement("iframe");f.name="late-child";f.srcdoc="<input id=inner>";document.body.appendChild(f);},400);</script></body>',
+  );
+  // Right now there is no such frame: the sync resolver answers main, as it always has.
+  assert.equal(resolveFrame(page, { name: 'late-child' }), page.mainFrame());
+
+  const byName = await resolveFrameWhenReady(page, { name: 'late-child' }, 3000);
+  assert.notEqual(byName, page.mainFrame());
+  assert.equal(byName.name(), 'late-child');
+  await byName.locator('#inner').waitFor({ state: 'visible', timeout: 2000 });
+});
+
+test('resolveFrameWhenReady waits for a frame by url too, and for one whose address is not set yet', async () => {
+  await page.route('**/inner-page', (route) => route.fulfill({ contentType: 'text/html', body: '<input id=inner>' }));
+  await page.route('**/host', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<body><script>setTimeout(function(){var f=document.createElement("iframe");f.src="/inner-page";document.body.appendChild(f);},300);</script></body>',
+    }),
+  );
+  await page.goto('http://localhost:1/host');
+
+  const frame = await resolveFrameWhenReady(page, { urlContains: 'inner-page' }, 3000);
+  assert.notEqual(frame, page.mainFrame());
+  assert.match(frame.url(), /inner-page/);
+});
+
+test('resolveFrameWhenReady gives up after the timeout and answers main, like resolveFrame; it never waits without a reference', async () => {
+  await page.setContent('<body></body>');
+  const started = Date.now();
+  assert.equal(await resolveFrameWhenReady(page, { name: 'never' }, 300), page.mainFrame());
+  const waited = Date.now() - started;
+  assert.ok(waited >= 250 && waited < 2000, `waited ${waited} ms`);
+
+  const noRefStarted = Date.now();
+  assert.equal(await resolveFrameWhenReady(page, undefined, 5000), page.mainFrame());
+  assert.ok(Date.now() - noRefStarted < 100);
 });
 
 test('applyWaitCondition resolves when a delayed selector appears', async () => {

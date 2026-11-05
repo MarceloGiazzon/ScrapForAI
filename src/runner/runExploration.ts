@@ -94,24 +94,54 @@ function waitConditionTimeout(condition: WaitCondition): number {
   return condition.timeoutMs ?? env.STEP_TIMEOUT_MS;
 }
 
+function findFrame(page: Page, ref: FrameRef): Frame | undefined {
+  if ('name' in ref) {
+    return page.frame({ name: ref.name }) ?? undefined;
+  }
+
+  if ('urlContains' in ref) {
+    return page.frames().find((frame) => frame.url().includes(ref.urlContains));
+  }
+
+  return page.frames()[ref.index];
+}
+
+/** The frame as it is RIGHT NOW; main when there is none (or no reference). Never waits. */
 export function resolveFrame(page: Page, ref?: FrameRef): Frame {
+  return (ref ? findFrame(page, ref) : undefined) ?? page.mainFrame();
+}
+
+/** How long a frame that does not exist yet is waited for (bounded by the step's own timeout). */
+const FRAME_APPEAR_GRACE_MS = 5_000;
+const FRAME_POLL_MS = 50;
+
+/**
+ * Like `resolveFrame`, but a frame that is still being created gets a moment to appear. An iframe is
+ * usually injected by the script of the click that precedes the step (a GeneXus prompt, a dialog), so
+ * resolving it at the instant the step starts raced with the browser attaching it: the step then ran
+ * against the MAIN frame and waited out its whole timeout for a selector that lives in the iframe.
+ * When no frame matches within the grace the answer is still main, as `resolveFrame` has always done.
+ */
+export async function resolveFrameWhenReady(page: Page, ref: FrameRef | undefined, timeoutMs: number): Promise<Frame> {
   if (!ref) {
     return page.mainFrame();
   }
 
-  if ('name' in ref) {
-    return page.frame({ name: ref.name }) ?? page.mainFrame();
+  const deadline = Date.now() + Math.min(timeoutMs, FRAME_APPEAR_GRACE_MS);
+  for (;;) {
+    const found = findFrame(page, ref);
+    if (found) {
+      return found;
+    }
+    if (Date.now() >= deadline) {
+      return page.mainFrame();
+    }
+    await new Promise((resolve) => setTimeout(resolve, FRAME_POLL_MS));
   }
-
-  if ('urlContains' in ref) {
-    return page.frames().find((frame) => frame.url().includes(ref.urlContains)) ?? page.mainFrame();
-  }
-
-  return page.frames()[ref.index] ?? page.mainFrame();
 }
 
 export async function applyWaitCondition(page: Page, frameRef: FrameRef | undefined, condition: WaitCondition): Promise<void> {
-  const frame = resolveFrame(page, frameRef);
+  const frame = await resolveFrameWhenReady(page, frameRef, waitConditionTimeout(condition));
   const timeout = waitConditionTimeout(condition);
 
   if (condition.selector) {
@@ -442,7 +472,6 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       try {
         const page = session.ctx.page;
         const timeout = timeoutFor(step);
-        const frame = resolveFrame(page, step.frame);
 
         if (step.delayMs !== undefined) {
           await page.waitForTimeout(step.delayMs);
@@ -451,6 +480,9 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         if (step.waitFor) {
           await applyWaitCondition(page, step.frame, step.waitFor);
         }
+
+        // After the delay and the wait: what they wait for may be the very iframe this step targets.
+        const frame = await resolveFrameWhenReady(page, step.frame, timeout);
 
         if (step.afterWaitFor?.response) {
           responseWaiter = waitForResponseCondition(page, step.afterWaitFor);

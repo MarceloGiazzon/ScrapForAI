@@ -127,11 +127,27 @@ runsRouter.get('/:jobId', async (req, res, next) => {
  */
 runsRouter.get('/:jobId/manifest', async (req, res, next) => {
   try {
-    const job = findJobDir(String(req.params.jobId));
-    const stored = job ? await readManifest(job.dir).catch(() => undefined) : undefined;
+    const jobId = String(req.params.jobId);
+    const job = findJobDir(jobId);
 
-    if (!job || !stored) {
-      notFound(res, 'No manifest for this run (evidence expired, or it ran before manifests existed)');
+    // Three different reasons used to share one message (and the last one left no trace): say which it is.
+    if (!job) {
+      notFound(res, 'No manifest for this run: no evidence folder for that id (it expired, was never kept, or the id is wrong)');
+      return;
+    }
+
+    let stored: Awaited<ReturnType<typeof readManifest>>;
+    try {
+      stored = await readManifest(job.dir);
+    } catch (error) {
+      process.stderr.write(`[evidence] manifest of ${jobId} exists but could not be read: ${error instanceof Error ? error.message : String(error)}\n`);
+      notFound(res, 'No manifest for this run: the evidence folder is there but its manifest could not be read (see the server log)');
+      return;
+    }
+
+    if (!stored) {
+      process.stderr.write(`[evidence] ${jobId} has an evidence folder (${job.location}) but no manifest.json\n`);
+      notFound(res, 'No manifest for this run: the evidence folder is there but holds no manifest (the run predates manifests, or writing it failed: see the server log)');
       return;
     }
 

@@ -159,6 +159,40 @@ test('a pinned job survives the prune, even with the clock a year ahead', async 
   assert.equal((await fetch(`${baseUrl}/v1/runs/job_pinned1/artifacts/screenshots/home.png`, { headers: bearer })).status, 200);
 });
 
+test('GET manifest: a missing folder, a missing manifest and an unreadable one are three different 404s (and the last two are logged)', async () => {
+  const stderr: string[] = [];
+  const realWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    stderr.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write;
+
+  try {
+    const noFolder = await call('GET', '/v1/runs/job_nofolder1/manifest', bearer);
+    assert.equal(noFolder.status, 404);
+    assert.match(noFolder.json?.error.message, /no evidence folder/);
+
+    const dir = await makeJob('job_nomanifest1');
+    fs.rmSync(path.join(dir, 'manifest.json'));
+    const noManifest = await call('GET', '/v1/runs/job_nomanifest1/manifest', bearer);
+    assert.equal(noManifest.status, 404);
+    assert.match(noManifest.json?.error.message, /holds no manifest/);
+
+    const broken = await makeJob('job_badmanifest1');
+    fs.writeFileSync(path.join(broken, 'manifest.json'), '{ not json');
+    const unreadable = await call('GET', '/v1/runs/job_badmanifest1/manifest', bearer);
+    assert.equal(unreadable.status, 404);
+    assert.match(unreadable.json?.error.message, /could not be read/);
+  } finally {
+    process.stderr.write = realWrite;
+  }
+
+  const log = stderr.join('');
+  assert.match(log, /\[evidence\] job_nomanifest1 has an evidence folder \(artifacts\) but no manifest\.json/);
+  assert.match(log, /\[evidence\] manifest of job_badmanifest1 exists but could not be read/);
+  assert.ok(!log.includes('job_nofolder1'), 'an unknown id is not worth a log line');
+});
+
 test('pinning twice is idempotent; keepTrace keeps the trace', async () => {
   await makeJob('job_pinned2');
   const first = await call('POST', '/v1/runs/job_pinned2/pin', bearer, { reason: 'keep it', keepTrace: true });
