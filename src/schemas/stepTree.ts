@@ -75,3 +75,11 @@ export function extractedNameOf(step: object): string | undefined {
   const candidate = step as { action?: unknown; name?: unknown };
   return typeof candidate.name === 'string' && candidate.action !== 'screenshot' && candidate.action !== PARALLEL_ACTION ? candidate.name : undefined;
 }
+
+/** Every name a step writes into `extracted`: its own, plus the `extract` entries of an `httpRequest` (T5.7). */
+export function extractedNamesOf(step: object): string[] {
+  const own = extractedNameOf(step);
+  const entries = (step as { action?: unknown; extract?: unknown }).extract;
+  const extra = (step as { action?: unknown }).action === 'httpRequest' && Array.isArray(entries) ? entries.flatMap((entry: { name?: unknown }) => (typeof entry?.name === 'string' ? [entry.name] : [])) : [];
+  return [...(own === undefined ? [] : [own]), ...extra];
+}

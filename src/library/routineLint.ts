@@ -19,7 +19,7 @@ export const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
 ];
 
 /** String properties that can carry a literal an author might paste a secret into. */
-const SCANNED_PROPERTIES = ['value', 'text', 'url', 'script'] as const;
+const SCANNED_PROPERTIES = ['value', 'text', 'url', 'script', 'body'] as const;
 
 /** Short values would match innocently inside longer text, so those only match exactly. */
 const MIN_SUBSTRING_SECRET_LENGTH = 6;

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { diffConfigSchema } from './diffConfig.schema.js';
 import { safeName } from './explorationRequest.schema.js';
+import { HTTP_METHODS } from './httpMethods.js';
 import { piiPolicySchema } from './piiPolicy.schema.js';
 
 /**
@@ -80,6 +81,8 @@ export const targetProfileSchema = z
     diff: diffConfigSchema.optional(),
     // What counts as expected when the PII hunt (T7.8) finds something in this application, and how serious each kind is here (T7.9).
     pii: piiPolicySchema.optional(),
+    // T5.7: what an `httpRequest` step may do against this application. Absent = GET and HEAD only; POST/PUT/PATCH/DELETE change data, so the profile lists them.
+    http: z.object({ allowedMethods: z.array(z.enum(HTTP_METHODS)).min(1).max(HTTP_METHODS.length) }).strict().optional(),
     flags: z
       .object({
         allowDestructive: z.boolean().default(false),

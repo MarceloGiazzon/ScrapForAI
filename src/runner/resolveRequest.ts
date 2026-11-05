@@ -3,6 +3,7 @@ import { ParameterError, resolveParameters } from '../generators/resolveParamete
 import { expandIncludes, type IncludedRoutineRef } from '../library/includeExpander.js';
 import type { ExplorationRequest, ExplorationStep, RunnableLeaf, RunnableStep } from '../schemas/explorationRequest.schema.js';
 import type { ParameterRecord } from '../schemas/parameters.schema.js';
+import { DEFAULT_HTTP_METHODS, type HttpMethod } from '../schemas/httpMethods.js';
 import { someStep } from '../schemas/stepTree.js';
 import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
@@ -18,6 +19,17 @@ export { RequestResolutionError };
 
 /** Id of the include the profile's login gets (T8.1); its steps become `autologin.<stepId>`. */
 export const AUTO_LOGIN_ID = 'autologin';
+
+/** T5.7: the methods of every httpRequest in the (expanded) steps and teardown, branches included. */
+function httpMethodsUsed(request: { steps: readonly object[]; teardown?: readonly object[] }): string[] {
+  const methods: string[] = [];
+  someStep([...request.steps, ...(request.teardown ?? [])], (step) => {
+    const candidate = step as { action: string; method?: string };
+    if (candidate.action === 'httpRequest' && candidate.method) methods.push(candidate.method.toUpperCase());
+    return false;
+  });
+  return methods;
+}
 
 /** True when a step types a vault value: the run logs itself in. */
 function typesCredential(steps: RunnableStep[]): boolean {
@@ -58,6 +70,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   autoLogin?: { routineId: string; version: number; gate: boolean };
   /** T3.1: where the profile says the build id lives; probed after the run when the caller gave no `buildId`. */
   buildProbe?: { info: BuildInfo; baseUrl: string };
+  /** T5.7: the methods an `httpRequest` step may use (the target profile's `http.allowedMethods`; absent = GET and HEAD). */
+  httpMethods?: HttpMethod[];
 };
 
 /**
@@ -75,6 +89,7 @@ export async function resolveExplorationRequest(
   let allowedSets: string[] | undefined;
   let buildProbe: ResolvedExplorationRequest['buildProbe'];
   let faultsForbiddenBy: string | undefined;
+  let httpMethods: HttpMethod[] | undefined;
   let maxSessionsPerCredential = 1;
   let autoLoginSource: { routineId: string; gate?: { urlContains: string; timeoutMs: number } } | undefined;
 
@@ -88,6 +103,7 @@ export async function resolveExplorationRequest(
     allowedSets = profile.credentialSets;
     maxSessionsPerCredential = profile.flags.maxSessionsPerCredential ?? 1;
     faultsForbiddenBy = profile.environment === 'staging' && !profile.flags.allowFaults ? profile.id : undefined;
+    httpMethods = profile.http?.allowedMethods;
     // T8.1: a genexus profile logs in for you when the run uses one of its credential sets (platform npdev: rules still to be gathered with that team).
     if (profile.platform === 'genexus' && profile.loginRoutine && request.credentialSet !== undefined && request.options.autoLogin !== false) {
       autoLoginSource = { routineId: profile.loginRoutine, ...(profile.loginGate ? { gate: profile.loginGate } : {}) };
@@ -135,6 +151,16 @@ export async function resolveExplorationRequest(
       `Target profile "${faultsForbiddenBy}" is a staging environment and does not set flags.allowFaults; injectFault is refused`,
     );
   }
+  // T5.7: an httpRequest may only use the methods the profile lists (default GET/HEAD); checked after the includes are expanded, before any browser starts.
+  const allowedHttp: readonly string[] = httpMethods ?? DEFAULT_HTTP_METHODS;
+  const refused = httpMethodsUsed(expanded).filter((method) => !allowedHttp.includes(method));
+  if (refused.length > 0) {
+    throw new RequestResolutionError(
+      403,
+      'HttpMethodNotAllowed',
+      `httpRequest uses ${[...new Set(refused)].join(', ')}, which ${request.targetProfile ? `target profile "${request.targetProfile}" does not allow` : 'a run without a target profile does not allow'} (allowed: ${allowedHttp.join(', ')}); list the methods in the profile's http.allowedMethods`,
+    );
+  }
   // T5.3: parameters and inline generators become concrete values (the seed is returned, so a run can be replayed).
   let parameterized: ReturnType<typeof resolveParameters<RunnableStep>>;
   try {
@@ -171,6 +197,7 @@ export async function resolveExplorationRequest(
     targetUrl,
     steps: parameterized.steps,
     ...(buildProbe ? { buildProbe } : {}),
+    ...(httpMethods ? { httpMethods } : {}),
     ...(autoLogin ? { autoLogin } : {}),
     // The schema keeps `parallel` out of a teardown (and the expander re-checks the expanded list), so these are all leaf steps.
     ...(parameterized.teardown && parameterized.teardown.length > 0 ? { teardown: parameterized.teardown as RunnableLeaf[] } : {}),

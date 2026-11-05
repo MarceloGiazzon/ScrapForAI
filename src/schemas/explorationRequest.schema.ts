@@ -4,10 +4,11 @@ import { env } from '../config/env.js';
 import { MAX_EXPRESSION_CHARS, parseExpression } from '../oracle/expression.js';
 import { A11Y_FAIL_ON, ACCESSIBILITY_STANDARDS } from './accessibility.schema.js';
 import { docStepSchema } from './docStep.schema.js';
+import { HTTP_MAX_REQUEST_BODY_CHARS, HTTP_METHODS, HTTP_SENSITIVE_RESPONSE_HEADERS } from './httpMethods.js';
 import { PII_SURFACES } from '../security/piiDetectors.js';
 import { PII_FAIL_LEVELS } from '../security/piiFindings.js';
 import { checkedGeneratorSchema, parameterName, parametersSchema, parameterValuesSchema, sampleIndexSchema, seedSchema } from './parameters.schema.js';
-import { countSteps, extractedNameOf, leafSteps, PARALLEL_ACTION, someStep, walkSteps, walkWithPath } from './stepTree.js';
+import { countSteps, extractedNamesOf, leafSteps, PARALLEL_ACTION, someStep, walkSteps, walkWithPath } from './stepTree.js';
 
 export const safeName = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 /** Build/revision label of the application under test, e.g. "rev4519" or "2026.11/rc1". */
@@ -421,6 +422,47 @@ const scanForPiiStep = z
     timeoutMs: stepTimeout,
   })
   .strict();
+// T5.7: one HTTP call made with the run's own session (the browser context's cookies), without a page: for server rules that need volume, not a UI.
+// Same allowlist as a navigation (a path like "/api/x" resolves against the run's target URL); redirects are NOT followed (a 3xx is the answer); the
+// profile decides which methods are allowed (default GET/HEAD); the caller sets no header but `contentType` (an Authorization header would be a secret
+// in a routine), and the body is a literal (a vault value is refused at save, as everywhere). Nothing of the call reaches the page's network evidence:
+// the answer is `extracted[name]` = { method, pathname, status, contentType, bytes } plus each `extract` entry (a JSON path or a response header).
+// Fails when the status is not in `expectStatus` (default: any 2xx).
+const httpExtractSchema = z
+  .object({ name: safeName, json: z.string().min(1).max(500).optional(), header: z.string().regex(/^[A-Za-z0-9-]{1,100}$/).optional() })
+  .strict()
+  .refine((entry) => (entry.json === undefined) !== (entry.header === undefined), { message: 'an extract entry needs exactly one of json or header' })
+  .refine((entry) => entry.header === undefined || !HTTP_SENSITIVE_RESPONSE_HEADERS.includes(entry.header.toLowerCase()), {
+    message: 'that response header carries a session or credential and cannot be extracted',
+  });
+const httpRequestStep = z
+  .object({
+    ...baseStep,
+    action: z.literal('httpRequest'),
+    name: safeName,
+    method: z.enum(HTTP_METHODS),
+    url: z.string().min(1).max(2048),
+    body: z.string().max(HTTP_MAX_REQUEST_BODY_CHARS).optional(),
+    /** Default application/json when there is a body. */
+    contentType: z.string().regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).max(100).optional(),
+    expectStatus: z.array(z.number().int().min(100).max(599)).min(1).max(20).optional(),
+    extract: z.array(httpExtractSchema).min(1).max(20).optional(),
+    timeoutMs: stepTimeout,
+  })
+  .strict()
+  .superRefine((step, ctx) => {
+    if (step.body !== undefined && (step.method === 'GET' || step.method === 'HEAD')) {
+      ctx.addIssue({ code: 'custom', path: ['body'], message: `${step.method} carries no body` });
+    }
+    if (step.contentType !== undefined && step.body === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['contentType'], message: 'contentType only goes with a body' });
+    }
+    const seen = new Set<string>([step.name]);
+    (step.extract ?? []).forEach((entry, index) => {
+      if (seen.has(entry.name)) ctx.addIssue({ code: 'custom', path: ['extract', index, 'name'], message: `"${entry.name}" is already used by this step (its name or another extract entry)` });
+      seen.add(entry.name);
+    });
+  });
 const extractTextStep = z.object({ ...baseStep, action: z.literal('extractText'), selector, name: safeName, timeoutMs: stepTimeout }).strict();
 const extractAttributeStep = z
   .object({ ...baseStep, action: z.literal('extractAttribute'), selector, attribute: safeName, name: safeName, timeoutMs: stepTimeout })
@@ -517,6 +559,7 @@ const leafStepOptions = [
   assertNoTextMatchesStep,
   scanForPiiStep,
   setClockStep,
+  httpRequestStep,
   extractTextStep,
   extractAttributeStep,
   evaluateStep,
@@ -908,17 +951,17 @@ function validateParallelBlock(step: Extract<AnyStep, { action: 'parallel' }>, p
   const writer = new Map<string, number>();
   step.branches.forEach((branch, b) => {
     for (const leaf of leafSteps(branch as readonly object[])) {
-      const name = extractedNameOf(leaf);
-      if (name === undefined) continue;
-      const other = writer.get(name);
-      if (other !== undefined && other !== b) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, 'branches', b],
-          message: `branches ${other} and ${b} both extract "${name}": the value would depend on which branch finishes last; use a different name in each`,
-        });
-      } else {
-        writer.set(name, b);
+      for (const name of extractedNamesOf(leaf)) {
+        const other = writer.get(name);
+        if (other !== undefined && other !== b) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [...path, 'branches', b],
+            message: `branches ${other} and ${b} both extract "${name}": the value would depend on which branch finishes last; use a different name in each`,
+          });
+        } else {
+          writer.set(name, b);
+        }
       }
     }
   });

@@ -1094,6 +1094,12 @@ gerada.
   difíceis de reproduzir fora da página. Isso é prático para os endpoints REST do NPDev (ver o
   item MON-13 do ledger), não necessariamente para GeneXus.
 
+> **Implementado (2026-11-05).** Step `httpRequest { name, method, url, body?, contentType?, expectStatus?, extract? }`: usa o cliente `request` do contexto (cookies da sessão do ator), a URL passa por
+> `validateTargetUrl` (o cliente HTTP não passa pela camada de roteamento, então essa checagem é a allowlist inteira), **redirecionamento não é seguido**, método só se estiver em `http.allowedMethods` do
+> perfil (padrão GET/HEAD; recusa `403 HttpMethodNotAllowed` antes do browser abrir e de novo no runner), nenhum cabeçalho do chamador além de `contentType`, corpo literal com lint de segredo, resposta
+> nunca copiada (só status, tipo, tamanho e os escalares pedidos por JSON path ou cabeçalho; `Set-Cookie` não pode ser extraído). **Fica de fora:** valores de parâmetro/variável dentro do corpo (alto volume por
+> amostras ainda não), tokens anti-CSRF, multipart, cabeçalhos de requisição. Não rodado contra um endpoint REST real do NPDev: só a fixture (`test/http-request.smoke.ts`).
+
 ### 🚦 Portão G2
 
 Após a trilha recomendada até o item 8 (§0.5): o valor interno está comprovado? Existe ao menos

@@ -26,6 +26,7 @@ import { validateTargetUrl } from '../security/validateTargetUrl.js';
 import { applyNoiseFilters, noiseRulesFor } from '../targets/platformRules.js';
 import { getTarget } from '../targets/targetStore.js';
 import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
+import { executeHttpRequest } from './httpRequest.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import { extractStructure } from './extractStructure.js';
 import { createFaultController, type FaultController, usesFaults } from './faults.js';
@@ -833,6 +834,20 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
                 ...(step.fastForwardMs === undefined ? {} : { fastForwardMs: step.fastForwardMs }),
               });
             }
+            break;
+          }
+          case 'httpRequest': {
+            // T5.7: the call goes through the browser context's own request client, so the actor's cookies travel with it (see src/runner/httpRequest.ts).
+            const outcome = await executeHttpRequest({
+              client: session.ctx.context.request,
+              step,
+              baseUrl: normalizedTargetUrl,
+              allowedMethods: request.httpMethods,
+              timeoutMs: timeout,
+            });
+            extracted[step.name] = redactSecrets(outcome.summary, knownSecrets) as unknown as JsonValue;
+            for (const [name, value] of Object.entries(outcome.values)) extracted[name] = redactSecrets(value, knownSecrets) as unknown as JsonValue;
+            if (outcome.failure) throw new StepExecutionError(`httpRequest: ${outcome.failure}`);
             break;
           }
           case 'extractText':
