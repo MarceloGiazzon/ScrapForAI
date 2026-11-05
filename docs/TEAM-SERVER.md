@@ -34,6 +34,7 @@ scrapforai users delete ana
 - A person can have up to 10 active keys (one per machine or tool). Keys can expire.
 - Use the key as `Authorization: Bearer <key>`, in the CLI's `.env` (`SCRAPFORAI_API_KEY=`), in the MCP server's `.env` (an agent should have its **own `runner` key**: then the audit log says what the agent did), or paste it in the web console's sign-in box.
 - The web console signs in with the same key. The session **is the person**: their role is read again on every request, so a demotion, a disabled user or a revoked key is seen at once, not at the end of the session.
+- **Team screen** (web console > Team, admins only): the same operations without the CLI. Reading (people, keys, the audit log, "verify the chain") uses your session; **every change asks for an admin API key**, typed in the box at the top of the screen and sent as a Bearer token, because a browser session alone can never create a person or a key. The key is held in the page's memory only: never stored, forgotten after 5 minutes without use, when you leave, or when the server rejects it. A new key is shown once, with a Copy button, and is wiped from the page when you hide it.
 - Reserved ids: `root` (the `.env` key), `system`, `scheduler`, `anonymous`.
 
 ## Audit log
@@ -72,4 +73,4 @@ docker compose -f docker-compose.team.yml up -d --build
 - **No SSO, no passwords, no two-factor:** the key is the identity. Keys are long and random, there is no lockout beyond the rate limit on sign-in (10 per 15 minutes per address) and general limits.
 - **Nobody can approve their own work:** not implemented (the roadmap's "four eyes" for sending a bug report or pinning is a decision for a person with an admin key, but one admin can do both).
 - The installation key (`root`) is **not** a user: it cannot be disabled from the API (rotate it in `.env` and restart). Treat it as the break-glass key and use personal admin keys day to day.
-- Not done: a Team screen in the web console (the CLI and the API are the interface), audit log rotation, signed audit entries, per-target roles, and showing who started a run in the run history (the audit log has it, under the `jobId`).
+- Not done: audit log rotation, signed audit entries, per-target roles, and showing who started a run in the run history (the audit log has it, under the `jobId`).

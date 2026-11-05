@@ -162,3 +162,7 @@ td.wrap { white-space: normal; min-width: 220px; }
 .bar-none { fill: var(--border); }
 .bar-partial { opacity: .45; }
 .chart-label { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+
+/* Team screen (T10.1): classes only, the CSP forbids inline style. */
+.card .card { background: var(--bg); }
+td select { padding: 4px 8px; }

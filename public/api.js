@@ -7,17 +7,22 @@
 const UI_HEADER = 'X-ScrapForAI-UI';
 
 export async function apiFetch(pathname, options = {}) {
-  const headers = new Headers(options.headers ?? {});
+  const { bearer, ...fetchOptions } = options;
+  const headers = new Headers(fetchOptions.headers ?? {});
+
+  // An admin's key typed for ONE change (the Team screen): sent as a Bearer token, never stored. A wrong key answers 401, which must
+  // show as an error on the page and not bounce the person to the sign-in form.
+  if (bearer) headers.set('Authorization', `Bearer ${bearer}`);
 
   // Required by the server's CSRF check on cookie-authenticated state changes.
   headers.set(UI_HEADER, '1');
-  if (options.body && !headers.has('Content-Type')) {
+  if (fetchOptions.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(pathname, { ...options, headers, credentials: 'same-origin' });
+  const response = await fetch(pathname, { ...fetchOptions, headers, credentials: 'same-origin' });
 
-  if (response.status === 401 && !pathname.startsWith('/v1/auth/')) {
+  if (response.status === 401 && !bearer && !pathname.startsWith('/v1/auth/')) {
     window.location.href = '/ui/login.html';
     throw new Error('Not authenticated');
   }
@@ -29,6 +34,8 @@ export async function apiFetch(pathname, options = {}) {
     const message = payload?.error?.message ?? `Request failed (${response.status})`;
     const error = new Error(message);
     error.details = payload?.error?.details ?? [];
+    error.status = response.status;
+    error.type = payload?.error?.type;
     throw error;
   }
 

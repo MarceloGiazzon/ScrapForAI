@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Team</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="executive.html">Executive</a>
+      <a href="health.html">Health</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="config.html">Configuration</a>
+      <a href="team.html">Team</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Team</h2>
+      <p class="muted" id="team-me">Loading…</p>
+      <p class="muted">The people who may use this server, their roles and personal API keys, and the log of what they did. <strong>viewer</strong> reads; <strong>runner</strong> also starts runs and saves routines; <strong>admin</strong> also manages people and reads this log. Reading works with your session. <strong>Every change needs an admin's API key</strong>, typed below: a browser session alone can never create a person or a key. The key is kept in this page's memory only (never stored), and forgotten after 5 minutes without use or when you leave.</p>
+      <div id="team-banner"></div>
+    </div>
+
+    <div id="team-admin" class="hidden">
+      <div class="card">
+        <h2>Admin key for changes</h2>
+        <form id="key-form" class="filters" autocomplete="off">
+          <input type="password" id="admin-key" placeholder="Admin API key" autocomplete="off" spellcheck="false" aria-label="Admin API key">
+          <button type="submit">Use for changes</button>
+          <button type="button" class="secondary hidden" id="key-forget">Forget key</button>
+          <span class="muted" id="key-state">No key: this screen only reads.</span>
+        </form>
+      </div>
+
+      <div class="card hidden" id="new-key-card">
+        <h2>New API key</h2>
+        <div class="warn-banner">Copy this key now. It is shown only once and cannot be read again. Keep it out of routines, tickets and chat.</div>
+        <p class="muted" id="new-key-for"></p>
+        <div class="filters">
+          <input type="text" id="new-key-value" class="mono" readonly size="60" aria-label="New API key">
+          <button type="button" id="new-key-copy">Copy</button>
+          <button type="button" class="secondary" id="new-key-done">I have copied it, hide it</button>
+        </div>
+        <p class="muted" id="new-key-copied"></p>
+      </div>
+
+      <div class="card">
+        <h2>People</h2>
+        <p class="muted" id="team-summary"></p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Id</th><th>Name</th><th>Role</th><th>State</th><th>Keys</th><th>Created</th><th></th></tr></thead>
+          <tbody id="people"></tbody>
+        </table></div>
+        <div id="person-detail"></div>
+        <h3>Add a person</h3>
+        <form id="add-form" class="filters" autocomplete="off">
+          <input type="text" id="add-id" placeholder="id (e.g. ana)" required pattern="[a-z0-9][a-z0-9._\-]{0,59}" aria-label="User id">
+          <input type="text" id="add-name" placeholder="Name" required maxlength="120" aria-label="Name">
+          <select id="add-role" aria-label="Role">
+            <option value="viewer">viewer</option>
+            <option value="runner">runner</option>
+            <option value="admin">admin</option>
+          </select>
+          <button type="submit">Create and show key</button>
+        </form>
+        <p class="muted">Lower-case letters, digits and . _ - in the id. The person gets a first key now; more can be added later.</p>
+        <p class="login-error hidden" id="team-error"></p>
+      </div>
+
+      <div class="card">
+        <h2>Audit log</h2>
+        <p class="muted">Every change by a signed-in person, every sign-in, failed sign-in and refusal: who, how, which path (never the query), the answer, and the ids it created. Reads are not recorded; neither are bodies, headers or keys.</p>
+        <div class="filters">
+          <input type="text" id="audit-user" placeholder="User id" aria-label="Filter by user">
+          <input type="text" id="audit-area" placeholder="Area (team, credentials…)" aria-label="Filter by area">
+          <select id="audit-event" aria-label="Filter by event">
+            <option value="">All events</option>
+            <option value="request">changes</option>
+            <option value="auth.login">sign-ins</option>
+            <option value="auth.failed">failed sign-ins</option>
+            <option value="auth.denied">refusals</option>
+          </select>
+          <button type="button" id="audit-search">Search</button>
+          <button type="button" class="secondary" id="audit-verify">Verify the chain</button>
+        </div>
+        <div id="audit-verdict"></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>#</th><th>When</th><th>Who</th><th>Event</th><th>Request</th><th>Status</th><th>Details</th></tr></thead>
+          <tbody id="audit-rows"></tbody>
+        </table></div>
+        <div class="pager"><button type="button" class="secondary" id="audit-older">Older</button><span class="muted" id="audit-count"></span></div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="team.js"></script>
+</body>
+</html>
