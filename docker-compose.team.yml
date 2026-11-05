@@ -1,0 +1,55 @@
+# Team server (T10.1): ScrapForAI on a host that is always on, for several people, behind a TLS reverse proxy.
+#
+#   cp .env.example .env     # set SCRAPFORAI_API_KEY (the installation's own admin key), ALLOWED_TARGET_ORIGINS, ...
+#   SCRAPFORAI_DOMAIN=scrap.example.com docker compose -f docker-compose.team.yml up -d --build
+#   scrapforai users create ana --role runner --url https://scrap.example.com      # prints her key ONCE
+#
+# What differs from docker-compose.yml (one machine, one person):
+#   - the API is NOT published on the host: only the proxy (Caddy, automatic HTTPS) reaches it, so every client arrives over TLS;
+#   - TRUST_PROXY=1: the address in the audit log and the rate limits are the client's, not the proxy's; the session cookie gets Secure;
+#   - all settings come from .env (env_file), so a setting added later does not need a line here; the lines below only pin what a
+#     container needs to be right (listen on all interfaces, the data volume, production mode);
+#   - the data directory is a named volume: it holds the credential vault, users.json (key HASHES), audit/ and the signing key. BACK IT UP,
+#     and keep SCRAPFORAI_VAULT_KEY (in .env) somewhere that is not that volume.
+# See docs/TEAM-SERVER.md.
+services:
+  scrapforai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      SCRAPFORAI_DATA_DIR: /app/data
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      UI_ENABLED: "true"
+      # The scheduler is the reason to have an always-on host; turn it off here if nobody has schedules yet.
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+    expose:
+      - "3000"
+    volumes:
+      - scrapforai-data:/app/data
+    # Chromium inside a container: a real init process reaps its children, and /dev/shm is too small by default.
+    init: true
+    shm_size: "1gb"
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2
+    environment:
+      SCRAPFORAI_DOMAIN: ${SCRAPFORAI_DOMAIN:?set SCRAPFORAI_DOMAIN to the host name people will use}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - scrapforai
+    restart: unless-stopped
+
+volumes:
+  scrapforai-data:
+  caddy-data:

@@ -321,6 +321,8 @@ Everything before it is the setup, run in order as always; the block holds only 
   state) and add `assertNoTextMatches { selector?, kinds?, contains? }`: it fails if a stack trace, exception class, SQL error or server path is on screen (it does not accept your regular expression). Faults only
   touch allowlisted origins, are listed in `evidence.routing` with `handledBy: 'fault'`, and end before the `teardown`. A `staging` profile refuses them unless a person set `flags.allowFaults`. Starting points:
   `templates/routines/chaos-*.routine.json`.
+- On a **team server** your key (the one in the MCP server's `.env`) belongs to a role: `viewer` only reads, `runner` also runs and saves routines, `admin` also does what needs the API key. A `403 InsufficientRole` means ask a person
+  for the right role; do not look for a way around it. Everything you change is in the audit log under your key's user. You cannot manage people or keys.
 - To test a **server rule without a page** (a calculation, a REST endpoint of an NPDev app), use `httpRequest { name, method, url, body?, expectStatus?, extract?: [{ name, json | header }] }` AFTER the login: it uses the
   session's cookies, `url` may be a path (`/api/price`), a redirect is NOT followed (a 3xx is the answer), and the answer is never copied, only `extracted[name]` = `{ status, contentType, bytes, ... }` and the scalars you
   `extract` (`json: 'a.b[0].c'` or a `header`; not Set-Cookie). Compare a number with `assertEquals`. Only GET/HEAD unless a person listed more in the target profile's `http.allowedMethods` (otherwise 403

@@ -1,0 +1,24 @@
+# Reverse proxy of the team server (docker-compose.team.yml). Caddy gets and renews the certificate by itself.
+# On an internal network without a public name, replace the site address with `https://scrap.internal.example:443` and add `tls internal`
+# (people then have to trust Caddy's local CA), or terminate TLS with your own proxy and set TRUST_PROXY to the number of proxies in front.
+{$SCRAPFORAI_DOMAIN} {
+	encode zstd gzip
+
+	# A run request is JSON; screenshots and reports come back, not go up.
+	request_body {
+		max_size 2MB
+	}
+
+	# GET /v1/suites/:id?wait=55 long-polls: do not cut an idle response.
+	reverse_proxy scrapforai:3000 {
+		flush_interval -1
+		transport http {
+			response_header_timeout 120s
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+}

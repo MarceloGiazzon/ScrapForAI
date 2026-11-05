@@ -147,6 +147,16 @@ export function signingDir(): string {
   return path.join(dataDir(), 'signing');
 }
 
+/** Team server (T10.1): users.json = people, roles and the HASHES of their API keys. */
+export function teamDir(): string {
+  return path.join(dataDir(), 'team');
+}
+
+/** Team server (T10.1): audit.jsonl, an append-only, hash-chained log of who did what. Never pruned by the server. */
+export function auditDir(): string {
+  return path.join(dataDir(), 'audit');
+}
+
 /** Target profiles: one <id>.json per profile (T1.1). */
 export function targetsDir(): string {
   return path.join(dataDir(), 'targets');

@@ -32,6 +32,7 @@ import { differentialsRouter } from './routes/differentials.routes.js';
 import { shrinksRouter } from './routes/shrinks.routes.js';
 import { startScheduler } from './scheduler/runtime.js';
 import { suitesRouter } from './routes/suites.routes.js';
+import { auditRouter, teamRouter } from './routes/team.routes.js';
 import { targetsRouter } from './routes/targets.routes.js';
 import { metricsRouter } from './routes/metrics.routes.js';
 import { executiveRouter } from './routes/executive.routes.js';
@@ -55,6 +56,9 @@ const logger = pino({
 });
 
 const app = express();
+if (env.TRUST_PROXY > 0) {
+  app.set('trust proxy', env.TRUST_PROXY);
+}
 
 app.use(
   helmet({
@@ -146,6 +150,8 @@ app.use('/v1/explorations/inspect-dom', explorationLimiter, domInspectionRouter)
 
 app.use('/v1/runs', runsRouter);
 app.use('/v1/config', configRouter);
+app.use('/v1/team', teamRouter);
+app.use('/v1/audit', auditRouter);
 app.use('/v1/status', statusRouter);
 app.post('/v1/suites', explorationLimiter); // starting a suite drives browsers, like /v1/explorations
 app.use('/v1/suites', suitesRouter);

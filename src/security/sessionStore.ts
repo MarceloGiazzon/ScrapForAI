@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { env } from '../config/env.js';
+import { masterPrincipal, type Principal } from '../team/principal.js';
 
 /**
  * In-memory session store.
@@ -13,6 +14,8 @@ import { env } from '../config/env.js';
 interface Session {
   createdAt: number;
   expiresAt: number;
+  /** Who signed in (T10.1). A session never outlives the person: apiAuth re-checks that user and key on every request. */
+  principal: Principal;
 }
 
 const sessions = new Map<string, Session>();
@@ -27,34 +30,51 @@ function sweepExpired(now: number): void {
   }
 }
 
-export function createSession(): { token: string; maxAgeSeconds: number } {
+export function createSession(principal: Principal = masterPrincipal('session')): { token: string; maxAgeSeconds: number } {
   const now = Date.now();
   sweepExpired(now);
 
   const maxAgeSeconds = env.SESSION_TTL_MINUTES * 60;
   const token = crypto.randomBytes(32).toString('base64url');
 
-  sessions.set(token, { createdAt: now, expiresAt: now + maxAgeSeconds * 1000 });
+  sessions.set(token, { createdAt: now, expiresAt: now + maxAgeSeconds * 1000, principal: { ...principal, via: 'session' } });
 
   return { token, maxAgeSeconds };
 }
 
-export function isValidSession(token: string | undefined): boolean {
+/** The person a live session belongs to, or undefined (no such session, or it expired). */
+export function getSessionPrincipal(token: string | undefined): Principal | undefined {
   if (!token) {
-    return false;
+    return undefined;
   }
 
   const session = sessions.get(token);
   if (!session) {
-    return false;
+    return undefined;
   }
 
   if (session.expiresAt <= Date.now()) {
     sessions.delete(token);
-    return false;
+    return undefined;
   }
 
-  return true;
+  return session.principal;
+}
+
+export function isValidSession(token: string | undefined): boolean {
+  return getSessionPrincipal(token) !== undefined;
+}
+
+/** Ends every session of a user (disabled, deleted, key revoked): the next request would fail the re-check anyway; this also frees the memory. */
+export function destroySessionsOf(userId: string): number {
+  let ended = 0;
+  for (const [token, session] of sessions) {
+    if (session.principal.userId === userId) {
+      sessions.delete(token);
+      ended += 1;
+    }
+  }
+  return ended;
 }
 
 export function destroySession(token: string | undefined): void {

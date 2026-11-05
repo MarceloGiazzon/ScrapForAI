@@ -155,6 +155,13 @@ export const envSchema = z.object({
   UI_ENABLED: booleanFromEnv,
   SESSION_TTL_MINUTES: integerFromEnv.default(480),
 
+  // --- Team server (T10.1) ---
+  // How many reverse proxies (a TLS terminator, a load balancer) sit in front of this server. 0 = none: the connection's own address is the
+  // client's. With N > 0 the client address is read from X-Forwarded-For (N hops from the right) and "arrived over TLS" from X-Forwarded-Proto:
+  // that decides the rate limit buckets, the address in the audit log and the Secure flag of the session cookie. Set it ONLY when a proxy
+  // really is there, otherwise a client could write its own address.
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
+
   // Optional: resolved after parsing (see below) so the default can be platform-aware.
   ARTIFACT_DIR: z.string().min(1).optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

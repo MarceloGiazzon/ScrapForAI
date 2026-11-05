@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
 
 import { env, envSchema, getLiveAllowedOrigins } from '../config/env.js';
-import { hasValidBearerToken } from '../security/apiAuth.js';
+import { isBearerAdmin } from '../security/apiAuth.js';
 
 export const configRouter = Router();
 
@@ -170,7 +170,7 @@ configRouter.put('/', async (req, res, next) => {
     const rejected: Array<{ key: string; reason: string }> = [];
     const accepted: Record<string, string> = {};
 
-    const privileged = hasValidBearerToken(req);
+    const privileged = isBearerAdmin(req);
 
     for (const [key, rawValue] of entries) {
       if (!EDITABLE_KEYS.has(key)) {

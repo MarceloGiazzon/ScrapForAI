@@ -1,0 +1,75 @@
+# Team server (T10.1)
+
+ScrapForAI started as one person with one API key. A team needs to know **who** did something, to give people **different powers**, and to take one person's access away **without changing everybody's**. This is what T10.1 adds: personal API keys, three roles, an audit log, and a Docker deployment for a host that stays on.
+
+Nothing changes for a single user: the key in `.env` (`SCRAPFORAI_API_KEY`) keeps working and is now the installation's own admin, called `root`.
+
+## Roles
+
+| Role | Can | Cannot |
+|---|---|---|
+| `viewer` | Read: history, reports, evidence, health, executive panel, performance, vault items, metadata of credential sets | Start anything; change anything |
+| `runner` | Everything a viewer can, plus start runs, `inspect_dom`, suites, shrinks, differentials, permission matrices, save routines, run vault items, draft bug reports, dismiss/resolve them | The writes that need the API key (below); manage people; read the audit log; change the configuration |
+| `admin` | Everything, including the writes that need the API key, `/v1/team` and `/v1/audit`, and changing the configuration | |
+
+The writes that need an **admin's key sent as a Bearer token** (a web-console session is never enough, whatever the role): the credential vault (`/v1/credentials`), target profiles, pinning evidence, schedules, webhooks, integrations, sending a bug report, saving or proving a regression-vault item (`PUT /v1/vault/:id`, `add-from-run`, `confirm-green`), manual builds, and all of `/v1/team`. A `runner` who tries gets `403 InsufficientRole`; a session gets `403 BearerTokenRequired`.
+
+The policy is one function, `requiredRole()` in `src/team/roles.ts`, with a test table (`test/team.test.ts`).
+
+## People and keys
+
+```
+scrapforai users create ana --role runner --name "Ana Silva"   # prints her key ONCE
+scrapforai users list
+scrapforai users set ana --role viewer          # takes effect on her very next request, sessions included
+scrapforai users set ana --disabled true        # out now; her sessions end
+scrapforai users key-create ana --label laptop --expires 2027-06-30T00:00:00Z
+scrapforai users key-revoke ana <keyId>
+scrapforai users delete ana
+```
+
+(Run them with the `root` key or an admin's key in the CLI's `.env`. The same operations are `POST|PATCH|DELETE /v1/team/users[/:id[/keys[/:keyId]]]`.)
+
+- A key looks like `sfa_<keyId>_<secret>`. The `keyId` is public (it names the key in lists and in the audit log); the secret is 256 random bits. The server stores only the **SHA-256 of the key** in `<dataDir>/team/users.json`. The key is shown **once**, in the answer that creates it, with `Cache-Control: no-store`; nothing afterwards can show it again. A lost key is revoked and replaced.
+- A person can have up to 10 active keys (one per machine or tool). Keys can expire.
+- Use the key as `Authorization: Bearer <key>`, in the CLI's `.env` (`SCRAPFORAI_API_KEY=`), in the MCP server's `.env` (an agent should have its **own `runner` key**: then the audit log says what the agent did), or paste it in the web console's sign-in box.
+- The web console signs in with the same key. The session **is the person**: their role is read again on every request, so a demotion, a disabled user or a revoked key is seen at once, not at the end of the session.
+- Reserved ids: `root` (the `.env` key), `system`, `scheduler`, `anonymous`.
+
+## Audit log
+
+`<dataDir>/audit/audit.jsonl`, one line per event, never pruned by the server. `scrapforai audit [--user u] [--area credentials] [--method PUT] [--since ISO] [--limit N]`, `GET /v1/audit`.
+
+Recorded: every **change** (non-GET) by a signed-in person (who, role, how, which key, from which address, method, path **without the query**, status, and the ids the answer created: `jobId`, `suiteRunId`, ... so "who ran what" leads to the evidence), sign-ins, failed sign-ins, refusals (`auth.denied`). Reads are not recorded.
+**Never** recorded: request bodies, headers, query strings, keys, credential values.
+
+Each line carries `seq`, `prev` and `hash` (a chain). `scrapforai audit verify` (`GET /v1/audit/verify`) walks it: a line that was **edited** or one **removed from the middle** is found (exit 1).
+
+What the chain does **not** do: detect lines cut off the **end** of the file, or a file rewritten end to end by someone who owns the data directory. It is tamper-*evident* for honest operations, not a witness against the machine's owner. For that, copy the log off the host regularly (and note `lastSeq`/`lastHash` from `audit verify`).
+Also: if a write fails (a full disk) the request still succeeds and `[audit]` is printed on stderr; that missing line is not visible in the chain. A flood of failed sign-ins is written at most 60 per minute.
+Runs started by the **scheduler** are not requests and are not in this log (their history is the schedule's). Creating or editing the schedule is.
+
+## Deploying on an always-on host
+
+```
+cp .env.example .env        # SCRAPFORAI_API_KEY (strong, random), ALLOWED_TARGET_ORIGINS, SCRAPFORAI_VAULT_KEY (recommended), ...
+export SCRAPFORAI_DOMAIN=scrap.example.com
+docker compose -f docker-compose.team.yml up -d --build
+```
+
+`docker-compose.team.yml` runs the API (not published) behind Caddy (`deploy/Caddyfile`, automatic HTTPS). Why each choice:
+
+- **TLS in front, API not published:** a key crosses the network with every request. `TRUST_PROXY=1` makes the audit log and the rate limits use the client's address and gives the session cookie `Secure`. Set `TRUST_PROXY` only when a proxy really is in front.
+- **`env_file: .env`:** every setting of `.env.example` applies; the compose file only pins what a container needs (listen on `0.0.0.0`, the data volume, production).
+- **One named volume** for the data directory: credential vault, `users.json`, `audit/`, evidence, signing key, schedules. Back it up. Keep `SCRAPFORAI_VAULT_KEY` **outside** that volume, or the vault key sits next to what it protects.
+- `HEALTHCHECK` in the `Dockerfile`; `init: true` and `shm_size: 1gb` because Chromium needs them in a container.
+- Turn on the scheduler (`SCHEDULER_ENABLED=true`, the default in this file) only if somebody has schedules: it is the reason to have a host that stays on.
+
+## Limits to know before giving keys out
+
+- **A `runner` can use any credential set** of any target profile (the values are never shown, and each set is bound to its origins, but nothing says *who* may use which set). Credential sets per person is not built.
+- **A `viewer` can read evidence**: screenshots, reports, `vault/export`, signed evidence exports. Evidence is dev/QA data by design; if a run's screenshot is sensitive, `viewer` is too much.
+- **No SSO, no passwords, no two-factor:** the key is the identity. Keys are long and random, there is no lockout beyond the rate limit on sign-in (10 per 15 minutes per address) and general limits.
+- **Nobody can approve their own work:** not implemented (the roadmap's "four eyes" for sending a bug report or pinning is a decision for a person with an admin key, but one admin can do both).
+- The installation key (`root`) is **not** a user: it cannot be disabled from the API (rotate it in `.env` and restart). Treat it as the break-glass key and use personal admin keys day to day.
+- Not done: a Team screen in the web console (the CLI and the API are the interface), audit log rotation, signed audit entries, per-target roles, and showing who started a run in the run history (the audit log has it, under the `jobId`).

@@ -255,6 +255,9 @@ export const cliEvolutionTimelineSchema = z
   .passthrough();
 export const cliEvolutionExpectedSchema = z.object({ buildId: z.string(), expected: z.array(z.unknown()) }).passthrough();
 
+/** `users ...` and `audit` (T10.1). A key appears only in the answer of the command that makes it. */
+const cliTeamResultSchema = z.object({}).passthrough();
+
 const success = <C extends string, R extends z.ZodTypeAny>(command: C, result: R) =>
   z.object({ ...header, command: z.literal(command), exitCode, result }).strict();
 
@@ -317,6 +320,14 @@ export const cliOutputSchema = z.union([
   success('evolution diff', cliEvolutionDiffSchema),
   success('evolution timeline', cliEvolutionTimelineSchema),
   success('evolution expected', cliEvolutionExpectedSchema),
+  success('users list', cliTeamResultSchema),
+  success('users create', cliTeamResultSchema),
+  success('users set', cliTeamResultSchema),
+  success('users delete', cliTeamResultSchema),
+  success('users key-create', cliTeamResultSchema),
+  success('users key-revoke', cliTeamResultSchema),
+  success('audit', cliTeamResultSchema),
+  success('audit verify', cliTeamResultSchema),
   cliErrorOutputSchema,
 ]);
 

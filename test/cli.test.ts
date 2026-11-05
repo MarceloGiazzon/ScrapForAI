@@ -321,7 +321,7 @@ test('routines lint: errors are exit 1, warnings are 0 (1 with --strict), a file
 
 test('the published JSON Schema of the CLI output exists and describes every command', () => {
   const schema = buildCliOutputJsonSchema() as { anyOf?: unknown[] };
-  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 49);
+  assert.ok(Array.isArray(schema.anyOf) && schema.anyOf.length === 57);
   assert.match(JSON.stringify(schema), /"cliSchema"/);
 });
 
@@ -1472,4 +1472,89 @@ test('integrations list / show / test: the destination and whether there is a to
     assert.equal((await cli(args)).code, 2, args.join(' '));
     assert.equal(seen.length, 0);
   }
+});
+
+const teamUser = (over: Record<string, unknown> = {}) => ({
+  id: 'ana', name: 'Ana', role: 'runner', disabled: false, createdAt: '2026-11-05T10:00:00.000Z', createdBy: 'root',
+  keys: [{ id: 'abcdef012345', createdAt: '2026-11-05T10:00:00.000Z', active: true }],
+  ...over,
+});
+
+test('users: list/create/set/delete/key-create/key-revoke call the team API with the bearer; a key is printed once and never needed as an argument', async () => {
+  handler = (_req, respond) => respond(200, { users: [teamUser(), teamUser({ id: 'old', role: 'viewer', disabled: true, keys: [] })] });
+  const list = await cli(['users', 'list']);
+  assert.match(list.stdout, /on\s+ana\s+runner\s+Ana\s+keys: 1 active/);
+  assert.match(list.stdout, /off\s+old\s+viewer/);
+  assert.equal(validJson((await cli(['users', 'list', '--json'])).stdout).command, 'users list');
+  assert.equal(seen.at(-1)!.url, '/v1/team/users');
+
+  const KEY = 'sfa_abcdef012345_' + 'k'.repeat(43);
+  handler = (_req, respond) => respond(201, { user: teamUser(), key: KEY, notice: 'Copy this key now' });
+  const created = await cli(['users', 'create', 'ana', '--role', 'runner', '--name', 'Ana']);
+  assert.equal(created.code, 0);
+  assert.ok(created.stdout.includes(KEY) && /shown only now/.test(created.stdout));
+  assert.deepEqual(seen.at(-1)!.body, { id: 'ana', name: 'Ana', role: 'runner' });
+  assert.equal(seen.at(-1)!.method, 'POST');
+  assert.match(seen.at(-1)!.auth ?? '', /^Bearer .+/);
+  assert.equal(validJson((await cli(['users', 'create', 'ana', '--role', 'runner', '--json'])).stdout).command, 'users create');
+
+  handler = (_req, respond) => respond(200, teamUser({ role: 'viewer', disabled: true }));
+  const changed = await cli(['users', 'set', 'ana', '--role', 'viewer', '--disabled', 'true']);
+  assert.equal(changed.code, 0);
+  assert.equal(seen.at(-1)!.method, 'PATCH');
+  assert.deepEqual(seen.at(-1)!.body, { role: 'viewer', disabled: true });
+
+  handler = (_req, respond) => respond(200, { deleted: 'ana' });
+  assert.equal((await cli(['users', 'delete', 'ana'])).code, 0);
+  assert.equal(seen.at(-1)!.method, 'DELETE');
+  assert.equal(seen.at(-1)!.url, '/v1/team/users/ana');
+
+  handler = (_req, respond) => respond(201, { key: KEY, keyId: 'abcdef012345', view: {}, notice: 'Copy this key now' });
+  const key = await cli(['users', 'key-create', 'ana', '--label', 'laptop', '--expires', '2027-01-01T00:00:00Z']);
+  assert.ok(key.stdout.includes(KEY));
+  assert.deepEqual(seen.at(-1)!.body, { label: 'laptop', expiresAt: '2027-01-01T00:00:00Z' });
+
+  handler = (_req, respond) => respond(200, { id: 'abcdef012345', createdAt: 'x', active: false });
+  assert.equal((await cli(['users', 'key-revoke', 'ana', 'abcdef012345'])).code, 0);
+  assert.equal(seen.at(-1)!.url, '/v1/team/users/ana/keys/abcdef012345');
+
+  handler = (_req, respond) => respond(403, { error: { type: 'InsufficientRole', message: 'This operation needs an admin key; this key is runner' } });
+  const refused = await cli(['users', 'list']);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /InsufficientRole/);
+
+  for (const args of [['users'], ['users', 'create', 'ana'], ['users', 'set', 'ana'], ['users', 'set', 'ana', '--disabled', 'maybe'], ['users', 'key-revoke', 'ana'], ['users', 'delete']]) {
+    seen.length = 0;
+    const bad = await cli(args);
+    assert.equal(bad.code, 2, args.join(' '));
+    assert.equal(seen.length, 0, `${args.join(' ')} never reached the API`);
+  }
+});
+
+test('audit: filters go to the API; verify exits 1 when the chain is broken', async () => {
+  handler = (_req, respond) =>
+    respond(200, {
+      hasMore: true,
+      entries: [
+        { seq: 7, at: '2026-11-05T10:00:00.000Z', event: 'request', actor: { userId: 'ana', role: 'runner', via: 'bearer' }, method: 'POST', path: '/v1/explorations/run', status: 200, refs: { jobId: 'job-1' } },
+        { seq: 6, at: '2026-11-05T09:59:00.000Z', event: 'auth.failed', status: 401, detail: { via: 'bearer' } },
+      ],
+    });
+  const log = await cli(['audit', '--user', 'ana', '--area', 'explorations', '--limit', '2']);
+  assert.match(log.stdout, /7\s+2026-11-05T10:00:00.000Z\s+ana\(runner\)\s+POST \/v1\/explorations\/run 200\s+jobId=job-1/);
+  assert.match(log.stdout, /auth\.failed 401/);
+  assert.match(log.stdout, /more: use --before/);
+  assert.equal(seen.at(-1)!.url, '/v1/audit?user=ana&area=explorations&limit=2');
+  assert.equal(validJson((await cli(['audit', '--json'])).stdout).command, 'audit');
+
+  handler = (_req, respond) => respond(200, { ok: true, entries: 12, lastSeq: 12, lastHash: 'x', problems: [] });
+  const intact = await cli(['audit', 'verify']);
+  assert.equal(intact.code, 0);
+  assert.match(intact.stdout, /intact: 12 entries/);
+
+  handler = (_req, respond) => respond(200, { ok: false, entries: 12, lastSeq: 12, lastHash: 'x', problems: [{ seq: 4, problem: 'its content does not match its hash: the line was edited' }] });
+  const broken = await cli(['audit', 'verify', '--json']);
+  assert.equal(broken.code, 1);
+  assert.equal(validJson(broken.stdout).command, 'audit verify');
+  assert.match((await cli(['audit', 'verify'])).stdout, /DOES NOT VERIFY[\s\S]*#4/);
 });

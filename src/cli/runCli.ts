@@ -60,6 +60,11 @@ Commands
   differential --from-jobs <leftJobId> <rightJobId> [--time-ratio N]
                                     (the same routines against two targets, or two runs that already happened, and what differs: step status, extracted values,
                                      new console errors, network shape, time. Exit 0 same, 1 different, 2 a side could not run. The routine must open its target with goto "$targetUrl")
+  users list | create <id> --role viewer|runner|admin [--name n] | set <id> [--role r] [--name n] [--disabled true|false] | delete <id>
+        | key-create <id> [--label l] [--expires ISO] | key-revoke <id> <keyId>
+                                    (the team of a shared server, admin key only: a key is printed ONCE when it is made and never again. Roles: viewer reads, runner also runs, admin also manages)
+  audit [--user u] [--method M] [--area a] [--event e] [--since ISO] [--limit N] [--before seq]   (who did what, newest first)
+  audit verify                      (walks the hash chain of the audit log; exit 1 if a line was edited or removed from the middle)
   schedules list | show <id> | run-now <id>     (stored schedules, their next occurrences and history; run-now needs SCHEDULER_ENABLED)
   webhooks list | show <id> | test <id>        (notification channels: where a schedule says "it broke" / "it is fixed"; test sends a harmless message, exit 2 if it did not arrive)
   integrations list | show <id> | test <id>   (issue trackers a bug report can go to; test reads the repository with the stored token and creates nothing, exit 2 if it cannot)
@@ -146,7 +151,7 @@ function errorOf(response: ApiResponse): CliError {
 function createApi(config: CliConfig, io: CliIo) {
   const doFetch = io.fetch ?? fetch;
 
-  return async function api(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown, timeoutMs = config.requestTimeoutMs): Promise<ApiResponse> {
+  return async function api(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown, timeoutMs = config.requestTimeoutMs): Promise<ApiResponse> {
     let response: Response;
     try {
       response = await doFetch(new URL(path, config.baseUrl), {
@@ -377,7 +382,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
     }
 
     const second = argv[1] && !argv[1].startsWith('-') ? argv[1] : undefined;
-    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' ? `${command} ${second ?? ''}`.trim() : command;
+    command = command === 'routines' || command === 'runs' || command === 'vault' || command === 'evidence' || command === 'permissions' || command === 'evolution' || command === 'schedules' || command === 'webhooks' || command === 'integrations' || command === 'bug-report' || command === 'perf' || command === 'flaky' || command === 'manual' || command === 'users' ? `${command} ${second ?? ''}`.trim() : command === 'audit' && second === 'verify' ? 'audit verify' : command;
     const rest = argv.slice(command.includes(' ') ? 2 : 1);
 
     const common = { json: { type: 'boolean' }, url: { type: 'string' } } as const;
@@ -1031,6 +1036,129 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       if (values.out) await io.writeFile!(values.out, Buffer.from(body.markdown, 'utf8'));
       emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'summary', exitCode: 0, result: body as never }, values.out ? `Summary written to ${values.out}\n` : body.markdown);
       return 0;
+    }
+
+    if (command.startsWith('users ') || command === 'audit' || command === 'audit verify') {
+      // T10.1: the team. Creating a user or a key prints the key ONCE (the server never shows it again); it is never an argument.
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: {
+          ...common,
+          role: { type: 'string' },
+          name: { type: 'string' },
+          disabled: { type: 'string' },
+          label: { type: 'string' },
+          expires: { type: 'string' },
+          user: { type: 'string' },
+          method: { type: 'string' },
+          area: { type: 'string' },
+          event: { type: 'string' },
+          since: { type: 'string' },
+          limit: { type: 'string' },
+          before: { type: 'string' },
+        },
+      });
+      asJson = values.json === true;
+      const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
+      const fail = (response: ApiResponse): never => {
+        throw errorOf(response);
+      };
+
+      if (command === 'audit') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai audit [--user u] [--method M] [--area a] [--event e] [--since ISO] [--limit N] [--before seq] | audit verify');
+        const query = new URLSearchParams();
+        for (const key of ['user', 'method', 'area', 'event', 'since', 'limit', 'before'] as const) if (values[key] !== undefined) query.set(key, values[key]!);
+        const response = await api('GET', `/v1/audit${query.size > 0 ? `?${query.toString()}` : ''}`);
+        if (response.status !== 200) fail(response);
+        const body = response.body as { entries: Array<Record<string, any>>; hasMore: boolean };
+        const lines = body.entries.map(
+          (entry) =>
+            `${entry.seq}  ${entry.at}  ${(entry.actor ? `${entry.actor.userId}(${entry.actor.role})` : '-').padEnd(18)} ${entry.event === 'request' ? `${entry.method} ${entry.path} ${entry.status}` : `${entry.event}${entry.path ? ` ${entry.method} ${entry.path}` : ''}${entry.status ? ` ${entry.status}` : ''}`}${entry.refs ? `  ${Object.entries(entry.refs).map(([k, v]) => `${k}=${v}`).join(' ')}` : ''}${entry.detail ? `  ${JSON.stringify(entry.detail)}` : ''}`,
+        );
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'audit', exitCode: 0, result: body as never }, `${lines.length === 0 ? 'No entries.' : lines.join('\n')}${body.hasMore ? '\n(more: use --before <seq> of the last line)' : ''}\n`);
+        return 0;
+      }
+
+      if (command === 'audit verify') {
+        const response = await api('GET', '/v1/audit/verify');
+        if (response.status !== 200) fail(response);
+        const body = response.body as { ok: boolean; entries: number; lastSeq: number; problems: Array<{ seq: number | null; problem: string }> };
+        const exitCode: ExitCode = body.ok ? 0 : 1;
+        emit(
+          { cliSchema: CLI_SCHEMA_VERSION, command: 'audit verify', exitCode, result: body as never },
+          `${body.ok ? `The audit chain is intact: ${body.entries} entries, up to #${body.lastSeq}.` : `THE AUDIT LOG DOES NOT VERIFY:\n${body.problems.map((problem) => `  #${problem.seq ?? '?'}: ${problem.problem}`).join('\n')}`}\n`,
+        );
+        return exitCode;
+      }
+
+      const printKey = (text: string, body: { key: string; notice?: string }): string => `${text}\n\nAPI KEY (shown only now):\n  ${body.key}\n\n${body.notice ?? ''}\n`;
+      const userLine = (user: Record<string, any>): string =>
+        `${user.disabled ? 'off' : 'on '}  ${String(user.id).padEnd(20)} ${String(user.role).padEnd(7)} ${user.name}  keys: ${(user.keys as Array<{ active: boolean }>).filter((key) => key.active).length} active`;
+
+      if (command === 'users list') {
+        if (positionals.length !== 0) throw new CliError('UsageError', 'usage: scrapforai users list');
+        const response = await api('GET', '/v1/team/users');
+        if (response.status !== 200) fail(response);
+        const body = response.body as { users: Array<Record<string, any>> };
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users list', exitCode: 0, result: body as never }, `${body.users.length === 0 ? 'No users (the key in .env acts as root).' : body.users.map(userLine).join('\n')}\n`);
+        return 0;
+      }
+
+      const [id, keyId] = positionals;
+      if (command === 'users create') {
+        if (!id || positionals.length !== 1 || !values.role) throw new CliError('UsageError', 'usage: scrapforai users create <id> --role viewer|runner|admin [--name "Full name"]');
+        const response = await api('POST', '/v1/team/users', { id, name: values.name ?? id, role: values.role });
+        if (response.status !== 201) fail(response);
+        const body = response.body as { user: Record<string, any>; key: string; notice?: string };
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users create', exitCode: 0, result: body as never }, printKey(`Created ${body.user.id} (${body.user.role}).`, body));
+        return 0;
+      }
+
+      if (command === 'users set') {
+        if (!id || positionals.length !== 1 || (values.role === undefined && values.name === undefined && values.disabled === undefined)) {
+          throw new CliError('UsageError', 'usage: scrapforai users set <id> [--role r] [--name n] [--disabled true|false]');
+        }
+        if (values.disabled !== undefined && values.disabled !== 'true' && values.disabled !== 'false') throw new CliError('UsageError', '--disabled must be true or false');
+        const response = await api('PATCH', `/v1/team/users/${encodeURIComponent(id)}`, {
+          ...(values.role === undefined ? {} : { role: values.role }),
+          ...(values.name === undefined ? {} : { name: values.name }),
+          ...(values.disabled === undefined ? {} : { disabled: values.disabled === 'true' }),
+        });
+        if (response.status !== 200) fail(response);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users set', exitCode: 0, result: response.body as never }, `${userLine(response.body as Record<string, any>)}\n`);
+        return 0;
+      }
+
+      if (command === 'users delete') {
+        if (!id || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai users delete <id>');
+        const response = await api('DELETE', `/v1/team/users/${encodeURIComponent(id)}`);
+        if (response.status !== 200) fail(response);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users delete', exitCode: 0, result: response.body as never }, `Deleted ${id}; their keys and sessions stopped working.\n`);
+        return 0;
+      }
+
+      if (command === 'users key-create') {
+        if (!id || positionals.length !== 1) throw new CliError('UsageError', 'usage: scrapforai users key-create <id> [--label text] [--expires ISO-time-with-zone]');
+        const response = await api('POST', `/v1/team/users/${encodeURIComponent(id)}/keys`, {
+          ...(values.label === undefined ? {} : { label: values.label }),
+          ...(values.expires === undefined ? {} : { expiresAt: values.expires }),
+        });
+        if (response.status !== 201) fail(response);
+        const body = response.body as { key: string; keyId: string; notice?: string };
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users key-create', exitCode: 0, result: body as never }, printKey(`New key ${body.keyId} for ${id}.`, body));
+        return 0;
+      }
+
+      if (command === 'users key-revoke') {
+        if (!id || !keyId || positionals.length !== 2) throw new CliError('UsageError', 'usage: scrapforai users key-revoke <id> <keyId>');
+        const response = await api('DELETE', `/v1/team/users/${encodeURIComponent(id)}/keys/${encodeURIComponent(keyId)}`);
+        if (response.status !== 200) fail(response);
+        emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'users key-revoke', exitCode: 0, result: response.body as never }, `Key ${keyId} of ${id} revoked.\n`);
+        return 0;
+      }
+
+      throw new CliError('UsageError', 'usage: scrapforai users list | create | set | delete | key-create | key-revoke; scrapforai audit [verify]');
     }
 
     if (command === 'webhooks list' || command === 'webhooks show' || command === 'webhooks test') {
