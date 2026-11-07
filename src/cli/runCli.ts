@@ -119,10 +119,12 @@ Commands
                                     (per catalogue screen: value-free inventory + screenshot into SYSTEM_EVOLUTION_DIR/<target>/<date>_<build>/,
                                      committed to git when that directory is a repository; exit 0 complete, 2 anything else)
   evolution list <target>           (the snapshots stored for a target, oldest first)
-  evolution diff <target> [--from ref] [--to ref] [--write] [--narrative-file <file|->]
+  evolution diff <target> [--from ref] [--to ref] [--write] [--narrative-file <file|->] [--fail-on-a11y-new]
                                     (what changed between two builds, default the last two; ref = build id, 'latest' or 'previous'.
                                      --write puts CHANGES.md next to the newer snapshot; a narrative is labelled AI-generated.
-                                     Exit 1 when the newer build declared its expected changes and others happened)
+                                     Exit 1 when the newer build declared its expected changes and others happened.
+                                     --fail-on-a11y-new also exits 1 on an accessibility violation the older build did not have; when
+                                     nothing could be compared (no audit, first audit, another WCAG level) it exits 2, never "clean")
   evolution timeline <target> [--screen id] [--key control] [--since YYYY-MM-DD] [--limit N]
                                     (when each control appeared, changed or went away)
   evolution expected <target> <buildId> [--file <expected.json|->]
@@ -184,6 +186,33 @@ function createApi(config: CliConfig, io: CliIo) {
 }
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+
+/**
+ * T7.5, `evolution diff --fail-on-a11y-new`: what the accessibility part of a diff lets a gate say.
+ * `new` = a violation the older build did not have (wins over everything else). `unknown` = the diff cannot vouch for "clean": nobody
+ * audited, no screen was audited in BOTH builds (a first audit is a baseline, not a comparison), a pair is not comparable (another WCAG
+ * level or scope), or a screen audited before no longer is. An empty list must never read as "checked everywhere", so `unknown` is
+ * exit 2, not 0.
+ */
+export function accessibilityGate(diff: Record<string, any>): { verdict: 'clean' | 'new' | 'unknown'; reason?: string } {
+  const a11y = diff.accessibility as { screensCompared: number; new: number; fixed: number; notComparable: number } | undefined;
+  const screens = (Array.isArray(diff.screens) ? diff.screens : []) as Array<{ id: string; accessibility?: { status: string; delta?: { new?: unknown[] } } }>;
+  const idsWith = (status: string): string[] => screens.filter((screen) => screen.accessibility?.status === status).map((screen) => screen.id);
+
+  if (a11y && a11y.new > 0) {
+    const where = screens.filter((screen) => (screen.accessibility?.delta?.new?.length ?? 0) > 0).map((screen) => screen.id);
+    return { verdict: 'new', reason: `${a11y.new} new accessibility violation(s)${where.length > 0 ? ` on ${where.join(', ')}` : ''}` };
+  }
+  if (!a11y) return { verdict: 'unknown', reason: 'neither snapshot audited accessibility (take them with "evolution snapshot --accessibility"), so there is nothing to compare' };
+
+  const problems: string[] = [];
+  if (a11y.screensCompared === 0) problems.push('no screen was audited in both builds (a first audit is a baseline, not a comparison)');
+  const notComparable = idsWith('not-comparable');
+  if (notComparable.length > 0) problems.push(`not comparable (another WCAG level or scope): ${notComparable.join(', ')}`);
+  const lost = idsWith('no-longer-audited');
+  if (lost.length > 0) problems.push(`audited before, not in the newer build: ${lost.join(', ')}`);
+  return problems.length > 0 ? { verdict: 'unknown', reason: `cannot say "no new violation": ${problems.join('; ')}` } : { verdict: 'clean' };
+}
 
 function formatRun(result: Record<string, any>): { json: CliOutput & { command: 'run' }; text: string; exitCode: ExitCode } {
   const steps: Array<{ status: string; action?: string }> = result.steps ?? [];
@@ -522,6 +551,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
           to: { type: 'string' },
           write: { type: 'boolean' },
           'narrative-file': { type: 'string' },
+          'fail-on-a11y-new': { type: 'boolean' },
           screen: { type: 'string' },
           key: { type: 'string' },
           since: { type: 'string' },
@@ -530,6 +560,7 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
         },
       });
       asJson = values.json === true;
+      if (values['fail-on-a11y-new'] && command !== 'evolution diff') throw new CliError('UsageError', '--fail-on-a11y-new belongs to "evolution diff"');
       const api = createApi(values.url ? { ...config, baseUrl: values.url } : config, io);
       const [target, buildId] = positionals;
       const readSource = async (source: string, what: string): Promise<string> => {
@@ -609,8 +640,13 @@ export async function runCli(argv: string[], config: CliConfig, io: CliIo): Prom
       }
 
       // Exit 1 only when the newer build DECLARED its changes and something else changed: an unplanned change is a finding.
-      const exitCode: ExitCode = diff.classified === true && diff.counts.unexpected > 0 ? 1 : 0;
-      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution diff', exitCode, result: diff as never }, `${String(diff.markdown)}${note}`);
+      const unplanned = diff.classified === true && diff.counts.unexpected > 0;
+      // T7.5: with --fail-on-a11y-new a violation the older build did not have is a finding too; "could not compare" is exit 2, never a pass.
+      const gate = values['fail-on-a11y-new'] ? accessibilityGate(diff) : undefined;
+      const exitCode: ExitCode = unplanned || gate?.verdict === 'new' ? 1 : gate?.verdict === 'unknown' ? 2 : 0;
+      const gateLine = gate ? `Accessibility gate (--fail-on-a11y-new): ${gate.verdict === 'clean' ? 'no new violation' : gate.reason}\n` : '';
+      if (gate && gate.verdict !== 'clean' && asJson) io.err(`accessibility gate: ${gate.reason}\n`);
+      emit({ cliSchema: CLI_SCHEMA_VERSION, command: 'evolution diff', exitCode, result: diff as never }, `${String(diff.markdown)}${note}${gate ? `\n${gateLine}` : ''}`);
       return exitCode;
     }
 

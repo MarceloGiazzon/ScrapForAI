@@ -594,6 +594,61 @@ test('evolution diff: prints the deterministic text; exit 1 only when a DECLARED
   assert.match(refused.stderr, /NoPreviousSnapshot/);
 });
 
+test('evolution diff --fail-on-a11y-new: a new violation is exit 1; nothing comparable is exit 2, never a quiet pass', async () => {
+  const withA11y = (accessibility: Record<string, unknown> | undefined, screens: Array<Record<string, unknown>>, classified = false, unexpected = 0) => ({
+    ...evoDiff(classified, unexpected),
+    screens: screens.map((screen) => ({ name: screen.id, changes: [], truncated: false, ...screen })),
+    ...(accessibility ? { accessibility } : {}),
+  });
+  const compared = (id: string, news: number) => ({ id, name: id, status: 'unchanged', changes: [], truncated: false, accessibility: { status: 'compared', standard: 'wcag2aa', delta: { new: Array.from({ length: news }, () => ({})), fixed: [], unchanged: [] } } });
+  const gate = (extra: string[] = []) => cli(['evolution', 'diff', 'app', '--fail-on-a11y-new', ...extra]);
+
+  // A new violation: exit 1, and it says where.
+  handler = (_req, respond) => respond(200, withA11y({ screensCompared: 2, new: 2, fixed: 0, notComparable: 0 }, [compared('customers', 2), compared('orders', 0)]));
+  const red = await gate();
+  assert.equal(red.code, 1);
+  assert.match(red.stdout, /Accessibility gate \(--fail-on-a11y-new\): 2 new accessibility violation\(s\) on customers/);
+
+  // Compared and nothing new (fixed ones are good news): exit 0. Without the flag the same diff never gates.
+  handler = (_req, respond) => respond(200, withA11y({ screensCompared: 1, new: 0, fixed: 3, notComparable: 0 }, [compared('customers', 0)]));
+  const clean = await gate();
+  assert.equal(clean.code, 0);
+  assert.match(clean.stdout, /no new violation/);
+
+  // A new violation does not need the flag to exist in the diff, but only the flag turns it into an exit code.
+  handler = (_req, respond) => respond(200, withA11y({ screensCompared: 1, new: 1, fixed: 0, notComparable: 0 }, [compared('customers', 1)]));
+  assert.equal((await cli(['evolution', 'diff', 'app'])).code, 0, 'no flag, no gate');
+
+  // Cannot say "clean": nobody audited / only a first audit / another WCAG level / an audit that went away -> exit 2 and the reason.
+  const cases: Array<[string, Record<string, unknown> | undefined, Array<Record<string, unknown>>, RegExp]> = [
+    ['no audit at all', undefined, [{ id: 'customers', name: 'Customers', status: 'unchanged', changes: [], truncated: false }], /neither snapshot audited accessibility/],
+    ['first audit only', { screensCompared: 0, new: 0, fixed: 0, notComparable: 0 }, [{ id: 'customers', status: 'unchanged', accessibility: { status: 'first-audit' } }], /no screen was audited in both builds/],
+    ['another level', { screensCompared: 1, new: 0, fixed: 0, notComparable: 1 }, [compared('customers', 0), { id: 'orders', status: 'unchanged', accessibility: { status: 'not-comparable' } }], /not comparable .*: orders/],
+    ['audit went away', { screensCompared: 1, new: 0, fixed: 0, notComparable: 0 }, [compared('customers', 0), { id: 'orders', status: 'unchanged', accessibility: { status: 'no-longer-audited' } }], /not in the newer build: orders/],
+  ];
+  for (const [label, accessibility, screens, reason] of cases) {
+    handler = (_req, respond) => respond(200, withA11y(accessibility, screens));
+    const unknown = await gate();
+    assert.equal(unknown.code, 2, label);
+    assert.match(unknown.stdout, reason, label);
+    const asJson = await gate(['--json']);
+    assert.equal(asJson.code, 2, label);
+    assert.match(asJson.stderr, /accessibility gate: cannot say|accessibility gate: neither/, `${label}: with --json the reason goes to stderr`);
+    assert.equal(validJson(asJson.stdout).exitCode, 2);
+  }
+
+  // A new violation still wins over a part that could not be compared; an unplanned structural change wins over "unknown".
+  handler = (_req, respond) => respond(200, withA11y({ screensCompared: 1, new: 1, fixed: 0, notComparable: 1 }, [compared('customers', 1), { id: 'orders', status: 'unchanged', accessibility: { status: 'not-comparable' } }]));
+  assert.equal((await gate()).code, 1);
+  handler = (_req, respond) => respond(200, withA11y(undefined, [], true, 1));
+  assert.equal((await gate()).code, 1);
+
+  // The flag is for "evolution diff" only.
+  const wrongCommand = await cli(['evolution', 'timeline', 'app', '--fail-on-a11y-new']);
+  assert.equal(wrongCommand.code, 2);
+  assert.match(wrongCommand.stderr, /belongs to "evolution diff"/);
+});
+
 test('evolution diff --write / --narrative-file: reads the diff, then asks the server to write CHANGES.md with the agent text', async () => {
   handler = (req, respond) =>
     req.method === 'GET'
