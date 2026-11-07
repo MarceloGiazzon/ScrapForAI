@@ -62,6 +62,13 @@ export interface Strings {
   syntheticTag: string;
   syntheticNote: string;
   replayHint: string;
+  caseTables: string;
+  caseTable: string;
+  tableVersion: string;
+  tableRowUsed: string;
+  tableRows: string;
+  tableDigest: string;
+  tableHint: string;
   simulatedTitle: string;
   clockFixed: string;
   clockInstall: string;
@@ -173,6 +180,13 @@ const en: Strings = {
   syntheticTag: 'synthetic',
   syntheticNote: "Synthetic data: the generated identity documents are made up but carry correct check digits, so one may coincide with a real person's or company's. Use only in dev/QA environments.",
   replayHint: 'Run again with the same seed and sample to reproduce these values.',
+  caseTables: 'Case tables',
+  caseTable: 'Table',
+  tableVersion: 'Version',
+  tableRowUsed: 'Row used',
+  tableRows: 'Rows',
+  tableDigest: 'SHA-256',
+  tableHint: 'The values typed and the expected result of this run come from the row shown. The version and the digest identify the exact table that ran.',
   simulatedTitle: 'Simulated conditions',
   clockFixed: 'Browser clock fixed at',
   clockInstall: 'Browser clock started at',
@@ -284,6 +298,13 @@ const pt: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Dados sintéticos: os documentos gerados são inventados, mas têm dígitos verificadores corretos, então um deles pode coincidir com o de uma pessoa ou empresa real. Use apenas em ambientes de dev/QA.',
   replayHint: 'Execute de novo com a mesma semente e amostra para reproduzir estes valores.',
+  caseTables: 'Tabelas de casos',
+  caseTable: 'Tabela',
+  tableVersion: 'Versão',
+  tableRowUsed: 'Linha usada',
+  tableRows: 'Linhas',
+  tableDigest: 'SHA-256',
+  tableHint: 'Os valores digitados e o resultado esperado desta execução vêm da linha indicada. A versão e o resumo (hash) identificam a tabela exata que foi usada.',
   simulatedTitle: 'Condições simuladas',
   clockFixed: 'Relógio do navegador fixado em',
   clockInstall: 'Relógio do navegador iniciado em',
@@ -395,6 +416,13 @@ const es: Strings = {
   syntheticTag: 'sintético',
   syntheticNote: 'Datos sintéticos: los documentos generados son inventados pero tienen dígitos verificadores correctos, por lo que uno puede coincidir con el de una persona o empresa real. Úselos solo en entornos de dev/QA.',
   replayHint: 'Ejecute de nuevo con la misma semilla y muestra para reproducir estos valores.',
+  caseTables: 'Tablas de casos',
+  caseTable: 'Tabla',
+  tableVersion: 'Versión',
+  tableRowUsed: 'Fila usada',
+  tableRows: 'Filas',
+  tableDigest: 'SHA-256',
+  tableHint: 'Los valores escritos y el resultado esperado de esta ejecución vienen de la fila indicada. La versión y el resumen (hash) identifican la tabla exacta que se usó.',
   simulatedTitle: 'Condiciones simuladas',
   clockFixed: 'Reloj del navegador fijado en',
   clockInstall: 'Reloj del navegador iniciado en',

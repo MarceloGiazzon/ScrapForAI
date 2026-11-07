@@ -159,6 +159,15 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
             },
           }
         : {}),
+      ...(result.tables && result.tables.length > 0
+        ? {
+            tables: result.tables.map((table) => ({
+              ...table,
+              // The row is the run's sample, wrapping past the last row (like any `cases`); unknown when the run recorded no sample.
+              ...(result.parameters ? { row: (result.parameters.sample % table.rows) + 1 } : {}),
+            })),
+          }
+        : {}),
       ...(simulated ? { simulated } : {}),
       ...(accessibility.length > 0 ? { accessibility } : {}),
       ...(privacy.length > 0 ? { privacy } : {}),

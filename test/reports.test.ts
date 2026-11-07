@@ -303,6 +303,32 @@ test('T7.8: a run that hunted for personal data shows the scan in every language
   assert.ok(!(await get('/v1/runs/job_rep1/report?lang=en')).text.includes('Privacy scan'));
 });
 
+test('T5.5: the report names the case table that ran (id, VERSION, row used, digest) in every language, escaped; a run with no table shows none', async () => {
+  const sha = 'abcdef0123456789'.repeat(4);
+  // Sample 12 on a table of 5 rows wraps to row 3 (12 % 5 = 2, 1-based 3), like `cases` do. The id is hostile on purpose.
+  await makeJob('job_rep_tbl', {
+    parameters: { seed: 'S1', sample: 12, values: { qty: '7' }, sources: { qty: { source: 'case', index: 2 } } },
+    tables: [{ id: 'price<b>-cases', version: 4, sha256: sha, rows: 5 }],
+  });
+  const en = (await get('/v1/runs/job_rep_tbl/report?lang=en')).text;
+  for (const expected of ['Test data', 'Case tables', 'price&lt;b&gt;-cases', '>v4<', '3 / 5', sha.slice(0, 16), 'The values typed and the expected result of this run come from the row shown']) {
+    assert.ok(en.includes(expected), `missing: ${expected}`);
+  }
+  assert.ok(!en.includes('price<b>-cases'), 'a table id is text, never markup');
+  assert.ok(!en.includes(sha), 'the digest is shortened in the page');
+  assert.ok((await get('/v1/runs/job_rep_tbl/report?lang=pt')).text.includes('Tabelas de casos'));
+  assert.ok((await get('/v1/runs/job_rep_tbl/report?lang=es')).text.includes('Tablas de casos'));
+
+  // A run that read a table but recorded no sample (the table only fed an assertEquals): the table is listed, no row is claimed, and there is no seed/sample block.
+  await makeJob('job_rep_tbl_only', { tables: [{ id: 'totals', version: 1, sha256: sha, rows: 3 }] });
+  const only = (await get('/v1/runs/job_rep_tbl_only/report?lang=en')).text;
+  assert.ok(only.includes('Case tables') && only.includes('totals') && only.includes('>v1<'));
+  assert.ok(!only.includes('Seed') && !only.includes('/ 3'), 'no seed, and no row is claimed when the sample is unknown');
+
+  const none = (await get('/v1/runs/job_rep1/report?lang=en')).text;
+  assert.ok(!none.includes('Case tables') && !none.includes('Test data'), 'a run without parameters or tables has no test-data section');
+});
+
 test('run report (T6.4): the step table and the screenshot captions say which actor, escaped; a run without actors shows no actor', async () => {
   await makeJob('job_rep_actors', {
     steps: [

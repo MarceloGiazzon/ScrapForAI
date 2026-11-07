@@ -70,6 +70,11 @@ export interface RunReportData {
   teardownStatus?: 'passed' | 'failed';
   /** T5.3: what the run's parameters took (only when it used any). */
   parameters?: { seed: string; sample: number; rows: Array<{ name: string; value: string; source: string; synthetic: boolean }> };
+  /**
+   * T5.5: the tables of cases the run read (id, the version that actually ran, its digest, row count). `row` (1-based) is the line of the
+   * CSV this run used; it is only known when the run recorded its sample, so a run that used a table only in `assertEquals` shows none.
+   */
+  tables?: Array<{ id: string; version: number; sha256: string; rows: number; row?: number }>;
   /** T7.2/T7.3: what the run changed on purpose: the browser's clock, and requests answered wrongly. Only when it did either. */
   simulated?: {
     clock: Array<{ mode: 'fixed' | 'install'; time: string; fastForwardMs?: number }>;
@@ -209,18 +214,36 @@ export function printable(value: string): string {
   return value.replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
-function parametersBlock(s: Strings, parameters: NonNullable<RunReportData['parameters']>): string {
-  const rows = parameters.rows
+/** The case tables a run read: which table, which VERSION, which row, and its digest (so a later edit of the table cannot be mistaken for the one that ran). */
+function tablesBlock(s: Strings, tables: NonNullable<RunReportData['tables']>): string {
+  const rows = tables
+    .map(
+      (table) =>
+        `<tr><td class="mono">${esc(clip(table.id, 100))}</td><td>v${esc(table.version)}</td><td>${table.row === undefined ? `<span class="muted">-</span>` : `${esc(table.row)} / ${esc(table.rows)}`}</td><td>${esc(table.rows)}</td><td class="mono">${esc(table.sha256.slice(0, 16))}</td></tr>`,
+    )
+    .join('');
+  return `<h3>${esc(s.caseTables)}</h3>
+<table><tr><th>${esc(s.caseTable)}</th><th>${esc(s.tableVersion)}</th><th>${esc(s.tableRowUsed)}</th><th>${esc(s.tableRows)}</th><th>${esc(s.tableDigest)}</th></tr>${rows}</table>
+<p class="muted">${esc(s.tableHint)}</p>`;
+}
+
+function testDataBlock(s: Strings, parameters: RunReportData['parameters'], tables: RunReportData['tables']): string {
+  const rows = (parameters?.rows ?? [])
     .map(
       (row) =>
         `<tr><td class="mono">${esc(row.name)}</td><td class="mono">${esc(clip(printable(row.value), 200)) || `<span class="muted">(${esc(s.none)})</span>`}${row.synthetic ? ` <span class="badge failed" style="background:#7a5a00">${esc(s.syntheticTag)}</span>` : ''}</td><td>${esc(row.source)}</td></tr>`,
     )
     .join('');
-  const synthetic = parameters.rows.some((row) => row.synthetic);
+  const synthetic = parameters?.rows.some((row) => row.synthetic) ?? false;
   return `<h2>${esc(s.testData)}</h2>
-<table class="meta"><tr><th>${esc(s.seed)}</th><td class="mono">${esc(parameters.seed)}</td></tr><tr><th>${esc(s.sample)}</th><td>${esc(parameters.sample)}</td></tr></table>
+${
+  parameters
+    ? `<table class="meta"><tr><th>${esc(s.seed)}</th><td class="mono">${esc(parameters.seed)}</td></tr><tr><th>${esc(s.sample)}</th><td>${esc(parameters.sample)}</td></tr></table>
 <table><tr><th>${esc(s.parameter)}</th><th>${esc(s.value)}</th><th>${esc(s.origin)}</th></tr>${rows}</table>
-<p class="muted">${esc(s.replayHint)}</p>
+<p class="muted">${esc(s.replayHint)}</p>`
+    : ''
+}
+${tables && tables.length > 0 ? tablesBlock(s, tables) : ''}
 ${synthetic ? `<div class="warn">${esc(s.syntheticNote)}</div>` : ''}`;
 }
 
@@ -391,7 +414,7 @@ ${
 }
 ${data.teardownStatus === 'failed' ? `<div class="warn">${esc(s.teardownFailed)}</div>` : ''}
 
-${data.parameters ? parametersBlock(s, data.parameters) : ''}
+${data.parameters || (data.tables && data.tables.length > 0) ? testDataBlock(s, data.parameters, data.tables) : ''}
 
 ${data.simulated ? simulatedBlock(s, data.simulated) : ''}
 
