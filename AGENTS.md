@@ -223,23 +223,18 @@ step limits, artifact retention, etc.).
   indexer) holds a file that was just written. Evidence reads and writes (manifest hash and read, `result.json`, screenshots for reports and
   snapshots, pin, export) and the atomic rename go through `retryTransient` / `readFileRetry` (6 attempts, growing pause; any other error is thrown
   at once) and the manifest is now written atomically. A retry prints `[fs] <code> on <file>, retry n/m` on stderr, and a manifest that still cannot be
-  written prints `[evidence] manifest of <job> could not be written` (the run still does not fail for it). **Why:** the full smoke suite failed in about
-  4 of 7 runs with an unrelated test each time ("evidence not found" right after a run: a screenshot unreadable, `evidenceAvailable` false, a missing
-  manifest), never in isolation; a real `EPERM` on a rename was captured in one run. After the change 3 consecutive full runs passed 52/52, with no
-  `[fs]` line in the last two, so the cause is the best explanation, not a proven one. **UPDATE: it came back** (`routine-library.smoke`, "No manifest for this run", 404) in
-  one full run after the fix, with NO `[fs]`/`[evidence]` line in the output, and passed 3 of 3 in isolation: so it is NOT (only) a transient EPERM. Still open (not seen again in two full runs on 2026-11-05).
-  `GET /v1/runs/:jobId/manifest` used to answer one 404 for three causes and swallow a read error without a trace (`.catch(() => undefined)`); it now says which one (no evidence folder / folder without
-  `manifest.json` / manifest unreadable) and the last two print `[evidence] ...` on stderr. If the failure comes back, that line (or its absence, which would point at `findJobDir`'s folder check) tells where to look.
-  **It came back once more** (third full smoke run of 2026-11-05, `parameters.smoke` "a generated CPF...": `buildRunReport` -> `EvidenceNotFound` for a run that had just finished, again with NO `[fs]`
-  line; the retention is 4 h and nothing else removes a folder, so it was not a prune). The two silent spots on that path now leave a trace and are hardened: `findJobDir` checks the folder with
-  `directoryExists` (`src/evidence/locate.ts`: `statSync`, ENOENT/ENOTDIR = absent, a transient code is retried 6 times and prints `[fs] ... on the folder of <job>`, anything else prints
-  `[evidence] could not check the folder of <job>: <code>`), and the report's `readJson` prints `[evidence] <file> of <job> could not be read: <code>` (a missing file stays quiet). Whether this
-  fixes it is NOT known: it was added because `existsSync` answering `false` for a transient `EPERM` is the one mechanism found that fits "no log line, never in isolation". If it recurs with one of
-  those lines, the cause is the one named; if it recurs with none, the cause is elsewhere (suspects left: `result.json` read while another process has it, a `JSON.parse` of a half-written file).
-  **It recurred with none** (fourth smoke run of the same day, `manual.smoke`: `FigureMissing`, "The figure of step open is not in the run's evidence", i.e. `resolveJobFile` answered undefined or the run did not list
-  the screenshot; no `[fs]`/`[evidence]` line), so the transient-`EPERM` explanation is WEAKENED, not confirmed. What is known: each failing file passes alone (`parameters` 3/3, `manual` 3/3, `parallel` 3/3,
-  `performance` 3/3), each full run fails in a different file, the machine is busy (Docker, java, VS Code) and the load-sensitive timing tests (`performance`, `parallel`) fail in the same runs. The manual's error now says
-  whether the run never listed the screenshot or the folder cannot be found. A full-suite failure is only worth chasing when it reproduces ALONE or names a cause in the log.
+  written prints `[evidence] manifest of <job> could not be written` (the run still does not fail for it). **Why it was added:** the full smoke suite failed in about
+  4 of 7 runs with an unrelated test each time ("evidence not found" right after a run), never in isolation, and a real `EPERM` on a rename was captured once. **It was NOT the main cause.**
+  **Root cause of the intermittent "evidence not found" (found 2026-11-07, fixed in `jobDirName`):** job ids are `job_${nanoid(12)}` and nanoid draws from `A-Za-z0-9_-`, so about one id in 64
+  ENDS in a hyphen; the evidence folder was named through `safeFileName`, which strips hyphens from both ends, so the folder was `job_abc` while the run reported `job_abc-` and every lookup by that
+  id (`findJobDir`, the manifest route, a report, a manual figure, a test reading `<ARTIFACT_DIR>/<result.jobId>`) missed it, with no log line, in a different file on every full run, and never alone
+  (1.6% of runs, not a timing race). The giveaway in the failure that exposed it: the path in the error had 11 characters after `job_` where a job id has 12. Now `createArtifactStore` names the folder
+  with the id itself (`jobDirName` in `src/artifacts/artifactStore.ts`; `JOB_ID_PATTERN` lives there and `locate.ts` re-exports it), and `test/artifact-store.test.ts` checks ids ending in `-`/`_` and 5000
+  generated ids. Evidence folders written before the fix for an id that ended in a hyphen keep the stripped name and stay unfindable (ephemeral: they expire in `ARTIFACT_RETENTION_HOURS`).
+  Kept from the earlier hunt, still useful: `GET /v1/runs/:jobId/manifest` says which of three 404 causes happened (no evidence folder / folder without `manifest.json` / manifest unreadable) and the last two print
+  `[evidence] ...`; `findJobDir` uses `directoryExists` (`src/evidence/locate.ts`: `statSync`, ENOENT/ENOTDIR = absent, a transient code is retried 6 times and prints `[fs] ... on the folder of <job>`, anything else
+  prints `[evidence] could not check the folder of <job>: <code>`); the report's `readJson` prints `[evidence] <file> of <job> could not be read: <code>`; the manual's `FigureMissing` says whether the run never listed
+  the screenshot or the folder cannot be found. **Still load-sensitive, and a different thing:** `performance.smoke` and `parallel.smoke` (timing) can fail in a busy full run and pass alone.
 - **Frames wait to exist** (`resolveFrameWhenReady` in `src/runner/runExploration.ts`): a step with `frame: { urlContains | name | index }` used to resolve the frame at the instant it started, and when the
   iframe was injected by the script of the click just before (a GeneXus prompt) the step raced the browser: it fell back to the MAIN frame and waited out its whole timeout for a selector that lives in the
   iframe (`gx-prompt-select` failed 2 of 2 on one run, 3 of 3 passing on another: the smoke looked flaky, the bug was the race). Now the frame is resolved AFTER the step's `delayMs`/`waitFor` and gets up to

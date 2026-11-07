@@ -24,6 +24,20 @@ export function safeFileName(name: string, fallback = 'artifact'): string {
   return cleaned || fallback;
 }
 
+/** Job ids are generated as job_<nanoid>; this is the only shape accepted from callers. */
+export const JOB_ID_PATTERN = /^job_[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * The name of the folder that holds a job's evidence: the job id itself. Every reader looks a run up by the id the run reported
+ * (`findJobDir`), so the folder MUST be called exactly that. It used to go through `safeFileName`, which strips hyphens from both
+ * ends, and `nanoid` draws from A-Za-z0-9_- : about one job id in 64 ends in a hyphen, so its folder was `job_abc` while the run
+ * said `job_abc-`, and the evidence "was not found" a moment after the run finished (the intermittent full-smoke failure).
+ * A job id already has a file-system-safe shape, so it is kept as it is; anything else is cleaned as before.
+ */
+export function jobDirName(jobId: string): string {
+  return JOB_ID_PATTERN.test(jobId) ? jobId : safeFileName(jobId, 'job');
+}
+
 function relativeArtifactPath(...parts: string[]): string {
   return path.posix.join('artifacts', ...parts);
 }
@@ -50,7 +64,7 @@ export function resolveArtifactPath(relativePath: string): string | undefined {
 }
 
 export async function createArtifactStore(jobId: string): Promise<ArtifactStore> {
-  const safeJobId = safeFileName(jobId, 'job');
+  const safeJobId = jobDirName(jobId);
   const rootDir = path.resolve(env.ARTIFACT_DIR, safeJobId);
   const artifactsRoot = path.resolve(env.ARTIFACT_DIR);
 

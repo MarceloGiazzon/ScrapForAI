@@ -1,7 +1,7 @@
 import { statSync } from 'node:fs';
 import path from 'node:path';
 
-import { isPathInside } from '../artifacts/artifactStore.js';
+import { isPathInside, JOB_ID_PATTERN } from '../artifacts/artifactStore.js';
 import { env } from '../config/env.js';
 import { pinnedEvidenceDir } from '../config/paths.js';
 import { TRANSIENT_FS_ERRORS } from '../storage/transientIo.js';
@@ -36,8 +36,8 @@ export function directoryExists(dir: string, label: string = path.basename(dir))
   }
 }
 
-/** Job ids are generated as job_<nanoid>; this is the only shape accepted from callers. */
-export const JOB_ID_PATTERN = /^job_[A-Za-z0-9_-]{1,64}$/;
+// The pattern lives next to the code that names the folder (artifactStore), so the two can never disagree; re-exported for callers.
+export { JOB_ID_PATTERN };
 
 export type EvidenceLocation = 'artifacts' | 'pinned';
 
