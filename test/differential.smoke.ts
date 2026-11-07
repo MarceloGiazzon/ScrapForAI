@@ -208,7 +208,8 @@ test('a routine that opens a fixed address is flagged: both sides would open the
   assert.equal(started.status, 202, started.text);
   assert.match(started.json.warnings[0], /diff-fixed.*fixed address.*\$targetUrl/);
   const state = await finished(started.json.differentialId);
-  assert.equal(state.verdict, 'same');
+  // The same application on both sides must read "same"; if it ever does not (seen once in a loaded full run, never alone), say WHAT differed.
+  assert.equal(state.verdict, 'same', JSON.stringify({ lines: state.pairs[0]?.lines, notes: state.pairs[0]?.notes, status: state.pairs[0]?.status }));
   assert.match((await call('GET', `/v1/differentials/${started.json.differentialId}?format=md`)).text, /Warning:/);
 });
 

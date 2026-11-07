@@ -165,6 +165,33 @@ test('network: a failing request of a type that is not compared is still compare
   assert.equal(compareRuns(left, run(), { networkResourceTypes: [] }).network.changes.length, 1);
 });
 
+test('the browser\'s own /favicon.ico request is not a difference: whether it happens before the page closes is a race, and it is not the application\'s behaviour', () => {
+  // Seen in a loaded full smoke run: the SAME static page on both sides read "different". A browser asks for /favicon.ico by itself after the
+  // load, and when the site has none that is a 404 in the network list AND a console error located at it; one run closed in time, one did not.
+  const faviconConsole = { type: 'error', text: 'Failed to load resource: the server responded with a status of 404 ()', location: { url: 'http://localhost:8100/favicon.ico', line: 0 } };
+  const withFavicon = run({ evidence: { consoleErrors: [faviconConsole], network: [request('GET', '/favicon.ico', 404, { resourceType: 'other' })], traffic: [request('GET', '/favicon.ico', 404, { resourceType: 'other' })] } });
+  for (const [left, right] of [[run(), withFavicon], [withFavicon, run()]]) {
+    const comparison = compareRuns(left, right);
+    assert.equal(comparison.equivalent, true, JSON.stringify([comparison.console, comparison.network.changes]));
+    assert.equal(comparison.headline, '');
+  }
+
+  // Only that one request is excused. Another path, another method, another failing resource, or an application message are still compared.
+  const other = run({
+    evidence: {
+      consoleErrors: [
+        { type: 'error', text: 'Failed to load resource: the server responded with a status of 404 ()', location: { url: 'http://localhost:8100/img/logo.png' } },
+        { type: 'error', text: 'favicon could not be parsed' },
+      ],
+      network: [request('GET', '/static/favicon.ico', 404, { resourceType: 'other' }), request('POST', '/favicon.ico', 500, { resourceType: 'fetch' })],
+    },
+  });
+  const comparison = compareRuns(run(), other);
+  assert.equal(comparison.equivalent, false);
+  assert.deepEqual(comparison.network.changes.map((c) => `${c.kind} ${c.shape}`), ['only-right GET /static/favicon.ico', 'only-right POST /favicon.ico']);
+  assert.equal(comparison.console.newInRight.length, 2);
+});
+
 test('timing: a slower step needs the ratio AND the minimum delta; it never makes the pair different; a failed run is not timed', () => {
   const left = run({ steps: [step(0, 'open', { durationMs: 100 }), step(1, 'save', { durationMs: 1000 }), step(2, 'tiny', { durationMs: 10 })] });
   const right = run({ durationMs: 5000, steps: [step(0, 'open', { durationMs: 900 }), step(1, 'save', { durationMs: 1200 }), step(2, 'tiny', { durationMs: 60 })] });

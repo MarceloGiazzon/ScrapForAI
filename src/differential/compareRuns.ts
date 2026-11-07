@@ -138,6 +138,14 @@ function countTexts(texts: string[]): Map<string, number> {
   return counts;
 }
 
+/**
+ * The root `/favicon.ico` is asked for by the BROWSER, not by the page, a moment after the load, and only if the page is still open: when a site has
+ * none, that is a 404 in the network list and a console error located at it, present in one run and absent in the next (it raced the end of a short
+ * routine and made the same page read "different" on both sides). It is not behaviour of the application under test, so it is not compared, like a
+ * request the page cancelled itself. Only that exact path: an icon the page names under another path, or another method, is still compared.
+ */
+export const isBrowserFavicon = (method: string | undefined, pathname: string | undefined): boolean => (method === undefined || method.toUpperCase() === 'GET') && pathname === '/favicon.ico';
+
 function consoleMessages(run: ComparableRun, normalizers: CompiledNormalizers): string[] {
   const where = (url: string | undefined): string => {
     if (!url) return '';
@@ -147,8 +155,16 @@ function consoleMessages(run: ComparableRun, normalizers: CompiledNormalizers): 
       return '';
     }
   };
+  const faviconUrl = (url: string | undefined): boolean => {
+    if (!url) return false;
+    try {
+      return isBrowserFavicon(undefined, new URL(url).pathname);
+    } catch {
+      return false;
+    }
+  };
   return [
-    ...run.evidence.consoleErrors.map((entry) => `${normalizeMessage(entry.text, normalizers)}${where(entry.location?.url)}`),
+    ...run.evidence.consoleErrors.filter((entry) => !faviconUrl(entry.location?.url)).map((entry) => `${normalizeMessage(entry.text, normalizers)}${where(entry.location?.url)}`),
     ...run.evidence.pageErrors.map((text) => `page error: ${normalizeMessage(text, normalizers)}`),
   ];
 }
@@ -184,6 +200,7 @@ function networkShapes(run: ComparableRun, tolerance: DifferentialTolerance, nor
     const status = request.status === undefined ? 'failed' : String(request.status);
     // A request the page cancelled itself (`net::ERR_ABORTED`, typically a navigation) is not a statement about the server: compare answers, not cancellations.
     if (status === 'failed' && request.failureText?.includes('ERR_ABORTED')) continue;
+    if (isBrowserFavicon(request.method, request.pathname)) continue;
     const shape = `${request.method.toUpperCase()} ${normalizePath(request.pathname, normalizers)}`;
     const seen = all.get(shape) ?? new Set<string>();
     seen.add(status);
