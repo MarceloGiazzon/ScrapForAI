@@ -286,8 +286,13 @@ Everything before it is the setup, run in order as always; the block holds only 
 
 - **A branch is ONE actor's flow, and an actor is in at most one branch.** Two flows racing on one page would be a mess, not a race:
   it is refused (400) with the branch numbers. A step with no `actor` is `main`, which counts as an actor too. At least two branches.
-- **No barrier.** Every branch starts as soon as the block does and goes at its own pace. To make the race tight, **prepare everything
-  before the block** (open the page, fill the form) and race only the last action. Do not put `waitForTimeout` in a branch to "line them up".
+- **Every branch starts as soon as the block does and goes at its own pace.** To make the race tight, **prepare everything before the block**
+  (open the page, fill the form) and race only the last action. When the branches have different work before that action, put a **`barrier`**
+  in each: `{ "id": "a-go", "actor": "alice", "action": "barrier", "name": "go" }`. A branch that reaches it waits for all the others, then they
+  go on together (milliseconds apart, not the same instant). Every branch must hold the same barriers in the same order, once each, and a barrier
+  outside a block is refused (400). It never lets one branch go on alone: if another branch fails or ends before it, the waiting one fails with
+  `BarrierBrokenError` (the run's verdict is the real cause, not this consequence), and a wait over `timeoutMs` is `BarrierTimeoutError`.
+  Do not put `waitForTimeout` in a branch to "line them up".
 - A block **cannot hold another block** and **is not allowed in a `teardown`**. It counts as one step plus its branches' steps against
   `MAX_STEPS_PER_JOB`. `include` works inside a branch (`include login` as `alice`), and step `id`s are unique across the whole list.
 - **A branch stops at its first failure; the other branches carry on to their end**, so the evidence of the race is complete.

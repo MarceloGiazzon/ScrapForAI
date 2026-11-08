@@ -528,8 +528,16 @@ const includeStep = z
   })
   .strict();
 
+// T6.5 follow-up: a meeting point INSIDE the branches of a `parallel` block. A branch that reaches it waits until every branch of the block has, then they
+// all go on together, which narrows the gap between the racing actions to the start-up of one step (milliseconds). Every branch of the block must hold the
+// same barriers in the same order (a barrier waits for all of them, so one that only some branches reach would never be met), a name appears once per
+// branch, and a barrier outside a block is refused: it would wait for nobody. Name the branch's actor on it, like on any other step of the branch.
+// A branch that ends without reaching a barrier fails the others waiting there (BarrierBrokenError); `timeoutMs` (default STEP_TIMEOUT_MS) bounds the wait.
+const barrierStep = z.object({ ...baseStep, action: z.literal('barrier'), name: safeName, timeoutMs: stepTimeout }).strict();
+
 const leafStepOptions = [
   includeStep,
+  barrierStep,
   gotoStep,
   reloadStep,
   setOfflineStep,
@@ -870,9 +878,17 @@ type AnyStep = z.infer<typeof explorationStepSchema>;
 function validateStepList(steps: readonly AnyStep[], field: 'steps' | 'teardown', ctx: z.RefinementCtx): void {
   const seen = new Set<string>();
 
-  const visit = (list: readonly AnyStep[], path: Array<string | number>, visible: Set<string>): void => {
+  const visit = (list: readonly AnyStep[], path: Array<string | number>, visible: Set<string>, inBranch = false): void => {
     list.forEach((step, index) => {
       const here = [...path, index];
+
+      if (step.action === 'barrier' && !inBranch) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...here, 'action'],
+          message: 'a barrier only works inside a parallel branch: it makes the branches wait for each other, so outside a block (or in a teardown) it would wait for nobody',
+        });
+      }
 
       if (!env.ALLOW_EVALUATE && (step.action === 'evaluate' || step.action === 'watch')) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...here, 'action'], message: 'evaluate/watch are disabled (set ALLOW_EVALUATE=true)' });
@@ -913,7 +929,7 @@ function validateStepList(steps: readonly AnyStep[], field: 'steps' | 'teardown'
         step.branches.forEach((branch, b) => {
           // Each branch starts from what was visible at the block, and sees its own earlier steps as it goes.
           const own = new Set(visible);
-          visit(branch as readonly AnyStep[], [...here, 'branches', b], own);
+          visit(branch as readonly AnyStep[], [...here, 'branches', b], own, true);
           for (const id of own) if (!visible.has(id)) finished.push(id);
         });
         for (const id of finished) visible.add(id);
@@ -966,6 +982,8 @@ function validateParallelBlock(step: Extract<AnyStep, { action: 'parallel' }>, p
     }
   }
 
+  validateBarriers(step, path, ctx);
+
   // Two branches writing the same `extracted` name would leave the value to the race.
   const writer = new Map<string, number>();
   step.branches.forEach((branch, b) => {
@@ -982,6 +1000,40 @@ function validateParallelBlock(step: Extract<AnyStep, { action: 'parallel' }>, p
           writer.set(name, b);
         }
       }
+    }
+  });
+}
+
+/**
+ * The barriers of one block. A barrier waits for EVERY branch, so every branch must hold the same ones in the same order (otherwise one would wait for a
+ * branch that never comes, or two branches would wait for each other at different barriers), and a name is a meeting point: once per branch. A branch
+ * that holds an `include` is judged after the include is expanded (its steps are not known yet), when the expanded request goes through this check again.
+ */
+function validateBarriers(step: Extract<AnyStep, { action: 'parallel' }>, path: Array<string | number>, ctx: z.RefinementCtx): void {
+  const branches = step.branches.map((branch) => [...leafSteps(branch as readonly object[])] as Array<{ action?: string; name?: string }>);
+  if (branches.some((leaves) => leaves.some((leaf) => leaf.action === 'include'))) return;
+
+  const names = branches.map((leaves) => leaves.filter((leaf) => leaf.action === 'barrier').map((leaf) => leaf.name ?? ''));
+  names.forEach((own, b) => {
+    const repeated = own.find((name, index) => own.indexOf(name) !== index);
+    if (repeated !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'branches', b],
+        message: `barrier "${repeated}" appears twice in branch ${b}: a name is one meeting point, so the second one needs another name`,
+      });
+    }
+  });
+
+  const reference = names[0]!;
+  names.forEach((own, b) => {
+    if (b > 0 && own.join('\u0000') !== reference.join('\u0000')) {
+      const list = (items: string[]) => (items.length === 0 ? 'none' : items.map((name) => `"${name}"`).join(', '));
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, 'branches', b],
+        message: `branch ${b} holds the barriers ${list(own)} but branch 0 holds ${list(reference)}: every branch must reach the same barriers in the same order, because a barrier waits for all of them`,
+      });
     }
   });
 }

@@ -1199,7 +1199,7 @@ demanda interna medida, e a Fase 10 fica fora do horizonte.
 > ramos começam quando o bloco começa, então a regra é preparar tudo antes e correr só a última ação; (4) um ramo para na sua primeira falha e os outros vão até o fim, para a evidência da corrida ficar completa; (5) cada ramo escreve num escopo
 > próprio e o bloco mescla **na ordem dos ramos**: o resultado (`steps`, `extracted`, eventos do relógio) não depende de quem terminou primeiro, e `failedStepIndex` é a primeira falha NESSA ordem, não a primeira no tempo; (6) um ramo lê o que foi
 > extraído antes do bloco e o seu próprio, nunca o de um irmão; dois ramos não podem extrair com o mesmo `name`; (7) toda varredura de "os steps do pedido" (atores, faults, lint de segredos, lint de convenção, parâmetros, planejador de suíte,
-> checagem de `evaluate` do agendador) passou a ler dentro dos ramos. **Fica de fora:** barreira, aninhamento, bloco no teardown, cancelar os irmãos quando um ramo falha, repetir o bloco N vezes para pegar corrida rara. Aceite: a suíte
+> checagem de `evaluate` do agendador) passou a ler dentro dos ramos. **Feito depois (2026-11-07):** o passo `barrier`, um ponto de encontro dentro dos ramos (todos esperam por todos, com erro se um ramo termina antes e timeout). **Fica de fora:** aninhamento, bloco no teardown, cancelar os irmãos quando um ramo falha, repetir o bloco N vezes para pegar corrida rara. Aceite: a suíte
 > anterior passa sem alteração e `test/parallel.smoke.ts` mede NO SERVIDOR duas requisições em voo ao mesmo tempo (uma fixture com bloqueio otimista: sai exatamente um vencedor).
 
 - Passos que alternam atores rodam em sequência (o comportamento natural).

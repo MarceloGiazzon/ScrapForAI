@@ -295,6 +295,69 @@ test('after expansion the branches are checked again: two includes that land on 
   );
 });
 
+// ---------------------------------------------------------------------------------------------------------------- barrier
+
+const barrier = (name: string, actor?: string, extra: object = {}) => ({ ...(actor ? { actor } : {}), action: 'barrier', name, ...extra }) as const;
+
+test('a barrier is a meeting point, not an extraction: the same name in every branch is what it is for', () => {
+  assert.equal(extractedNameOf({ action: 'barrier', name: 'go' }), undefined);
+  assert.deepEqual(issues(request([race([click('#a', 'alice'), barrier('go', 'alice'), click('#save', 'alice')], [barrier('go', 'bob'), click('#save', 'bob')])])), []);
+  // Two barriers, in the same order in both branches, and a timeout on one of them.
+  assert.deepEqual(
+    issues(request([race([barrier('ready', 'alice', { timeoutMs: 5000 }), click('#a', 'alice'), barrier('done', 'alice')], [barrier('ready', 'bob'), click('#b', 'bob'), barrier('done', 'bob')])])),
+    [],
+  );
+  assert.ok(JSON.stringify(buildRoutineRequestJsonSchema()).includes('"barrier"'), 'the JSON Schema offers the step');
+});
+
+test('a barrier outside a parallel branch is refused: it would wait for nobody', () => {
+  const top = issues(request([barrier('go', 'alice')]));
+  assert.ok(top.some((line) => line.startsWith('steps.0.action:') && /only works inside a parallel branch/.test(line)), top.join('\n'));
+  const inTeardown = issues(request([open('alice')], { teardown: [barrier('go', 'alice')] }));
+  assert.ok(inTeardown.some((line) => line.startsWith('teardown.0.action:') && /only works inside a parallel branch/.test(line)), inTeardown.join('\n'));
+  assert.equal(leafStepSchema.safeParse({ action: 'barrier', name: 'go' }).success, true, 'as a step it is valid; where it stands is what is checked');
+  assert.equal(leafStepSchema.safeParse({ action: 'barrier' }).success, false, 'a name is required');
+  assert.equal(leafStepSchema.safeParse({ action: 'barrier', name: 'go', frame: { name: 'x' }, selector: '#a' }).success, false, 'strict: no selector');
+});
+
+test('every branch must hold the same barriers in the same order, once each: otherwise somebody waits for a branch that never comes', () => {
+  const onlyOne = issues(request([race([barrier('go', 'alice'), click('#a', 'alice')], [click('#b', 'bob')])]));
+  assert.ok(onlyOne.some((line) => line.startsWith('steps.0.branches.1:') && /branch 1 holds the barriers none but branch 0 holds "go"/.test(line)), onlyOne.join('\n'));
+
+  const swapped = issues(request([race([barrier('a', 'alice'), barrier('b', 'alice')], [barrier('b', 'bob'), barrier('a', 'bob')])]));
+  assert.ok(swapped.some((line) => /branch 1 holds the barriers "b", "a" but branch 0 holds "a", "b"/.test(line)), swapped.join('\n'));
+
+  const other = issues(request([race([barrier('a', 'alice')], [barrier('z', 'bob')])]));
+  assert.ok(other.some((line) => /every branch must reach the same barriers in the same order/.test(line)), other.join('\n'));
+
+  const twice = issues(request([race([barrier('go', 'alice'), click('#a', 'alice'), barrier('go', 'alice')], [barrier('go', 'bob'), click('#b', 'bob'), barrier('go', 'bob')])]));
+  assert.ok(twice.some((line) => /barrier "go" appears twice in branch 0/.test(line)), twice.join('\n'));
+});
+
+test('a barrier carries the branch\'s actor like any other step: one with none is main\'s, and a branch is ONE actor', () => {
+  const found = issues(request([race([click('#a', 'alice'), barrier('go')], [click('#b', 'bob'), barrier('go', 'bob')])]));
+  assert.ok(found.some((line) => /runs as ONE actor but this one uses alice, main/.test(line)), found.join('\n'));
+  assert.deepEqual(actorsInUse({ steps: [race([click('#a', 'alice'), barrier('go', 'alice')], [barrier('go', 'bob')]) as never] }), ['alice', 'bob'], 'a barrier opens no actor of its own');
+});
+
+test('a branch with an include is judged after expansion: the barriers are compared then, with what the included routine brought', async () => {
+  // Before expansion nothing is known about the include, so there is nothing to compare.
+  assert.deepEqual(issues(request([race([{ action: 'include', routineId: 'login', actor: 'alice' }, barrier('go', 'alice')], [barrier('go', 'bob')])])), []);
+  // After it: login has no barrier, alice's branch has one and bob's has one too -> same -> fine; but an include that adds a branch without one is not.
+  const expanded = await expandIncludes({
+    steps: [race([{ id: 'in-a', action: 'include', routineId: 'login', actor: 'alice' }, barrier('go', 'alice')], [{ id: 'in-b', action: 'include', routineId: 'login', actor: 'bob' }]) as never],
+    actors: { alice: {}, bob: {} },
+  }).then(() => 'expanded', (error: Error) => `${error.name}: ${error.message}`);
+  assert.match(expanded, /^ExpandedRoutineInvalid: .*branch 1 holds the barriers none but branch 0 holds "go"/);
+});
+
+test('a barrier counts as a step against MAX_STEPS_PER_JOB (20 in this file)', () => {
+  const branch = (actor: string, clicks: number) => [barrier('go', actor), ...Array.from({ length: clicks }, () => click('#x', actor))];
+  assert.deepEqual(issues(request([race(branch('alice', 8), branch('bob', 8))])), [], '1 + 9 + 9 = 19 steps: fits');
+  const tooMany = issues(request([race(branch('alice', 9), branch('bob', 9))]));
+  assert.ok(tooMany.some((line) => /exceed MAX_STEPS_PER_JOB/.test(line)), '1 + 10 + 10 = 21 steps: the barriers are in the count');
+});
+
 test('resolving a request with a block keeps its structure and hands a teardown of leaf steps to the runner', async () => {
   const resolved = await resolveExplorationRequest(
     explorationRequestSchema.parse({

@@ -395,6 +395,118 @@ test('parallel: branches really overlap, the result does not depend on who finis
     const plain = await run({ targetUrl: target, steps: [{ id: 'open', action: 'goto', url: `${home.origin}/record` }, { id: 'n', action: 'extractText', name: 'n', selector: '#n' }] });
     assert.equal(plain.json.status, 'passed', plain.text);
     assert.ok(plain.json.steps.every((step: any) => step.branch === undefined && step.branches === undefined));
+
+    // 10. BARRIER. Bob has 1.5 s of work before his save that alice does not (longer than the server holds a save, 400 ms), so without a meeting point alice's
+    //     save is over before bob's starts: never two in flight. With a barrier both wait for the slower one and press save together: the SERVER sees both.
+    const meet = (id: string, actor: string, name = 'go', extra: object = {}) => ({ id, actor, action: 'barrier', name, ...extra });
+    const bobPrelude = { id: 'b-prelude', actor: 'bob', action: 'waitForTimeout', timeoutMs: 1500 };
+    reset();
+    const late = await run({ targetUrl: target, actors: { alice: {}, bob: {} }, steps: [...prepare, { id: 'race', action: 'parallel', branches: [aSave, [bobPrelude, ...bSave]] }] });
+    assert.equal(late.json.status, 'passed', late.text);
+    assert.equal(state.maxInFlight, 1, 'control, no barrier: alice saved long before bob started, so the saves never overlapped');
+
+    reset();
+    const met = await run({
+      targetUrl: target,
+      actors: { alice: {}, bob: {} },
+      steps: [...prepare, { id: 'race', action: 'parallel', branches: [[meet('a-go', 'alice', 'go', { timeoutMs: 8000 }), ...aSave], [bobPrelude, meet('b-go', 'bob'), ...bSave]] }],
+    });
+    assert.equal(met.json.status, 'passed', met.text);
+    assert.equal(state.maxInFlight, 2, 'with the barrier the SERVER saw both saves in flight at once, although bob was 1.5 s behind');
+    assert.equal(state.saved.length, 1, 'both read the same version: exactly one save got through');
+    assert.deepEqual([met.json.extracted['alice-result'], met.json.extracted['bob-result']].sort(), ['conflict', 'saved']);
+    assert.deepEqual(ids(met.json), ['a-open', 'b-open', 'a-note', 'b-note', 'race', 'a-go', 'a-save', 'a-result', 'b-prelude', 'b-go', 'b-save', 'b-result']);
+    const metSteps = met.json.steps as Array<Record<string, any>>;
+    const stepNamed = (id: string) => metSteps.find((step) => step.id === id)!;
+    assert.equal(stepNamed('a-go').action, 'barrier');
+    assert.equal(stepNamed('a-go').status, 'passed');
+    assert.ok(stepNamed('a-go').durationMs >= 1000, `alice waited for bob at the barrier (waited ${stepNamed('a-go').durationMs} ms)`);
+    assert.ok(stepNamed('b-go').durationMs < 1000, `bob, the last to arrive, did not wait (${stepNamed('b-go').durationMs} ms)`);
+    metSteps.forEach((step, position) => assert.equal(step.index, position, `steps[${position}].index`));
+
+    // 11. Two barriers, met in order: the second one is a meeting of its own.
+    reset();
+    const twoMeetings = await run({
+      targetUrl: target,
+      actors: { alice: {}, bob: {} },
+      steps: [
+        ...prepare,
+        {
+          id: 'race',
+          action: 'parallel',
+          branches: [
+            [meet('a-ready', 'alice', 'ready', { timeoutMs: 8000 }), ...aSave, meet('a-done', 'alice', 'done', { timeoutMs: 8000 })],
+            [bobPrelude, meet('b-ready', 'bob', 'ready'), ...bSave, meet('b-done', 'bob', 'done')],
+          ],
+        },
+      ],
+    });
+    assert.equal(twoMeetings.json.status, 'passed', twoMeetings.text);
+    assert.equal(state.maxInFlight, 2);
+
+    // 12. A branch that fails BEFORE the barrier does not leave the other one waiting out its timeout, and the other one never saves alone. The run's
+    //     verdict is the real cause (bob's failed assertion, in the later branch), not the broken barrier that came first in the result.
+    reset();
+    const brokenBy = await run({
+      targetUrl: target,
+      actors: { alice: {}, bob: {} },
+      steps: [
+        ...prepare,
+        {
+          id: 'race',
+          action: 'parallel',
+          branches: [
+            [meet('a-go', 'alice', 'go', { timeoutMs: 8000 }), ...aSave],
+            [{ id: 'b-check', actor: 'bob', action: 'assertVisible', selector: '#nothing-here', timeoutMs: 300 }, meet('b-go', 'bob'), ...bSave],
+          ],
+        },
+      ],
+    });
+    assert.equal(brokenBy.json.status, 'failed');
+    const brokenSteps = brokenBy.json.steps as Array<Record<string, any>>;
+    const aGo = brokenSteps.find((step) => step.id === 'a-go')!;
+    assert.equal(aGo.status, 'failed');
+    assert.equal(aGo.error.type, 'BarrierBrokenError');
+    assert.match(aGo.error.message, /barrier "go" can no longer happen: branch 1 \(bob\) failed before reaching it/);
+    assert.ok(aGo.durationMs < 4000, `alice was freed when bob failed, not after her 8 s timeout (${aGo.durationMs} ms)`);
+    assert.equal(brokenSteps[brokenBy.json.failedStepIndex].id, 'b-check', 'the verdict is the cause (bob\'s assertion), not its consequence');
+    assert.notEqual(brokenBy.json.error.type, 'BarrierBrokenError');
+    assert.ok(!ids(brokenBy.json).includes('a-save') && !ids(brokenBy.json).includes('b-go'), 'neither branch went on past its failure');
+    assert.deepEqual(state.saved, [], 'alice did not save alone');
+    assert.equal(state.maxInFlight, 0);
+
+    // 13. A timeout is its own error and names who it waited for; bob, arriving later, finds a meeting that cannot happen any more.
+    reset();
+    const timedOut = await run({
+      targetUrl: target,
+      actors: { alice: {}, bob: {} },
+      steps: [
+        ...prepare,
+        { id: 'race', action: 'parallel', branches: [[meet('a-go', 'alice', 'go', { timeoutMs: 400 }), ...aSave], [bobPrelude, meet('b-go', 'bob'), ...bSave]] },
+      ],
+    });
+    assert.equal(timedOut.json.status, 'failed');
+    const timedSteps = timedOut.json.steps as Array<Record<string, any>>;
+    const aWaited = timedSteps.find((step) => step.id === 'a-go')!;
+    assert.equal(aWaited.error.type, 'BarrierTimeoutError');
+    assert.match(aWaited.error.message, /barrier "go": still waiting for branch 1 \(bob\) after 400 ms/);
+    const bLate = timedSteps.find((step) => step.id === 'b-go')!;
+    assert.equal(bLate.error.type, 'BarrierBrokenError');
+    assert.match(bLate.error.message, /branch 0 \(alice\) failed before reaching it/);
+    assert.equal(timedSteps[timedOut.json.failedStepIndex].id, 'a-go', 'the timeout is the cause; the broken barrier is its consequence');
+    assert.deepEqual(state.saved, []);
+
+    // 14. Refused up front: a barrier outside a block, and branches that do not hold the same barriers.
+    const alone = await run({ targetUrl: target, actors: { alice: {} }, steps: [{ actor: 'alice', action: 'barrier', name: 'go' }] });
+    assert.equal(alone.status, 400);
+    assert.match(alone.text, /only works inside a parallel branch/);
+    const lopsided = await run({
+      targetUrl: target,
+      actors: { alice: {}, bob: {} },
+      steps: [{ action: 'parallel', branches: [[{ actor: 'alice', action: 'barrier', name: 'go' }, { actor: 'alice', action: 'reload' }], [{ actor: 'bob', action: 'reload' }]] }],
+    });
+    assert.equal(lopsided.status, 400);
+    assert.match(lopsided.text, /every branch must reach the same barriers in the same order/);
   } finally {
     await new Promise<void>((resolve) => api.close(() => resolve()));
     await new Promise<void>((resolve) => home.server.close(() => resolve()));

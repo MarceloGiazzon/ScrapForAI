@@ -73,7 +73,8 @@ export function mapLeaves<T extends object>(steps: readonly T[], fn: (step: T, s
  */
 export function extractedNameOf(step: object): string | undefined {
   const candidate = step as { action?: unknown; name?: unknown };
-  return typeof candidate.name === 'string' && candidate.action !== 'screenshot' && candidate.action !== PARALLEL_ACTION ? candidate.name : undefined;
+  // A barrier's `name` is a meeting point shared by every branch on purpose, not a value anybody writes.
+  return typeof candidate.name === 'string' && candidate.action !== 'screenshot' && candidate.action !== 'barrier' && candidate.action !== PARALLEL_ACTION ? candidate.name : undefined;
 }
 
 /** Every name a step writes into `extracted`: its own, plus the `extract` entries of an `httpRequest` (T5.7). */

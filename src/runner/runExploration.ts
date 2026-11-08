@@ -29,6 +29,7 @@ import { probeBuildId, UNKNOWN_BUILD } from './buildProbe.js';
 import { executeHttpRequest } from './httpRequest.js';
 import { type EvidenceCollector, registerEvidenceCollectors } from './collectEvidence.js';
 import { extractStructure } from './extractStructure.js';
+import { BarrierGroup, BarrierBrokenError } from './barrier.js';
 import { createFaultController, type FaultController, usesFaults } from './faults.js';
 import { type ActiveElement, type Candidate, type StyleSignature, walkKeyboard } from './keyboardWalk.js';
 import { ALL_LEAK_KINDS, findLeaks } from './leakPatterns.js';
@@ -76,6 +77,9 @@ interface StepScope {
   clockEvents: ClockEvidence[];
   /** A holder, so the run's two scopes (steps, teardown) share the one value. */
   domText: { value: string | undefined };
+  /** In a branch of a `parallel` block: the meeting points of the block, and which branch this scope is (a barrier step needs both). */
+  barriers?: BarrierGroup;
+  party?: number;
 }
 
 class StepExecutionError extends Error {
@@ -167,7 +171,7 @@ function describeFrameRef(ref: FrameRef): string {
 /** Steps that never touch the frame: a `frame` written on them is ignored, as it always was, whether or not that frame exists. */
 const FRAME_FREE_ACTIONS: ReadonlySet<string> = new Set([
   'goto', 'reload', 'setOffline', 'waitForQuiet', 'waitForUrlContains', 'waitForTimeout', 'setViewport', 'setViewportSize', 'resizeWindow',
-  'waitForResponse', 'assertUrlContains', 'assertEquals', 'screenshot', 'collect', 'setClock', 'injectFault', 'httpRequest', 'waitForElapsed',
+  'waitForResponse', 'assertUrlContains', 'assertEquals', 'screenshot', 'collect', 'setClock', 'injectFault', 'httpRequest', 'waitForElapsed', 'barrier',
 ]);
 
 /**
@@ -1010,6 +1014,15 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             extracted[step.name] = capAndRedactEvaluateResult(samples, knownSecrets);
             break;
           }
+          case 'barrier': {
+            // Waits for every other branch of the block (validated: a barrier is only ever inside one). The wait is not on the page, so the page's
+            // own timers, the fake clock and faults are not involved; the step's duration is how long this branch waited for the slowest one.
+            if (scope.barriers === undefined || scope.party === undefined) {
+              throw new StepExecutionError('a barrier only works inside a parallel branch');
+            }
+            await scope.barriers.arrive(step.name, scope.party, timeout);
+            break;
+          }
           case 'waitForElapsed': {
             const finishedAt = stepFinishedAt.get(step.sinceStepId);
             if (finishedAt === undefined) {
@@ -1107,11 +1120,22 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
      */
     const runParallel = async (block: RunnableParallel): Promise<boolean> => {
       const startedAt = new Date();
+      // The meeting points of this block. A branch that ENDS (failed, or out of steps) tells the group, so a branch waiting at a barrier it will never
+      // reach is freed with an error instead of waiting for the timeout, and never goes on alone.
+      const barriers = new BarrierGroup(block.branches.map((branch, b) => `branch ${b} (${actorOf(branch[0]!)})`));
       const scopes = await Promise.all(
-        block.branches.map(async (branch) => {
-          const scope: StepScope = { results: [], extracted: {}, inherited: rootScope.extracted, clockEvents: [], domText: { value: undefined } };
-          for (const leaf of branch) {
-            if ((await runStep(leaf, 'steps', scope)).status === 'failed') break;
+        block.branches.map(async (branch, b) => {
+          const scope: StepScope = { results: [], extracted: {}, inherited: rootScope.extracted, clockEvents: [], domText: { value: undefined }, barriers, party: b };
+          let failed = false;
+          try {
+            for (const leaf of branch) {
+              if ((await runStep(leaf, 'steps', scope)).status === 'failed') {
+                failed = true;
+                break;
+              }
+            }
+          } finally {
+            barriers.leave(b, failed ? 'failed' : 'finished');
           }
           return scope;
         }),
@@ -1131,14 +1155,20 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       };
       steps.push(container);
 
+      // The verdict is the first failed step in RESULT order. A broken barrier is a consequence (another branch ended before it), so when some step failed
+      // for another reason that one is the verdict, even if it sits in a later branch; only when nothing else failed does a barrier failure stand.
       let firstFailed: StepResult | undefined;
+      let firstCause: StepResult | undefined;
       const summary: NonNullable<StepResult['branches']> = [];
       for (const [b, scope] of scopes.entries()) {
         for (const result of scope.results) {
           result.index = steps.length;
           result.branch = b;
           steps.push(result);
-          if (result.status === 'failed') firstFailed ??= result;
+          if (result.status === 'failed') {
+            firstFailed ??= result;
+            if (result.error?.type !== BarrierBrokenError.name) firstCause ??= result;
+          }
         }
         Object.assign(rootScope.extracted, scope.extracted);
         rootScope.clockEvents.push(...scope.clockEvents);
@@ -1156,12 +1186,13 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
         for (const each of sessions.values()) each.faults?.stepFinished(block.id);
       }
 
-      if (firstFailed === undefined) return false;
+      const verdict = firstCause ?? firstFailed;
+      if (verdict === undefined) return false;
       const failedBranches = summary.flatMap((item, b) => (item.status === 'failed' ? [`${b} (${item.actor})`] : []));
       container.status = 'failed';
       container.error = { type: 'ParallelBranchFailed', message: `${failedBranches.length} of ${summary.length} branches failed: ${failedBranches.join(', ')}` };
-      failedStepIndex = firstFailed.index;
-      resultError = { type: firstFailed.error!.type, message: firstFailed.error!.message };
+      failedStepIndex = verdict.index;
+      resultError = { type: verdict.error!.type, message: verdict.error!.message };
       return true;
     };
 
