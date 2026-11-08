@@ -3,8 +3,13 @@
   Nightly run of the whole regression vault, with a dated JSON log.
 
 .DESCRIPTION
-  Calls `scrapforai vault run --impact --json` with build id "nightly-<yyyyMMdd>" and writes the single JSON
-  object the CLI prints to <root>\logs\nightly\vault-<yyyyMMdd>.json (the folder is gitignored).
+  Calls `scrapforai vault run --impact --json` and writes the single JSON object the CLI prints to
+  <root>\logs\nightly\vault-<yyyyMMdd>.json (the folder is gitignored).
+
+  Build id: by default NONE is sent, so every run reads the real build of its own target profile (its `buildInfo`
+  probe, e.g. WmsOffice /actuator/info) and the history, "since when" and the Executive panel know which build was
+  verified. A build id given in the request always wins over that probe, so a made-up label such as "nightly-<date>"
+  would hide the real one. Pass -BuildId only when the target has no probe or you want to force a label.
 
   It does NOT start the server: starting a service from a scheduled task is intrusive and hides failures.
   If the server is down it exits 2 and logs why. That is "could not verify", not a regression.
@@ -13,7 +18,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$BuildId = ("nightly-" + (Get-Date -Format 'yyyyMMdd')),
+  [string]$BuildId,
   [string]$LogDir,
   [string]$BaseUrl,
   [switch]$FailFast
@@ -27,7 +32,7 @@ $stamp = Get-Date -Format 'yyyyMMdd'
 $logFile = Join-Path $LogDir "vault-$stamp.json"
 
 function Write-InfraLog([string]$message) {
-  $payload = [ordered]@{ cliSchema = 1; command = 'vault run'; exitCode = 2; infra = $true; buildId = $BuildId; at = (Get-Date).ToString('o'); error = $message }
+  $payload = [ordered]@{ cliSchema = 1; command = 'vault run'; exitCode = 2; infra = $true; buildId = $(if ($BuildId) { $BuildId } else { $null }); at = (Get-Date).ToString('o'); error = $message }
   $payload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $logFile -Encoding utf8
   # Not Write-Error: with ErrorActionPreference=Stop it would end the script before `exit 2`.
   [Console]::Error.WriteLine($message)
@@ -51,7 +56,8 @@ try {
 }
 
 # The command comes first; the CLI rejects global options (--json, --url) placed before it.
-$cliArgs = @('run', '--silent', 'cli', '--', 'vault', 'run', '--impact', '--build-id', $BuildId, '--json', '--url', $BaseUrl)
+$cliArgs = @('run', '--silent', 'cli', '--', 'vault', 'run', '--impact', '--json', '--url', $BaseUrl)
+if ($BuildId) { $cliArgs += @('--build-id', $BuildId) }
 if ($FailFast) { $cliArgs += '--fail-fast' }
 
 Push-Location $root

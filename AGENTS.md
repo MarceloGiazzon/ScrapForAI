@@ -871,7 +871,7 @@ key comes from `.env`, never from the command line. Fields are only ever added t
 `cliSchema`.
 
 `scripts/ops/` has the habit-forming wrappers: `Invoke-VaultPreMerge.ps1` (vault by impact for an app repo's diff, build id `<branch>.<sha>`),
-`Invoke-VaultNightly.ps1` (dated JSON log, never starts the server) and `Register-VaultNightlyTask.ps1` (daily Windows task, `-WhatIf` supported).
+`Invoke-VaultNightly.ps1` (dated JSON log, never starts the server; sends **no build id** unless `-BuildId` is given, so each run records the real build its target profile's `buildInfo` probe reads: a build id in the request always wins over the probe, and a made-up `nightly-<date>` label hid it) and `Register-VaultNightlyTask.ps1` (daily Windows task, `-WhatIf` supported).
 `templates/routines/` holds the login and smoke-page routine templates, the `chaos-` ones (T7.2) and the `concurrency-` ones (T6.6) (checked by `test/routine-templates.test.ts`, `test/concurrency-templates.test.ts`).
 **PowerShell gotcha:** do not pipe into `npm run cli -- ...` (npm drops the flags); write the list to a file, or splat as the scripts do.
 Put the command first and global options (`--json`, `--url`) after it.
