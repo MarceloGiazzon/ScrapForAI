@@ -488,3 +488,9 @@ and the **full browser** for `headless: false` (headed runs). Two distributions 
 
 Pick Light for agent/automation use (always headless); Complete if you need a visible browser
 for debugging routines.
+
+## License
+
+ScrapForAI is released under the [MIT License](LICENSE). It depends on third-party packages under their own licenses; the one with an
+obligation for people who distribute it (`axe-core`, MPL-2.0, used unmodified) is described in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+The installer and the portable ZIP carry both files in their `docs` folder.

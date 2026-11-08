@@ -40,6 +40,9 @@ step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `en
   because the MCP SDK pulls it. **zod >= 4.6 requires seconds in `z.iso.datetime`** (`10:00Z` is refused, `10:00:00Z` accepted): that is the `setClock` `fixedTime`/`installAt` and the `expiresAt` of
   a new key; stored data is unaffected (`users.json` is read with `z.string()`), `test/clock.test.ts` pins it, and `schema/routine.request.json` carries the new pattern. After ANY zod
   upgrade run `npm run generate:schema` and read the diff of `schema/*.json`: the unit tests did not notice this one.
+- **License (T10.4, decided 2026-11-08 by the project owner):** ScrapForAI is **MIT** (`LICENSE`, holder "Punto Exe" as in `package.json`'s `author`; the repository on GitHub is public). `package.json` stays
+  `"private": true` (no accidental `npm publish`). The installer and ZIP copy `LICENSE` and `THIRD-PARTY-NOTICES.md` into `docs` (`installer/Build-Staging.ps1`). A new dependency whose license is not permissive
+  (GPL/AGPL/SSPL, or a "non-commercial" one) needs a decision before it is added, because it changes what can be distributed with an MIT project. The commercial model (price, service) is still open.
 
 ## Security model — read before changing anything here
 

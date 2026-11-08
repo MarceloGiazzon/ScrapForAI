@@ -1582,7 +1582,8 @@ quinzenais. Os aprendizados reordenam as fases.
 
 ### T10.4 — Modelo comercial e licenças · P
 
-O repositório está marcado como `UNLICENSED`. Decidir (D7): licença, preço e implicações das
+**Licença decidida (2026-11-08, dono do projeto): MIT** (`LICENSE`, `package.json`, `THIRD-PARTY-NOTICES.md`; o `LICENSE` viaja nos pacotes). Antes disso o repositório, que é público, estava `UNLICENSED`. O que **segue aberto** é o modelo comercial (preço, serviço, suporte): a MIT não impede vender, mas também não protege o código de ser usado por outros.
+Havia que decidir (D7): licença, preço e implicações das
 dependências (por exemplo, a MPL-2.0 do `axe-core`). **Já decidido (2026-11-04):** o `axe-core` é usado sem modificação e o aviso viaja nos pacotes (`THIRD-PARTY-NOTICES.md`); alterar um arquivo do axe e distribuí-lo obrigaria a publicar esse arquivo sob a MPL-2.0.
 
 ---
@@ -1689,7 +1690,7 @@ projeto possa parar em qualquer um deles **com valor entregue**.
 | D4 | Formato de itens e rotinas | JSON (recomendado) / YAML | T1.3 |
 | D5 | Onde roda o agendador | No processo / Agendador de Tarefas do Windows / Docker | T3.2 |
 | D6 | Diff visual | Não fazer / hash perceptual / `pixelmatch` | T6.3 |
-| D7 | Licença e modelo comercial | `UNLICENSED` / comercial / open-core; compatibilidade com MPL-2.0 | **Parcial (2026-11-04):** `axe-core` adotado sem modificação, aviso em `THIRD-PARTY-NOTICES.md`. O modelo comercial segue para a T10.4 e a F10 |
+| D7 | Licença e modelo comercial | `UNLICENSED` / comercial / open-core; compatibilidade com MPL-2.0 | **Parcial (2026-11-04):** `axe-core` adotado sem modificação, aviso em `THIRD-PARTY-NOTICES.md`. **Licença decidida (2026-11-08): MIT.** O modelo comercial (preço, serviço) segue para a T10.4 e a F10 |
 | D8 | Primeiro issue tracker | GitHub Issues (recomendado) / Azure DevOps / Jira | T9.1 |
 | D9 | NPDev emitir atributos estáveis (`data-npdev-key`) | Sim (recomendado) / não | T8.3, no repositório NPDev |
 | D10 | Manter o `evaluate` genérico | Manter atrás da flag / reduzir conforme os scripts confiáveis cobrem os casos | Após a T7.1 |

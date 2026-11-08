@@ -27,7 +27,7 @@
   },
   "keywords": [],
   "author": "Punto Exe",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

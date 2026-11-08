@@ -69,6 +69,8 @@ Copy-Item (Join-Path $Root "_userManual") (Join-Path $DocsDir "_userManual") -Re
 Copy-Item (Join-Path $Root "docs/genexus-pack") (Join-Path $DocsDir "genexus-pack") -Recurse   # T10.2: GeneXus pack guides (es, pt)
 # axe-core is MPL-2.0 (D7, T7.4): the notice travels with every package, next to the unmodified package in app\node_modules.
 Copy-Item (Join-Path $Root "THIRD-PARTY-NOTICES.md") (Join-Path $DocsDir "THIRD-PARTY-NOTICES.md")
+# ScrapForAI itself is MIT (T10.4): the license notice must be in every copy that is distributed.
+Copy-Item (Join-Path $Root "LICENSE") (Join-Path $DocsDir "LICENSE")
 
 Write-Section "Installing production dependencies"
 Push-Location $AppDir
