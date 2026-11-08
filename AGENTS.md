@@ -19,6 +19,12 @@ npm run typecheck
 chars) and at least one `ALLOWED_TARGET_ORIGINS` entry. See `.env.example` for every tunable (timeouts,
 step limits, artifact retention, etc.).
 
+- **Dependencies (audit 2026-11-08):** runtime `npm audit` is clean (zod 4.6.7, nanoid 5.1.16, MCP SDK 1.32.2, proxy-addr 2.0.8 via `npm audit fix`; the floors of the three direct ones are raised in
+  `package.json`). Three moderate advisories remain, **dev-only** (eslint -> minimatch); the only fix is `--force` to eslint 9, a downgrade, so they are left. `@hono/node-server` is 2.x
+  because the MCP SDK pulls it. **zod >= 4.6 requires seconds in `z.iso.datetime`** (`10:00Z` is refused, `10:00:00Z` accepted): that is the `setClock` `fixedTime`/`installAt` and the `expiresAt` of
+  a new key; stored data is unaffected (`users.json` is read with `z.string()`), `test/clock.test.ts` pins it, and `schema/routine.request.json` carries the new pattern. After ANY zod
+  upgrade run `npm run generate:schema` and read the diff of `schema/*.json`: the unit tests did not notice this one.
+
 ## Security model — read before changing anything here
 
 - **Target URL allowlisting** (`src/security/validateTargetUrl.ts`): every navigation, including

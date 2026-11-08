@@ -28,6 +28,14 @@ test('a time without a zone, a bare date or a nonsense value is refused: the mac
   }
 });
 
+test('seconds are required: zod >= 4.6 stopped accepting "10:00Z", and the published JSON Schema says so too', () => {
+  // Valid ISO 8601, accepted by zod 4.4. Pinned so a later zod upgrade cannot change the contract without a failing test.
+  for (const minutesOnly of ['2030-01-31T23:59Z', '2030-01-31T23:59-03:00']) {
+    assert.ok(!parse({ fixedTime: minutesOnly }).success, minutesOnly);
+    assert.ok(!parse({ installAt: minutesOnly }).success, minutesOnly);
+  }
+});
+
 test('the year must be between 1970 and 2100', () => {
   assert.ok(!parse({ fixedTime: '1969-12-31T23:59:59Z' }).success);
   assert.ok(!parse({ fixedTime: '2101-01-01T00:00:00Z' }).success);

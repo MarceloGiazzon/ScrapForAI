@@ -1188,13 +1188,9 @@
                       "type": "number"
                     },
                     "previousManifestSha256": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
+                      "type": [
+                        "string",
+                        "null"
                       ]
                     }
                   },

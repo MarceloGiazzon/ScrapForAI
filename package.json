@@ -29,22 +29,22 @@
   "license": "UNLICENSED",
   "private": true,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.13.0"
   },
   "type": "module",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "axe-core": "4.14.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
-    "nanoid": "^5.1.11",
+    "nanoid": "^5.1.16",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "playwright": "1.60.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
