@@ -10,15 +10,31 @@ extracted data — rather than raw page control.
 ```
 npm install
 cp .env.example .env   # then set SCRAPFORAI_API_KEY and ALLOWED_TARGET_ORIGINS
+npm run doctor          # read-only check: Node, .env, browser, port, targets; exit 1 if something must be fixed
 npm run dev             # http://localhost:3000
-npm test                # unit tests (test/*.test.ts)
+npm test                # unit tests (test/**/*.test.ts; the glob is quoted so sh never expands it: Node 22 globs by itself)
 npm run typecheck
 ```
 
 `.env` is gitignored and required: the server refuses to start without a `SCRAPFORAI_API_KEY` (16+
 chars) and at least one `ALLOWED_TARGET_ORIGINS` entry. See `.env.example` for every tunable (timeouts,
-step limits, artifact retention, etc.).
+step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `engines` says so and the doctor checks it).
 
+- **First-use checks** (first-use review `docs/INSTALL-AND-FIRST-USE-REVIEW.pt-BR.md`): `start()` in `server.ts` **refuses to boot** on an unchanged copy of
+  `.env.example` (`src/config/exampleConfig.ts`, pure): a key that starts with `replace-with`, or `ALLOWED_TARGET_ORIGINS` that is exactly `https://dev.example.com` +
+  `https://qa.example.com` (one example host on its own is accepted: the team smokes use it). The check is in `start()` and NOT in `envSchema`, because tests import `env.ts`.
+  `test/example-config.test.ts` pins the constants to `.env.example`. `npm run doctor` (`scripts/doctor.ts` does the looking, `src/doctor/report.ts` the wording, tested in
+  `test/doctor.test.ts`) never installs, never asks for privileges, never prints the key; each problem has cause, impact and next command; it launches the browser through
+  `launchBrowser` (the product's own path). A target that is down is a warning there, not a failure. **The review's "npm test runs no test" was Node 18**, whose `--test` has no glob
+  support at all; on Node 22 the old unquoted script worked under sh too (no match -> the literal pattern reaches Node). The quotes are a guard for a future `test/<dir>/x.test.ts`, which sh
+  would expand to only those files; the real fix is `engines` + the doctor's Node check.
+- **Target failures** (`src/runner/targetFailure.ts`, pure): `inspect_dom` and the `goto`/`reload` steps no longer return Playwright's call log as `type: "Error"`. A refused
+  connection, DNS failure, timeout or dropped network is `TargetUnreachable`; a certificate/TLS error `TargetTlsError`; a navigation timeout `TargetNavigationTimeout`; a browser that is not
+  installed or lacks system libraries `BrowserLaunchFailed` (any step or run). The sentence names the ORIGIN only (never path, query or call log) and says what to check. **The HTTP status is
+  unchanged** (a failed run/inspection is still 500 with the result in the body: CLI and MCP rely on it); only `error.type` and `error.message` improve. Anything not recognised keeps its old
+  error. `test/target-failure.test.ts`, `test/target-unreachable.smoke.ts` (Chromium: dead port, a server that never answers, controls).
+- **`options.screenshots`**: `off` takes none (a `screenshot` step is skipped too); `onFailure` (default) and `always` **behave the same today**: the named `screenshot` steps plus a `failure`
+  image. A run that passes without a `screenshot` step has no image in either. (The schema says so; an old note claimed `always` captured on success.)
 - **Dependencies (audit 2026-11-08):** runtime `npm audit` is clean (zod 4.6.7, nanoid 5.1.16, MCP SDK 1.32.2, proxy-addr 2.0.8 via `npm audit fix`; the floors of the three direct ones are raised in
   `package.json`). Three moderate advisories remain, **dev-only** (eslint -> minimatch); the only fix is `--force` to eslint 9, a downgrade, so they are left. `@hono/node-server` is 2.x
   because the MCP SDK pulls it. **zod >= 4.6 requires seconds in `z.iso.datetime`** (`10:00Z` is refused, `10:00:00Z` accepted): that is the `setClock` `fixedTime`/`installAt` and the `expiresAt` of

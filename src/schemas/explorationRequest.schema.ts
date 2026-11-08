@@ -676,7 +676,14 @@ export const explorationOptionsSchema = z
   .object({
     headless: z.boolean().default(true),
     trace: z.boolean().default(false),
-    screenshots: z.enum(['off', 'onFailure', 'always']).default('onFailure'),
+    screenshots: z
+      .enum(['off', 'onFailure', 'always'])
+      .describe(
+        'Which images a run keeps. "off": none (screenshot steps are skipped too). "onFailure" (default) and "always" behave the same today: the images taken by ' +
+          '`screenshot` steps, plus a "failure" image when a step fails. A run that passes and has no `screenshot` step has no image in any mode: add a ' +
+          '{ "action": "screenshot", "name": "..." } step where you want one.',
+      )
+      .default('onFailure'),
     // T5.2: `functional` = stand-ins for images (1x1 PNG), media and fonts (204), and NO screenshots and NO trace, for fast
     // logic/rules runs. `full` (default) is what every run has always been. CSS is never stubbed.
     profile: z.enum(['full', 'functional']).default('full'),

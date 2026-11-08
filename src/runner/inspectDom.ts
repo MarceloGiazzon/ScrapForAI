@@ -5,7 +5,8 @@ import type { DomInspectionRequest } from '../schemas/domInspectionRequest.schem
 import { redactSecrets, redactString } from '../security/redactSecrets.js';
 import { isAllowedResourceUrl, validateTargetUrl } from '../security/validateTargetUrl.js';
 import { type DomStructure, extractStructure } from './extractStructure.js';
-import { createPlaywrightContext } from './playwrightContext.js';
+import { createPlaywrightContext, type PlaywrightJobContext } from './playwrightContext.js';
+import { classifyTargetFailure } from './targetFailure.js';
 
 const MAX_CONTROLS = 300;
 const MAX_FORMS = 50;
@@ -151,11 +152,13 @@ export async function inspectDom(request: DomInspectionRequest): Promise<DomInsp
   const consoleMessages: DomConsoleEvidence[] = [];
   const pageErrors: string[] = [];
   const network: DomNetworkEvidence[] = [];
-  const playwright = await createPlaywrightContext(true, request.viewport);
+  // Opened INSIDE the try: a browser that cannot start is classified below (BrowserLaunchFailed) like a target that cannot be reached.
+  let playwright: PlaywrightJobContext | undefined;
   let finalUrl = targetUrl;
   let disallowedNavigationError: Error | undefined;
 
   try {
+    playwright = await createPlaywrightContext(true, request.viewport);
     const page = playwright.page;
 
     registerInspectionListeners(page, {
@@ -211,6 +214,9 @@ export async function inspectDom(request: DomInspectionRequest): Promise<DomInsp
         : undefined,
     } satisfies DomInspectionResult);
   } catch (error) {
+    // A target that is down, a certificate error, a navigation timeout or a missing browser get a type and a sentence that say so
+    // (first-use review, item 5); anything else keeps the error it always had.
+    const failure = classifyTargetFailure(error, { url: targetUrl, navigation: true });
     return {
       status: 'failed',
       inspectedAt,
@@ -226,13 +232,13 @@ export async function inspectDom(request: DomInspectionRequest): Promise<DomInsp
       warning: request.includeRenderedHtml
         ? 'renderedHtml can contain sensitive hidden state even after sanitization; request it only when necessary.'
         : undefined,
-      error: {
+      error: failure ?? {
         type: error instanceof Error ? error.name : 'DomInspectionError',
         message: error instanceof Error ? redactString(error.message) : 'DOM inspection failed',
       },
     };
   } finally {
-    await playwright.close();
+    await playwright?.close();
   }
 }
 

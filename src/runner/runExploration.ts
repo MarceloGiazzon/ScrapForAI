@@ -40,6 +40,7 @@ import type { ResolvedExplorationRequest } from './resolveRequest.js';
 import { actorOf, actorsInUse, isMultiActor, MAIN_ACTOR } from './actors.js';
 import { mergeEvidence, mergePiiReports } from './mergeEvidence.js';
 import { type ActorContext, launchBrowser, openActorContext } from './playwrightContext.js';
+import { classifyTargetFailure } from './targetFailure.js';
 
 /**
  * T6.4: everything that belongs to ONE actor -- its isolated browser context and page, the evidence it collected, its own fault controller
@@ -1060,10 +1061,23 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       } catch (error) {
         responseWaiter?.catch(() => undefined);
         stepFailed = true;
-        const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown step error';
+        // Opening a page can fail because of the TARGET (not running, DNS, certificate, slow): say that, with the origin and what to check, instead of
+        // Playwright's call log under `type: "Error"` (first-use review, item 5). Only goto/reload: a click that times out is the step's own failure.
+        const targetFailure =
+          step.action === 'goto' || step.action === 'reload'
+            ? classifyTargetFailure(error, {
+                url: step.action === 'goto' ? (step.url === '$targetUrl' ? normalizedTargetUrl : step.url) : session.ctx.page.url(),
+                navigation: true,
+              })
+            : undefined;
+        const message = targetFailure
+          ? redactString(targetFailure.message, knownSecrets)
+          : error instanceof Error
+            ? redactString(error.message, knownSecrets)
+            : 'Unknown step error';
         stepResult.status = 'failed';
         stepResult.error = {
-          type: error instanceof Error ? error.name : 'StepExecutionError',
+          type: targetFailure?.type ?? (error instanceof Error ? error.name : 'StepExecutionError'),
           message,
         };
       } finally {
@@ -1231,9 +1245,15 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
       probedBuildId = await probeBuildId(request.buildProbe.info, request.buildProbe.baseUrl, primary.ctx.context);
     }
   } catch (error) {
-    const message = error instanceof Error ? redactString(error.message, knownSecrets) : 'Unknown runner error';
+    // A browser that cannot start (not installed, missing system libraries) is the machine's problem, and says what to run.
+    const launchFailure = classifyTargetFailure(error, { navigation: false });
+    const message = launchFailure
+      ? launchFailure.message
+      : error instanceof Error
+        ? redactString(error.message, knownSecrets)
+        : 'Unknown runner error';
     resultError = {
-      type: error instanceof Error ? error.name : 'RunnerError',
+      type: launchFailure?.type ?? (error instanceof Error ? error.name : 'RunnerError'),
       message,
     };
   } finally {

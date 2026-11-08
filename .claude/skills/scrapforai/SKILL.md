@@ -378,6 +378,9 @@ A routine tagged `doc` is also a chapter of the manual of its target profile. Yo
 | Error | Meaning | What to do |
 |---|---|---|
 | `TargetUrlNotAllowed` | URL not on the allowlist | Ask the user to add the origin; do not look for a way around |
+| `TargetUnreachable` | The target did not answer (not running, connection refused, DNS, timeout). Not a ScrapForAI failure; the message names the origin | Tell the user the application under test is down; do not retry in a loop, do not change selectors |
+| `TargetNavigationTimeout` / `TargetTlsError` | The target answered too slowly / has a certificate this machine rejects (ScrapForAI never ignores certificate errors) | Report it; a slow page may need a larger step timeout, a certificate problem is the user's to fix |
+| `BrowserLaunchFailed` | Chromium is not installed or lacks system libraries on the machine running ScrapForAI | Tell the user to run `npm run doctor`; the install command needs their decision (sudo on Linux) |
 | `CredentialOriginMismatch` | The credential set is bound to other origins | Use the set meant for this origin |
 | `CredentialInUse` (409) | That login is in another session | Wait and retry, or use another set |
 | `TooManySessionsForCredential` (400) | More actors use one credential set than the profile allows at once | Give the actors different sets, or ask for `flags.maxSessionsPerCredential` |

@@ -18,12 +18,40 @@ The service listens on loopback only. It is not reachable from other machines.
 
 ## Install (developers)
 
+The native path needs **Node.js 22.13 or newer** and npm. Docker, Doppler and `cloudflared` are not needed (see [Prerequisites](#prerequisites)).
+
+Linux / macOS:
+
+```sh
+npm ci
+npx playwright install chromium      # Linux: add --with-deps to also install system libraries (asks for sudo)
+cp .env.example .env
+```
+
+Windows (PowerShell):
+
 ```powershell
 npm ci
 npx playwright install chromium
-Copy-Item .env.example .env      # then set SCRAPFORAI_API_KEY and ALLOWED_TARGET_ORIGINS
-npm run dev
+Copy-Item .env.example .env
 ```
+
+Then edit `.env`. The server **refuses to start** until you have set two things, and says so if you have not:
+
+- `SCRAPFORAI_API_KEY` — your own key. Generate one with
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. You sign in to the UI with it.
+- `ALLOWED_TARGET_ORIGINS` — the **exact origin** of the application to test: scheme + host + port, no wildcard, for example
+  `http://localhost:5173`. Only listed origins can ever be opened, and a different port is a different origin.
+
+Check the machine and the configuration, then start:
+
+```sh
+npm run doctor     # Node version, .env, browser, port, target reachable; says what to do about each problem
+npm run dev        # http://localhost:3000
+```
+
+`npm run doctor` only reads: it installs nothing, asks for no privileges and never prints the key. Once the server is up:
+`curl http://127.0.0.1:3000/health` answers `{"status":"ok"...}`, and `npm run typecheck` and `npm test` should pass.
 
 ## Security Model
 
@@ -88,12 +116,19 @@ Both live under the per-user data directory — `%LOCALAPPDATA%\ScrapForAI` on W
 
 ## Prerequisites
 
-- Docker Desktop
-- Doppler CLI
-- Node.js LTS for local development outside Docker
-- Cloudflare `cloudflared` is optional locally because Compose can run the tunnel container
+What you need depends on how you run it. Pick one row; nothing else is required.
 
-## Doppler Setup
+| How you run it | Required | Optional |
+|---|---|---|
+| **Installer** (Windows, end users) | The installer. It bundles Node and Chromium. | — |
+| **Native development** (Linux, macOS, Windows) | Node.js 22.13+ and npm; Chromium via `npx playwright install chromium` (Chromium, its headless shell and ffmpeg: about 0.7 GB on disk, measured on Windows; on Linux `--with-deps` also installs system packages and asks for sudo). | — |
+| **Docker Compose** (below) | Docker (Docker Desktop on Windows/macOS). | Doppler to supply the variables: Compose substitutes `${VAR}` from the shell or from a `.env` file next to `docker-compose.yml`. `cloudflared` only for the Quick Tunnel profile. |
+
+To update or remove: `npm ci` re-installs the dependencies from the lock file. The browsers live in Playwright's cache (`%LOCALAPPDATA%\ms-playwright` on Windows, `~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS); `npx playwright install chromium` fetches the build this version of Playwright needs, and older builds stay in the cache until you run `npx playwright uninstall` (this installation's browsers) or `npx playwright uninstall --all` (every installation's).
+
+## Docker Compose with Doppler (optional)
+
+This and "Run Locally" below are the Docker path. The native path above does not use them.
 
 Create a Doppler project:
 
@@ -394,6 +429,7 @@ Quick Tunnel exposes the local API to a temporary public URL. Keep it running on
 From the repository root:
 
 ```powershell
+npm run doctor      # is this machine ready? (Node, .env, browser, port, target)
 npm run typecheck
 npm test
 npm run build

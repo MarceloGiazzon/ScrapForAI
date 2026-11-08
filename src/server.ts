@@ -6,6 +6,7 @@ import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 
 import { env, getLiveAllowedOrigins } from './config/env.js';
+import { findExampleConfig, formatExampleConfigError } from './config/exampleConfig.js';
 import { publicDir } from './config/paths.js';
 import { initRunHistory, pruneHistory } from './history/runHistoryStore.js';
 import { recoverSnapshotRuns } from './evolution/snapshotRunner.js';
@@ -216,6 +217,14 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 async function start(): Promise<void> {
+  // First-use review, item 4: an unchanged copy of .env.example (the API key everyone who read the repository knows, hosts nobody owns) is not a configuration.
+  // Refuse, say what to do, and keep the key out of the message. Here and not in envSchema: tests import env.ts and use example hosts as fixtures.
+  const exampleProblems = findExampleConfig(env);
+  if (exampleProblems.length > 0) {
+    process.stderr.write(`${formatExampleConfigError(exampleProblems)}\n`);
+    process.exit(1);
+  }
+
   // T7.1: the scripts this project injects into target pages must be exactly the reviewed ones. A mismatch throws, and the server does not start.
   verifyTrustedScripts();
   await initRunHistory();

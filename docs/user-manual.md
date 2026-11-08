@@ -702,7 +702,7 @@ Invoke-RestMethod `
 | --- | --- | --- |
 | `headless` | `true` | Runs browser without UI when true. |
 | `trace` | `false` | Saves a Playwright trace ZIP when true. |
-| `screenshots` | `onFailure` | `off`, `onFailure`, or `always`. |
+| `screenshots` | `onFailure` | `off`, `onFailure`, or `always`. **A passing run only has the images its `screenshot` steps take**: there is no automatic picture at the end, so add `{ "action": "screenshot", "name": "home" }` where you want one. `off` takes none (`screenshot` steps are skipped too). `onFailure` and `always` currently behave the same: the `screenshot` steps, plus a `failure` image when a step fails. |
 | `collectDomOnFailure` | `false` | Captures DOM text when a step fails. |
 | `viewport` | `{ width: 1366, height: 768 }` | Browser viewport size, e.g. `{ "width": 390, "height": 844 }` for a mobile-sized run. |
 
