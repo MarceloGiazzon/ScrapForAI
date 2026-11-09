@@ -862,7 +862,8 @@ homologação útil.
 > Só **lê** o que as outras peças já guardam (séries T3.4/T3.5, cofre, agendamentos) e agrupa por perfil de alvo; não inicia execução nem muda status. Estado da rotina: `failing` (a ÚLTIMA execução falhou), `flaky`, `slower`,
 > `passing`, `never-run`, `quarantined` e `inactive` à parte; tendência = fatia de falhas da metade antiga vs a recente da janela. Alvo: vermelho (algo que conta falhou), amarelo (nada falhou, mas algo pede uma pessoa),
 > verde, vazio. Rotina ou item em quarentena **nunca** deixa o alvo vermelho. Agendamentos de suíte/cofre aparecem fora de um alvo específico (`unscoped`). **Desvio:** a tela não edita nada (agendamentos, webhooks, status):
-> o roadmap pede o painel, e escrever pela UI exigiria decidir permissões que hoje são só do bearer. **Não feito:** histórico do status do alvo no tempo, link da linha para execução/relatório/evidência, limiares por alvo.
+> o roadmap pede o painel, e escrever pela UI exigiria decidir permissões que hoje são só do bearer. **Links (2026-11-09):** cada linha (rotina, item do cofre, agendamento) mostra o id da última execução como texto e como link para
+> `GET /v1/runs/:jobId/report` (suíte: `/v1/suites/:id/report`); a rotina também aponta a última falha quando já passou depois. A evidência expira, então o link pode dar 404 (inofensivo). **Não feito:** histórico do status do alvo no tempo, limiares por alvo.
 
 UI por perfil de alvo: último estado de cada rotina, tendência, flaky, alertas de desempenho,
 estado do cofre e próximos agendamentos.

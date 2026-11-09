@@ -196,3 +196,24 @@ test('the report carries nothing a run extracted: only ids, statuses, times, bui
   const json = JSON.stringify(health({ routines: [routine({ flaky: true, suggestion: { action: 'quarantine', reason: '6 state changes' } })], vault: [item()], schedules: [schedule()] }));
   assert.ok(!/password|secret|token|credential/i.test(json));
 });
+
+test('links: a routine carries the job id of its last run and, when it has passed since, of its last failed run; a failed last run is not repeated', () => {
+  const failedRun = { jobId: 'job_f', at: '2026-11-03T09:00:00.000Z' };
+  const recovered = classifyRoutine(routine({ lastRun: { jobId: 'job_p', at, status: 'passed' }, lastFailedRun: { ...failedRun, buildId: 'r1' } }));
+  assert.equal(recovered.lastRun?.jobId, 'job_p');
+  assert.deepEqual(recovered.lastFailedRun, { ...failedRun, buildId: 'r1' });
+
+  const stillRed = classifyRoutine(routine({ lastRun: { jobId: 'job_f', at, status: 'failed' }, lastFailedRun: { jobId: 'job_f', at } }));
+  assert.equal(stillRed.lastFailedRun, undefined, 'the last run IS the failure: one link, not two');
+
+  assert.equal(classifyRoutine(routine()).lastFailedRun, undefined, 'never failed: nothing to link');
+});
+
+test('links: a schedule keeps what its last occurrence started (a job or a suite id), a vault item its last run id', () => {
+  const lastRun = { outcome: 'failed', at, run: { kind: 'suite' as const, id: 'suite_abc' } };
+  assert.deepEqual(classifySchedule(schedule({ lastRun }), true).lastRun?.run, { kind: 'suite', id: 'suite_abc' });
+  assert.equal(classifySchedule(schedule({ lastRun: { outcome: 'passed', at } }), true).lastRun?.run, undefined);
+
+  const summary = summarizeVault([item({ lastRun: { jobId: 'job_v', status: 'failed', at } })]);
+  assert.equal(summary.attention[0]!.lastRun?.jobId, 'job_v');
+});

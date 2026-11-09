@@ -19,6 +19,7 @@ const { saveTarget } = await import('../src/targets/targetStore.js');
 const { saveRoutine } = await import('../src/library/routineService.js');
 const { saveItem, recordLastRun } = await import('../src/vault/regression/regressionVault.js');
 const { saveScheduleDefinition } = await import('../src/scheduler/scheduleService.js');
+const { updateState } = await import('../src/scheduler/scheduleStore.js');
 const { healthRouter } = await import('../src/routes/health.routes.js');
 const { default: express } = await import('express');
 
@@ -66,6 +67,10 @@ test('getHealth groups routines, vault items and schedules by target profile, fr
 
   await saveScheduleDefinition('solid-nightly', { cron: '0 3 * * *', timezone: 'America/Montevideo', target: { kind: 'routine', routineId: 'solid' }, enabled: true, overlap: 'skip', jitterSeconds: 0, notify: [], retries: 1 });
 
+  await updateState('solid-nightly', (state) => {
+    state.history.push({ at: '2026-11-03T06:00:00.000Z', finishedAt: '2026-11-03T06:01:00.000Z', outcome: 'failed', run: { kind: 'run', id: 'job_19' } });
+  }, '2026-11-03T06:00:00.000Z');
+
   const report = await getHealth(new Date('2026-11-03T12:00:00.000Z'));
   assert.equal(report.generatedAt, '2026-11-03T12:00:00.000Z');
   assert.equal(report.schedulerRunning, false, 'SCHEDULER_ENABLED=false: nothing fires and the panel says so');
@@ -83,9 +88,16 @@ test('getHealth groups routines, vault items and schedules by target profile, fr
   assert.deepEqual(broken.streak, { status: 'failed', runs: 4 });
   assert.equal(broken.trend, 'worsening');
   assert.equal(broken.lastRun?.buildId, 'r100');
+  assert.equal(broken.lastRun?.jobId, 'job_11', 'the latest run of the series, for the link to its report');
+  assert.equal(broken.lastFailedRun, undefined, 'the last run is the failure: it is not listed twice');
+  const solid = dev.routines.list.find((routine) => routine.id === 'solid')!;
+  assert.equal(solid.lastRun?.jobId, 'job_11');
+  assert.equal(solid.lastFailedRun, undefined, 'never failed');
   const wobbly = dev.routines.list.find((routine) => routine.id === 'wobbly')!;
   assert.equal(wobbly.suggestion?.action, 'quarantine', 'the same suggestion T3.5 shows');
   assert.ok((wobbly.flakyScore ?? 0) > 0.9);
+  assert.equal(wobbly.lastRun?.jobId, 'job_19');
+  assert.equal(wobbly.lastFailedRun?.jobId, 'job_18', 'it passed since: the last failure is linked apart');
 
   assert.equal(qa.status, 'green', 'a vault item that never ran is shown (not run), but it is not a warning by itself');
   assert.deepEqual(qa.vault.attention.map((entry) => `${entry.id}:${entry.state}`), ['REG-2:not-run']);
@@ -94,6 +106,7 @@ test('getHealth groups routines, vault items and schedules by target profile, fr
   assert.deepEqual(dev.schedules.map((entry) => [entry.id, entry.state]), [['solid-nightly', 'not-firing']]);
   assert.match(dev.reasons.join(' | '), /scheduler is not running/);
   assert.ok(dev.schedules[0]!.next, 'the next occurrence is shown');
+  assert.deepEqual(dev.schedules[0]!.lastRun?.run, { kind: 'run', id: 'job_19' }, 'what the last occurrence started, for its report link');
 });
 
 test('GET /v1/health answers the report, ?target= narrows it, an unknown target is 404', async () => {

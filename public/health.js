@@ -58,6 +58,37 @@ export function strip(results) {
   return node;
 }
 
+// Links only ever point at this server's own report routes (a session may GET them, as the Vault screen already does), with an id that matches
+// the server's pattern and is percent-encoded anyway. Evidence expires: the report then answers 404, which is harmless, so the id is always shown as text.
+const JOB_ID = /^job_[A-Za-z0-9_-]{1,64}$/;
+const SUITE_ID = /^suite_[A-Za-z0-9_-]{1,40}$/;
+const EXPIRED_HINT = 'Opens the report of this run in a new tab (404 once its evidence has expired)';
+
+function idLink(href, id) {
+  return el('a', { class: 'mono', href, target: '_blank', rel: 'noopener', title: EXPIRED_HINT, text: id });
+}
+
+/** The job id as a link to its report, or plain muted text when it does not look like a job id. */
+export function runLink(jobId) {
+  if (typeof jobId !== 'string' || !JOB_ID.test(jobId)) return el('span', { class: 'muted', text: '—' });
+  return idLink(`/v1/runs/${encodeURIComponent(jobId)}/report?lang=en`, jobId);
+}
+
+/** What a scheduled occurrence started: a run or a suite has a report; a snapshot or a summary has none here. */
+export function scheduleRunLink(ref) {
+  if (!ref || typeof ref.id !== 'string') return null;
+  if (ref.kind === 'run') return runLink(ref.id);
+  if (ref.kind === 'suite' && SUITE_ID.test(ref.id)) return idLink(`/v1/suites/${encodeURIComponent(ref.id)}/report?lang=en`, ref.id);
+  return null;
+}
+
+function runsCell(routine) {
+  if (!routine.lastRun) return el('span', { class: 'muted', text: '—' });
+  const nodes = [el('div', {}, [runLink(routine.lastRun.jobId)])];
+  if (routine.lastFailedRun) nodes.push(el('div', { class: 'muted' }, ['last failure: ', runLink(routine.lastFailedRun.jobId)]));
+  return el('div', {}, nodes);
+}
+
 function routineNote(routine) {
   const notes = [];
   if (routine.suggestion) notes.push(`${routine.suggestion.action} suggested: ${routine.suggestion.reason}`);
@@ -73,6 +104,7 @@ function routinesTable(routines) {
       el('td', { class: 'mono', text: `${routine.id} v${routine.version}` }),
       el('td', {}, [badge(routine.state, STATE_LABEL[routine.state] ?? routine.state)]),
       el('td', { text: routine.lastRun ? formatDateTime(routine.lastRun.at) : '—' }),
+      el('td', {}, [runsCell(routine)]),
       el('td', { text: routine.streak ? `${routine.streak.runs} ${routine.streak.status}` : '—' }),
       el('td', {}, [routine.results.length > 0 ? strip(routine.results) : el('span', { class: 'muted', text: '—' })]),
       el('td', {}, [badge(routine.trend, TREND_LABEL[routine.trend] ?? routine.trend)]),
@@ -82,7 +114,7 @@ function routinesTable(routines) {
   );
   return el('div', { class: 'table-wrap' }, [
     el('table', {}, [
-      el('thead', {}, [el('tr', {}, ['Routine', 'State', 'Last run', 'In a row', 'Last results', 'Trend', 'Flaky score', ''].map((label) => el('th', { text: label })))]),
+      el('thead', {}, [el('tr', {}, ['Routine', 'State', 'Last run', 'Report', 'In a row', 'Last results', 'Trend', 'Flaky score', ''].map((label) => el('th', { text: label })))]),
       el('tbody', {}, rows),
     ]),
   ]);
@@ -98,7 +130,7 @@ function vaultBlock(vault) {
     nodes.push(
       el('div', { class: 'table-wrap' }, [
         el('table', {}, [
-          el('thead', {}, [el('tr', {}, ['Item', 'State', 'Severity', 'Surface', 'Last run'].map((label) => el('th', { text: label })))]),
+          el('thead', {}, [el('tr', {}, ['Item', 'State', 'Severity', 'Surface', 'Last run', 'Report'].map((label) => el('th', { text: label })))]),
           el('tbody', {}, vault.attention.map((item) =>
             el('tr', { class: 'static' }, [
               el('td', { class: 'mono', text: `${item.id} ${item.title}` }),
@@ -106,6 +138,7 @@ function vaultBlock(vault) {
               el('td', { text: item.severity ?? '—' }),
               el('td', { text: item.surface }),
               el('td', { text: item.lastRun ? formatDateTime(item.lastRun.at) : '—' }),
+              el('td', {}, [item.lastRun ? runLink(item.lastRun.jobId) : el('span', { class: 'muted', text: '—' })]),
             ]),
           )),
         ]),
@@ -119,7 +152,7 @@ function schedulesBlock(schedules) {
   if (schedules.length === 0) return el('p', { class: 'muted', text: 'No schedule.' });
   return el('div', { class: 'table-wrap' }, [
     el('table', {}, [
-      el('thead', {}, [el('tr', {}, ['Schedule', 'What', 'When', 'State', 'Last', 'Next'].map((label) => el('th', { text: label })))]),
+      el('thead', {}, [el('tr', {}, ['Schedule', 'What', 'When', 'State', 'Last', 'Report', 'Next'].map((label) => el('th', { text: label })))]),
       el('tbody', {}, schedules.map((schedule) =>
         el('tr', { class: 'static' }, [
           el('td', { class: 'mono', text: schedule.id }),
@@ -127,6 +160,7 @@ function schedulesBlock(schedules) {
           el('td', { class: 'mono', text: `${schedule.cron} (${schedule.timezone})` }),
           el('td', {}, [badge(schedule.state, SCHEDULE_LABEL[schedule.state] ?? schedule.state)]),
           el('td', { text: schedule.lastRun ? `${schedule.lastRun.outcome}${schedule.lastRun.passedOnRetry ? ' (on retry)' : ''} · ${formatDateTime(schedule.lastRun.at)}` : '—' }),
+          el('td', {}, [(schedule.lastRun && scheduleRunLink(schedule.lastRun.run)) || el('span', { class: 'muted', text: '—' })]),
           el('td', { text: schedule.next ? formatDateTime(schedule.next) : '—' }),
         ]),
       )),

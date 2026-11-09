@@ -26,6 +26,8 @@ export interface RoutineHealthInput {
   targetProfile: string;
   /** The latest run of the series (any population, parametric or not), if the routine ever ran. */
   lastRun?: { jobId: string; at: string; status: 'passed' | 'failed'; buildId?: string };
+  /** The latest FAILED run of the series (links from a row to its report); only ids, times and a build id. */
+  lastFailedRun?: { jobId: string; at: string; buildId?: string };
   /** Pass/fail strip of the flakiness window, oldest first. */
   results: Array<'passed' | 'failed'>;
   flakyScore?: number;
@@ -42,6 +44,8 @@ export interface RoutineHealth {
   status: RoutineStatusName;
   state: RoutineState;
   lastRun?: RoutineHealthInput['lastRun'];
+  /** The latest failed run, only when it is not `lastRun` itself (the routine passed since). */
+  lastFailedRun?: RoutineHealthInput['lastFailedRun'];
   /** Consecutive runs, at the end of the strip, with the same result as the last one. */
   streak?: { status: 'passed' | 'failed'; runs: number };
   trend: Trend;
@@ -76,6 +80,12 @@ export interface VaultHealth {
   quarantinedFailing: number;
 }
 
+/** What a scheduled occurrence started (T3.2): `run` = a job id, `suite` = a suite run id. Ids only. */
+export interface ScheduleRunRef {
+  kind: 'run' | 'suite' | 'snapshot' | 'summary';
+  id: string;
+}
+
 export interface ScheduleInput {
   id: string;
   enabled: boolean;
@@ -84,7 +94,7 @@ export interface ScheduleInput {
   target: { kind: 'routine' | 'suite' | 'vault' | 'evolutionSnapshot' | 'summary'; routineId?: string; targetProfile?: string };
   next: string[];
   running?: boolean;
-  lastRun?: { outcome: string; at: string; passedOnRetry?: boolean };
+  lastRun?: { outcome: string; at: string; passedOnRetry?: boolean; run?: ScheduleRunRef };
   notify: number;
 }
 
@@ -177,6 +187,7 @@ export function classifyRoutine(input: RoutineHealthInput): RoutineHealth {
     status: input.status,
     state,
     ...(input.lastRun ? { lastRun: input.lastRun } : {}),
+    ...(input.lastFailedRun && input.lastFailedRun.jobId !== input.lastRun?.jobId ? { lastFailedRun: input.lastFailedRun } : {}),
     ...(streak ? { streak } : {}),
     trend: trendOf(input.results),
     results: input.results,

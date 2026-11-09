@@ -40,3 +40,19 @@ test('the stylesheet has a class for every part of the health screen (the script
   const css = read('app.css');
   for (const name of ['badge\\.warn', 'badge\\.neutral', 'strip-pass', 'strip-fail', 'card-head', 'reasons']) assert.match(css, new RegExp(`\\.${name}\\b`), name);
 });
+
+test('health.js: report links only point at this server\'s own report routes, with a validated and encoded id', async () => {
+  const script = read('health.js');
+  // Same patterns as the server's (src/artifacts/artifactStore.ts and src/orchestrator/suiteRunner.ts), so a link is never built from an id the server would not issue.
+  const { JOB_ID_PATTERN } = await import('../src/artifacts/artifactStore.js');
+  assert.ok(script.includes(`const JOB_ID = ${JOB_ID_PATTERN.toString()};`), 'JOB_ID in health.js must equal JOB_ID_PATTERN');
+  assert.ok(script.includes('const SUITE_ID = /^suite_[A-Za-z0-9_-]{1,40}$/;'));
+  const hrefs = [...script.matchAll(/idLink\(\s*`([^`]+)`/g)].map((m) => m[1]!);
+  assert.deepEqual(hrefs, ['/v1/runs/${encodeURIComponent(jobId)}/report?lang=en', '/v1/suites/${encodeURIComponent(ref.id)}/report?lang=en']);
+  assert.ok(/rel:\s*'noopener'/.test(script));
+  // The id is tested before it reaches a URL.
+  assert.match(script, /JOB_ID\.test\(jobId\)\)\s*return el\('span'/);
+  assert.match(script, /SUITE_ID\.test\(ref\.id\)/);
+  // Nothing but these two report routes is ever a link target.
+  assert.deepEqual([...script.matchAll(/[`'"](\/v1\/[a-z]+)/g)].map((m) => m[1]!).sort(), ['/v1/health', '/v1/runs', '/v1/suites']);
+});

@@ -21,6 +21,8 @@ async function routineInputs(): Promise<RoutineHealthInput[]> {
     const records = await readPerfRecords(routine.id);
     const latest = records.reduce<(typeof records)[number] | undefined>((best, record) => (best === undefined || record.at >= best.at ? record : best), undefined);
 
+    const lastFailed = records.reduce<(typeof records)[number] | undefined>((best, record) => (record.status === 'failed' && (best === undefined || record.at >= best.at) ? record : best), undefined);
+
     const flakiness = records.length > 0 ? analyzeFlakiness(records, flaky) : undefined;
     const suggestion = flakiness ? suggestionFor(routine.status, flakiness, flaky) : undefined;
     const analysis = records.length > 0 ? analyzeRoutine(records, perf, { limit: 1, select: {} }) : undefined;
@@ -32,6 +34,7 @@ async function routineInputs(): Promise<RoutineHealthInput[]> {
       status: routine.status,
       targetProfile: routine.targetProfile,
       ...(latest ? { lastRun: { jobId: latest.jobId, at: latest.at, status: latest.status, ...(latest.buildId ? { buildId: latest.buildId } : {}) } } : {}),
+      ...(lastFailed ? { lastFailedRun: { jobId: lastFailed.jobId, at: lastFailed.at, ...(lastFailed.buildId ? { buildId: lastFailed.buildId } : {}) } } : {}),
       results: flakiness?.results.map((result) => result.status) ?? [],
       ...(flakiness?.score === undefined ? {} : { flakyScore: flakiness.score }),
       flaky: flakiness?.flaky === true,
@@ -69,7 +72,7 @@ async function scheduleInputs(): Promise<ScheduleInput[]> {
       },
       next: view.next,
       running: view.running !== undefined,
-      ...(view.lastRun ? { lastRun: { outcome: view.lastRun.outcome, at: view.lastRun.finishedAt ?? view.lastRun.firedAt ?? view.lastRun.at, ...(view.lastRun.passedOnRetry ? { passedOnRetry: true } : {}) } } : {}),
+      ...(view.lastRun ? { lastRun: { outcome: view.lastRun.outcome, at: view.lastRun.finishedAt ?? view.lastRun.firedAt ?? view.lastRun.at, ...(view.lastRun.passedOnRetry ? { passedOnRetry: true } : {}), ...(view.lastRun.run ? { run: { kind: view.lastRun.run.kind, id: view.lastRun.run.id } } : {}) } } : {}),
       notify: view.schedule.notify.length,
     };
   });
