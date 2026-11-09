@@ -161,6 +161,9 @@ test('end to end: staged files, a known vault value, a commit message and a push
   const vaultKey = randomBytes(32).toString('base64');
   const vaultValue = `Vv-${randomBytes(8).toString('hex')}`;
   const savedEnv = { dir: process.env.SCRAPFORAI_DATA_DIR, key: process.env.SCRAPFORAI_VAULT_KEY };
+  // The vault module loads the server configuration; CI has no .env (the child process inherits these too).
+  process.env.SCRAPFORAI_API_KEY ??= `test-${randomBytes(12).toString('hex')}`;
+  process.env.ALLOWED_TARGET_ORIGINS ??= 'https://dev.example.com';
   try {
     process.env.SCRAPFORAI_DATA_DIR = data;
     process.env.SCRAPFORAI_VAULT_KEY = vaultKey;
