@@ -58,6 +58,28 @@ export function checkNode(current: string, enginesRange: string | undefined): Ch
   };
 }
 
+/** Where git looks for hooks in this clone: our guard, someone else's hooks, git's default (no guard), or not a git clone at all. */
+export type SecretGuardState = 'active' | 'other' | 'unset' | 'not-a-repo';
+
+/**
+ * The commit guard (.githooks + scripts/secret-scan.ts). A warning, not a failure: the server runs without it, but in a clone that can push to
+ * the PUBLIC repository a missing guard is how a real password stayed in samples/ for four months (2026-11-08).
+ */
+export function checkSecretGuard(state: SecretGuardState, otherPath?: string): CheckResult {
+  if (state === 'not-a-repo') return { id: 'secret-guard', level: 'ok', title: 'Not a git clone: no commit guard needed' };
+  if (state === 'active') return { id: 'secret-guard', level: 'ok', title: 'Commit guard active (pre-commit, commit-msg, pre-push check for secrets)' };
+  return {
+    id: 'secret-guard',
+    level: 'warn',
+    title: state === 'other' ? `Commit guard NOT active: git uses the hooks in "${otherPath ?? '?'}"` : 'Commit guard NOT active in this clone',
+    impact: 'A password, API key or vault value can be committed and pushed to the public repository without any check.',
+    next:
+      state === 'other'
+        ? 'Make your hooks call "npx tsx scripts/secret-scan.ts --staged" (pre-commit) and "--push" (pre-push), or run "git config core.hooksPath .githooks".'
+        : 'Run "npm run hooks:install" (npm install does it too).',
+  };
+}
+
 export interface ZodIssueLike {
   path: ReadonlyArray<PropertyKey>;
   message: string;

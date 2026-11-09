@@ -286,3 +286,27 @@ export async function listAllCredentialValues(): Promise<string[]> {
   const payload = await readPayload(await loadKey(), file);
   return Object.values(payload.sets).flatMap((set) => Object.values(set.values));
 }
+
+/**
+ * COMMIT GUARD ONLY (`scripts/secret-scan.ts`): every value with the set and field it belongs to, so a value about to be committed
+ * can be named by its LABEL. Like `listAllCredentialValues`, it never creates a key: no vault file = [], and a vault file whose key is
+ * missing is an error the caller reports. Never returned by an API.
+ */
+export async function listCredentialValuesForScan(): Promise<Array<{ setId: string; field: string; value: string }>> {
+  const file = credentialVaultFile();
+  try {
+    await fs.access(file);
+  } catch {
+    return [];
+  }
+  if (!process.env.SCRAPFORAI_VAULT_KEY?.trim()) {
+    try {
+      await fs.access(vaultKeyFile());
+    } catch {
+      throw new VaultError(500, 'VaultKeyMissing','the credential vault exists but its key does not: values cannot be checked');
+    }
+  }
+
+  const payload = await readPayload(await loadKey(), file);
+  return Object.values(payload.sets).flatMap((set) => Object.entries(set.values).map(([field, value]) => ({ setId: set.id, field, value })));
+}

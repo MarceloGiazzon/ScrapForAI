@@ -1,0 +1,9 @@
+#!/bin/sh
+# Commit guard for the MESSAGE (a secret pasted into a subject is published too). Fails closed.
+root=$(git rev-parse --show-toplevel) || exit 1
+tsx="$root/node_modules/.bin/tsx"
+if [ ! -x "$tsx" ] && [ ! -f "$tsx.cmd" ]; then
+  echo "[secret-scan] node_modules is missing: run npm install." >&2
+  exit 1
+fi
+exec "$tsx" "$root/scripts/secret-scan.ts" --message-file "$1"

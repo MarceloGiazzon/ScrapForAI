@@ -1,0 +1,10 @@
+#!/bin/sh
+# Push guard: every commit about to leave is checked line by line (added lines and messages), not only the last one.
+# This is the last point where a secret is still private. Fails closed. git passes the refs on stdin.
+root=$(git rev-parse --show-toplevel) || exit 1
+tsx="$root/node_modules/.bin/tsx"
+if [ ! -x "$tsx" ] && [ ! -f "$tsx.cmd" ]; then
+  echo "[secret-scan] node_modules is missing: run npm install. The push is refused until the check can run." >&2
+  exit 1
+fi
+exec "$tsx" "$root/scripts/secret-scan.ts" --push

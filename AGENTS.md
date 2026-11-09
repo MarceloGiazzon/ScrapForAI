@@ -780,6 +780,22 @@ step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `en
   lints without saving; CLI `scrapforai routines lint <routineId|file.json|-> [--target id] [--strict]` (exit 1 on an error, or on any finding with `--strict`; 0 otherwise). Departures from the roadmap: SEL001 cannot know whether a semantic selector exists
   (the lint reads the routine, not the page), so it warns on every positional selector; and the CLI needs the server (the rules need the target profile). Not done: a lint of ALL stored routines at once, `drift` between a stored routine and newer rules (an old routine is only linted when re-saved or asked), a rule for `evaluate`,
   `lint_routine` as an MCP tool (save_routine already returns the findings). `test/convention-lint.test.ts`, `test/cli.test.ts`.
+- **Commit guard** (`src/security/repoSecretScan.ts` pure, `scripts/secret-scan.ts`, `.githooks/`, 2026-11-08): **the repository is PUBLIC; nothing secret may be committed.** Why: a real login + password sat in
+  `samples/*.json` from the FIRST commit for four months, while GitHub secret scanning and push protection were ON (they know provider token formats, not a plain password), and `test/samples-hygiene.test.ts`
+  arrived later and only looked at the tree; the history had to be rewritten and the password is still valid until rotated. Three hooks, installed by `npm install` (`prepare` -> `scripts/install-hooks.mjs`
+  sets `core.hooksPath=.githooks`; it does nothing outside a git clone or when `scripts/` is not there yet, as in the Dockerfile) or `npm run hooks:install`: **pre-commit** (the STAGED content, not the working copy),
+  **commit-msg**, **pre-push** (the added lines and messages of EVERY commit about to leave: a secret added and then deleted in a later commit is still stopped). They **fail closed** (no `node_modules`, a vault that
+  exists but cannot be read = refused, exit 2). Rules: **`known-value`** = every field of every credential-vault set of this machine + the secret-named entries of `.env`, as substrings (>= 6 chars), anywhere, and it
+  **cannot be allowed** (the rule that would have caught the leak); **`forbidden-file`** (`.env*` but `.env.example`, keys/certs, `data/`, `credentials.enc.json`, `local-api-key.txt`, `team/users.json`);
+  **`secret-field`** = a literal assigned to a name whose LAST word is password/passwd/passphrase/pwd/secret/token/apikey/privatekey/accesskey/secretkey/clientsecret (`loginPassword`, `GITHUB_TOKEN`; not `lastPass`,
+  `passwordSelector`, `valueFromCredential`), quoted (`"x": "v"`, `x = 'v'`; backticks are NOT quotes, they are Markdown code) or bare in env/shell/ini/YAML files, unless the value is a placeholder (`<X>`, `${X}`, `REDACTED`,
+  `replace-with-`, `test-...`, `fake-...`; see `isPlaceholderValue`); **`secret-shape`** = the routine lint's `SECRET_PATTERNS`. The last two can be allowed per file in `.secret-scan-allow.json` (glob + rules + a
+  reason; today only `test/**/*.ts`, whose fakes prove redaction) or per line with `secret-scan: allow`. A finding is path:line, rule and a LABEL (`the vault value of set "x" field "password"`), **never the value**.
+  `SECRET_SCAN_NO_VAULT=1` skips the vault on purpose and says so. CI (`ci.yml`, `fetch-depth: 0`) runs `--history --all` on every push/PR: no vault there, so names and shapes only, and a failure there means the
+  secret is ALREADY public (rotate first). `npm run secret-scan` (tree), `npm run secret-scan:history`; `npm run doctor` warns when the guard is not active. `.claude/settings.json` denies `--no-verify` and
+  `git config core.hooksPath` to agents. **`git commit --no-verify` skips the local hooks: never use it.** If a secret leaks anyway: rotate it first, then rewrite the history, and expect GitHub to keep serving the old
+  SHAs until Support purges them. `test/repo-secret-scan.test.ts` (rules, parser, a temp repo with its own vault: staged, message, push after a deletion, fail closed). A new kind of secret file or data store: add it to
+  `FORBIDDEN_FILES`; a new store of secret VALUES: feed it to `loadKnown` in the script.
 - **`ALLOW_EVALUATE`**: the `evaluate`/`watch` steps run arbitrary in-page JavaScript. Off by default;
   enable only for local, trusted use against allowlisted dev origins.
 

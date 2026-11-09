@@ -1,0 +1,10 @@
+#!/bin/sh
+# Commit guard: nothing secret may enter this PUBLIC repository (see scripts/secret-scan.ts). Fails closed.
+# Installed by `npm install` (the "prepare" script sets core.hooksPath=.githooks) or `npm run hooks:install`.
+root=$(git rev-parse --show-toplevel) || exit 1
+tsx="$root/node_modules/.bin/tsx"
+if [ ! -x "$tsx" ] && [ ! -f "$tsx.cmd" ]; then
+  echo "[secret-scan] node_modules is missing: run npm install. The commit is refused until the check can run." >&2
+  exit 1
+fi
+exec "$tsx" "$root/scripts/secret-scan.ts" --staged

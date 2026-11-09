@@ -4,6 +4,7 @@
 //
 //   npm run doctor            human report, exit 1 when something must be fixed
 //   npm run doctor -- --json  the same results as one JSON array on stdout (for CI)
+import { spawnSync } from 'node:child_process';
 import { accessSync, constants, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +15,7 @@ import {
   checkExposure,
   checkNode,
   checkPort,
+  checkSecretGuard,
   checkTarget,
   exitCodeFor,
   renderReport,
@@ -89,6 +91,14 @@ async function main(): Promise<void> {
   // 1. Node
   const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')) as { engines?: { node?: string } };
   results.push(checkNode(process.version, packageJson.engines?.node));
+
+  // 1b. the commit guard (only in a git clone)
+  const inside = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: root, encoding: 'utf8' });
+  if (inside.status !== 0 || inside.stdout.trim() !== 'true') results.push(checkSecretGuard('not-a-repo'));
+  else {
+    const hooksPath = spawnSync('git', ['config', '--get', 'core.hooksPath'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+    results.push(hooksPath === '.githooks' ? checkSecretGuard('active') : hooksPath ? checkSecretGuard('other', hooksPath) : checkSecretGuard('unset'));
+  }
 
   // 2. .env (the variables may also come from the process environment, as in Docker, so a missing file is only fatal if the config then fails)
   const hasEnvFile = existsSync(path.join(root, '.env'));
