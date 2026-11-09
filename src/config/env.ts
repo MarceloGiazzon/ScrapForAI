@@ -64,6 +64,10 @@ export const envSchema = z.object({
   MAX_ACTORS_PER_JOB: integerFromEnv.default(5),
   JOB_TIMEOUT_MS: integerFromEnv.default(60000),
   STEP_TIMEOUT_MS: integerFromEnv.default(10000),
+  // The most a step may ASK for with its own `timeoutMs` (STEP_TIMEOUT_MS is only what a step gets when it asks for nothing).
+  // They used to be one value, so on the shipped .env.example (10000) every template that waits 15-30 s for a GeneXus login or
+  // a slow grid was refused at validation. Never below STEP_TIMEOUT_MS (see `env` below); JOB_TIMEOUT_MS still bounds the run.
+  MAX_STEP_TIMEOUT_MS: integerFromEnv.default(60000),
   MAX_REQUEST_BODY_SIZE: z.string().min(1).default('1mb'),
   MAX_PARALLEL_JOBS: integerFromEnv.default(2),
   // Slots suites/scheduled runs may not take, so ad-hoc requests are not locked out by a long suite.
@@ -190,6 +194,8 @@ const parsedEnv = envSchema.parse(process.env);
 export const env = {
   ...parsedEnv,
   ARTIFACT_DIR: parsedEnv.ARTIFACT_DIR ?? artifactsDir(),
+  // A default above the cap would make a step that asks for nothing exceed what it may ask for.
+  MAX_STEP_TIMEOUT_MS: Math.max(parsedEnv.MAX_STEP_TIMEOUT_MS, parsedEnv.STEP_TIMEOUT_MS),
 };
 
 export type AppEnv = typeof env;

@@ -20,6 +20,14 @@ npm run typecheck
 chars) and at least one `ALLOWED_TARGET_ORIGINS` entry. See `.env.example` for every tunable (timeouts,
 step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `engines` says so and the doctor checks it).
 
+- **Step timeouts (2026-11-09):** `STEP_TIMEOUT_MS` (10000) is what a step gets when it asks for nothing; `MAX_STEP_TIMEOUT_MS` (60000, never below
+  `STEP_TIMEOUT_MS`) is the most a step's own `timeoutMs` (and `waitForTimeout`, `inspect_dom`) may ask for. They were ONE value, so on the shipped
+  `.env.example` every template waiting 15-30 s (GeneXus pack, `concurrency-*`, `chaos-*`) was refused at validation and `pack apply` failed for a new user;
+  it only worked here because the local `.env` raised `STEP_TIMEOUT_MS`. That is also why CI was red for weeks (28 tests). **CI runs with no `.env` on
+  purpose** (only the two required variables, fake values, in `ci.yml`): a test that passes only with the local `.env` hides a first-use bug. Before
+  trusting a green local `npm test`, run it once in a clean worktree with just those two variables. `schema/*.json` is now generated from the defaults
+  (`maximum: 60000`), independent of the local `STEP_TIMEOUT_MS`.
+
 - **First-use checks** (first-use review `docs/INSTALL-AND-FIRST-USE-REVIEW.pt-BR.md`): `start()` in `server.ts` **refuses to boot** on an unchanged copy of
   `.env.example` (`src/config/exampleConfig.ts`, pure): a key that starts with `replace-with`, or `ALLOWED_TARGET_ORIGINS` that is exactly `https://dev.example.com` +
   `https://qa.example.com` (one example host on its own is accepted: the team smokes use it). The check is in `start()` and NOT in `envSchema`, because tests import `env.ts`.

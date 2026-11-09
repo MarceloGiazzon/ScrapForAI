@@ -6,7 +6,7 @@ export const domInspectionRequestSchema = z
   .object({
     targetUrl: z.string().url().max(2048),
     waitUntil: z.enum(['commit', 'domcontentloaded', 'load', 'networkidle']).default('domcontentloaded'),
-    timeoutMs: z.number().int().positive().max(env.STEP_TIMEOUT_MS).default(env.STEP_TIMEOUT_MS),
+    timeoutMs: z.number().int().positive().max(env.MAX_STEP_TIMEOUT_MS).default(env.STEP_TIMEOUT_MS),
     includeRenderedHtml: z.boolean().default(false),
     includeHiddenControls: z.boolean().default(true),
     // T4.3: also return `structure`: fields/actions/tables described WITHOUT their values (the input of a screen inventory).

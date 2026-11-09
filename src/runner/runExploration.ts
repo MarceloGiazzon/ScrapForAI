@@ -92,7 +92,7 @@ class StepExecutionError extends Error {
 
 function timeoutFor(step: RunnableLeaf): number {
   const timeoutMs = 'timeoutMs' in step ? step.timeoutMs : undefined;
-  return Math.min(timeoutMs ?? env.STEP_TIMEOUT_MS, env.STEP_TIMEOUT_MS);
+  return Math.min(timeoutMs ?? env.STEP_TIMEOUT_MS, env.MAX_STEP_TIMEOUT_MS);
 }
 
 function waitConditionTimeout(condition: WaitCondition): number {

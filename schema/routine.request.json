@@ -1217,7 +1217,7 @@
     "__schema62": {
       "type": "integer",
       "exclusiveMinimum": 0,
-      "maximum": 30000
+      "maximum": 60000
     },
     "__schema63": {
       "type": "object",
@@ -1543,7 +1543,7 @@
         "timeoutMs": {
           "type": "integer",
           "exclusiveMinimum": 0,
-          "maximum": 30000
+          "maximum": 60000
         }
       },
       "required": [

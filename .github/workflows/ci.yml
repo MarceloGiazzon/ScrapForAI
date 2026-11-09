@@ -35,5 +35,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # There is no .env here, on purpose: the tests must pass on the defaults a new user gets. The config refuses to load
+      # without these two, so give it values that are obviously not secrets and reach nothing.
       - name: Test
+        env:
+          SCRAPFORAI_API_KEY: test-ci-not-a-secret-key-0001
+          ALLOWED_TARGET_ORIGINS: http://127.0.0.1:4999
         run: npm test

@@ -22,7 +22,7 @@ const stepId = z.string().min(1).max(80);
 const selector = z.string().min(1).max(500);
 const shortText = z.string().max(500);
 const valueText = z.string().max(5000);
-const stepTimeout = z.number().int().positive().max(env.STEP_TIMEOUT_MS).optional();
+const stepTimeout = z.number().int().positive().max(env.MAX_STEP_TIMEOUT_MS).optional();
 
 export const callerSchema = z
   .object({
@@ -156,7 +156,7 @@ const waitForQuietStep = z
 const waitForUrlContainsStep = z
   .object({ ...baseStep, action: z.literal('waitForUrlContains'), value: shortText, timeoutMs: stepTimeout })
   .strict();
-const waitForTimeoutStep = z.object({ ...baseStep, action: z.literal('waitForTimeout'), timeoutMs: z.number().int().positive().max(env.STEP_TIMEOUT_MS) }).strict();
+const waitForTimeoutStep = z.object({ ...baseStep, action: z.literal('waitForTimeout'), timeoutMs: z.number().int().positive().max(env.MAX_STEP_TIMEOUT_MS) }).strict();
 const setViewportStep = z
   .object({
     ...baseStep,

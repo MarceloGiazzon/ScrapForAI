@@ -185,3 +185,13 @@ test('evaluate results normalize JSON values, redact, and truncate oversized out
     env.MAX_EVALUATE_RESULT_CHARS = previousMax;
   }
 });
+
+test('a step may ask for more than the default step timeout, up to MAX_STEP_TIMEOUT_MS (the templates wait 15-30 s)', () => {
+  assert.ok(env.MAX_STEP_TIMEOUT_MS >= env.STEP_TIMEOUT_MS, 'the cap is never below the default');
+  const request = (timeoutMs: number) => ({
+    targetUrl: 'https://dev.example.com/',
+    steps: [{ action: 'waitForSelector', selector: '#app', state: 'visible', timeoutMs }],
+  });
+  assert.equal(explorationRequestSchema.safeParse(request(env.MAX_STEP_TIMEOUT_MS)).success, true);
+  assert.equal(explorationRequestSchema.safeParse(request(env.MAX_STEP_TIMEOUT_MS + 1)).success, false);
+});
