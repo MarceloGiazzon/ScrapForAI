@@ -13,7 +13,7 @@ import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
 import { piiReportSchema } from '../schemas/pii.schema.js';
 import { getTarget } from '../targets/targetStore.js';
 import type { ReportLang } from './i18n.js';
-import { type IntegrityInfo, renderRunReport, renderSuiteReport, type ReportStep } from './render.js';
+import { type IntegrityInfo, renderRunReport, renderSuiteReport, type ReportStep, type SuiteAuditSummary, type SuiteReportData } from './render.js';
 import { readFileRetry } from '../storage/transientIo.js';
 
 const MAX_SCREENSHOTS = 12;
@@ -183,6 +183,31 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
   );
 }
 
+/**
+ * T7.4/T7.5: the accessibility audits of one run as the suite report keeps them (counts only), recognised by shape like in the run report.
+ * `undefined` = the run's evidence is gone (unknown whether it audited); `[]` = it exists and made no audit.
+ */
+async function suiteAudits(jobId: string): Promise<SuiteAuditSummary[] | undefined> {
+  const result = await readJson<Pick<ExplorationResult, 'extracted'>>(jobId, 'result.json');
+  if (!result) return undefined;
+  return Object.entries(result.extracted ?? {}).flatMap(([name, value]) => {
+    const parsed = accessibilityResultSchema.safeParse(value);
+    if (!parsed.success) return [];
+    const audit = parsed.data;
+    return [
+      {
+        name,
+        standard: audit.standard,
+        counts: { critical: audit.counts.critical, serious: audit.counts.serious, moderate: audit.counts.moderate, minor: audit.counts.minor },
+        truncated: audit.truncated,
+        ...(audit.baseline
+          ? { baseline: { buildId: audit.baseline.buildId, new: audit.baseline.new.length, fixed: audit.baseline.fixed.length, incomplete: audit.baseline.incomplete } }
+          : {}),
+      },
+    ];
+  });
+}
+
 export async function buildSuiteReportHtml(suiteRunId: string, lang: ReportLang): Promise<string> {
   const state = SUITE_ID_PATTERN.test(suiteRunId) ? await getSuite(suiteRunId) : undefined;
   if (!state) {
@@ -193,6 +218,18 @@ export async function buildSuiteReportHtml(suiteRunId: string, lang: ReportLang)
   }
 
   const { keyId } = await loadPublicKey();
+
+  // The run of a variant is its last attempt (`variant.jobId`). A job id that does not look like one is never turned into a path.
+  const variants: SuiteReportData['variants'] = [];
+  for (const variant of state.variants) {
+    const audits = variant.jobId && JOB_ID_PATTERN.test(variant.jobId) ? await suiteAudits(variant.jobId) : undefined;
+    variants.push({
+      ...variant,
+      ...(audits && audits.length > 0 ? { accessibility: audits } : {}),
+      ...(variant.jobId && audits === undefined ? { evidenceExpired: true } : {}),
+    });
+  }
+
   return renderSuiteReport(
     {
       suiteRunId: state.suiteRunId,
@@ -208,7 +245,7 @@ export async function buildSuiteReportHtml(suiteRunId: string, lang: ReportLang)
       teardownFailures: state.teardownFailures,
       buildId: state.request.buildId,
       executor: 'ScrapForAI',
-      variants: state.variants,
+      variants,
       keyId,
       generatedAt: new Date().toISOString(),
     },

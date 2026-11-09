@@ -103,6 +103,18 @@ export interface Strings {
   a11yNone: string;
   a11yCounts: string;
   a11yNothingNew: string;
+  a11ySuiteAudit: string;
+  a11yColNew: string;
+  a11yColFixed: string;
+  a11ySuiteVariants: string;
+  a11ySuiteAudits: string;
+  a11ySuiteNewTotal: string;
+  a11ySuiteWithBaseline: string;
+  a11ySuiteNoBaselineAtAll: string;
+  a11ySuiteSevere: string;
+  a11ySuiteWithoutBaseline: string;
+  a11ySuiteExpired: string;
+  a11ySuiteOpenRun: string;
   piiTitle: string;
   piiNone: string;
   piiNote: string;
@@ -221,6 +233,18 @@ const en: Strings = {
   a11yNone: "No violations found by the automated rules (this does not prove the page is accessible: most criteria need a person).",
   a11yCounts: "violation(s)",
   a11yNothingNew: "Nothing new and nothing fixed.",
+  a11ySuiteAudit: "Audit",
+  a11yColNew: "New",
+  a11yColFixed: "Fixed",
+  a11ySuiteVariants: "Variants audited",
+  a11ySuiteAudits: "audit(s)",
+  a11ySuiteNewTotal: "New violations vs baseline",
+  a11ySuiteWithBaseline: "audit(s) with a baseline",
+  a11ySuiteNoBaselineAtAll: "No audit had a baseline, so nothing can be called new.",
+  a11ySuiteSevere: "Serious + critical violations",
+  a11ySuiteWithoutBaseline: "audit(s) without a baseline are not part of the new count.",
+  a11ySuiteExpired: "The evidence of these runs has expired, so their audits (if any) are not summarized here. Pin the runs you will report on",
+  a11ySuiteOpenRun: "Only counts are shown. The findings of each audit are in the report of the run named in the last column.",
   piiTitle: 'Privacy scan',
   piiNone: 'No personal data or secrets were found in the places that were looked at (listed below). This does not prove there are none elsewhere.',
   piiNote: 'The values are not stored: each finding shows a masked sample and says where it was seen. The result also keeps a fingerprint, so the same value can be recognised elsewhere without being stored.',
@@ -339,6 +363,18 @@ const pt: Strings = {
   a11yNone: "Nenhuma violação encontrada pelas regras automáticas (isso não prova que a página é acessível: a maioria dos critérios exige uma pessoa).",
   a11yCounts: "violação(ões)",
   a11yNothingNew: "Nada novo e nada corrigido.",
+  a11ySuiteAudit: "Auditoria",
+  a11yColNew: "Novas",
+  a11yColFixed: "Corrigidas",
+  a11ySuiteVariants: "Variantes auditadas",
+  a11ySuiteAudits: "auditoria(s)",
+  a11ySuiteNewTotal: "Violações novas vs linha de base",
+  a11ySuiteWithBaseline: "auditoria(s) com linha de base",
+  a11ySuiteNoBaselineAtAll: "Nenhuma auditoria tinha linha de base, então nada pode ser chamado de novo.",
+  a11ySuiteSevere: "Violações graves + críticas",
+  a11ySuiteWithoutBaseline: "auditoria(s) sem linha de base não entram na contagem de novas.",
+  a11ySuiteExpired: "A evidência destas execuções expirou, então as auditorias delas (se houve) não estão resumidas aqui. Fixe (pin) as execuções sobre as quais vai reportar",
+  a11ySuiteOpenRun: "Só as contagens são mostradas. As ocorrências de cada auditoria estão no relatório da execução indicada na última coluna.",
   piiTitle: 'Varredura de privacidade',
   piiNone: 'Nenhum dado pessoal nem segredo foi encontrado nos lugares examinados (listados abaixo). Isso não prova que não existam em outros lugares.',
   piiNote: 'Os valores não são guardados: cada achado mostra uma amostra mascarada e diz onde foi visto. O resultado também guarda uma impressão digital, para reconhecer o mesmo valor em outro lugar sem guardá-lo.',
@@ -457,6 +493,18 @@ const es: Strings = {
   a11yNone: "Ninguna violación encontrada por las reglas automáticas (esto no prueba que la página sea accesible: la mayoría de los criterios requiere una persona).",
   a11yCounts: "violación(es)",
   a11yNothingNew: "Nada nuevo y nada corregido.",
+  a11ySuiteAudit: "Auditoría",
+  a11yColNew: "Nuevas",
+  a11yColFixed: "Corregidas",
+  a11ySuiteVariants: "Variantes auditadas",
+  a11ySuiteAudits: "auditoría(s)",
+  a11ySuiteNewTotal: "Violaciones nuevas vs línea base",
+  a11ySuiteWithBaseline: "auditoría(s) con línea base",
+  a11ySuiteNoBaselineAtAll: "Ninguna auditoría tenía línea base, así que nada puede llamarse nuevo.",
+  a11ySuiteSevere: "Violaciones graves + críticas",
+  a11ySuiteWithoutBaseline: "auditoría(s) sin línea base no entran en la cuenta de nuevas.",
+  a11ySuiteExpired: "La evidencia de estas ejecuciones expiró, así que sus auditorías (si las hubo) no están resumidas aquí. Fije (pin) las ejecuciones sobre las que va a reportar",
+  a11ySuiteOpenRun: "Solo se muestran los conteos. Los hallazgos de cada auditoría están en el reporte de la ejecución indicada en la última columna.",
   piiTitle: 'Escaneo de privacidad',
   piiNone: 'No se encontraron datos personales ni secretos en los lugares examinados (listados abajo). Eso no prueba que no existan en otros lugares.',
   piiNote: 'Los valores no se guardan: cada hallazgo muestra una muestra enmascarada y dice dónde se vio. El resultado también guarda una huella, para reconocer el mismo valor en otro lugar sin guardarlo.',

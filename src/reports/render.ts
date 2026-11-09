@@ -93,6 +93,20 @@ export interface RunReportData {
   generatedAt: string;
 }
 
+/**
+ * T7.4/T7.5: what the suite report keeps of ONE accessibility audit of a variant's run. Counts only: the findings are in the run's own report
+ * (named by the run id next to it), so a suite of hundreds of variants stays one readable table.
+ */
+export interface SuiteAuditSummary {
+  name: string;
+  standard: string;
+  counts: { critical: number; serious: number; moderate: number; minor: number };
+  /** The audit's list was cut (the counts stay complete). */
+  truncated: boolean;
+  /** Only when the audit had a baseline. `incomplete`: the comparison was cut, so new/fixed may be partial. */
+  baseline?: { buildId: string; new: number; fixed: number; incomplete: boolean };
+}
+
 export interface SuiteReportData {
   suiteRunId: string;
   name: string;
@@ -119,6 +133,10 @@ export interface SuiteReportData {
     notRunReason?: string;
     /** T3.5 */
     quarantined?: boolean;
+    /** T7.4/T7.5: the audits of this variant's run (its LAST attempt), when it made any. */
+    accessibility?: SuiteAuditSummary[];
+    /** The run's evidence is gone, so whether it audited anything is unknown. */
+    evidenceExpired?: boolean;
     passedOnRetry?: boolean;
     attempts?: Array<{ attempt: number; jobId: string; status: string; errorType?: string; errorMessage?: string }>;
   }>;
@@ -453,6 +471,66 @@ ${integrityBlock(s, data.integrity)}
   return page(s, `${s.title} ${data.jobId}`, body);
 }
 
+const MAX_SUITE_A11Y_ROWS = 100;
+
+/**
+ * T7.4/T7.5 in a suite report: one compact row per audit of each variant (counts by impact, new/fixed against the baseline), the run id to open its own
+ * report, and a total line. Quarantined variants are listed apart and never enter the totals (as in the verdict). Empty string when no variant audited
+ * anything: a suite without audits has no such section. A run whose evidence expired is named, not guessed at.
+ */
+function suiteAccessibilityBlock(s: Strings, variants: SuiteReportData['variants']): string {
+  const audited = variants.filter((variant) => (variant.accessibility?.length ?? 0) > 0);
+  if (audited.length === 0) return '';
+
+  const counted = audited.filter((variant) => !variant.quarantined);
+  const quarantined = audited.filter((variant) => variant.quarantined);
+  const expired = variants.filter((variant) => variant.evidenceExpired);
+
+  const audits = counted.flatMap((variant) => variant.accessibility ?? []);
+  const severe = audits.reduce((sum, audit) => sum + audit.counts.serious + audit.counts.critical, 0);
+  const compared = audits.filter((audit) => audit.baseline);
+  const newTotal = compared.reduce((sum, audit) => sum + (audit.baseline?.new ?? 0), 0);
+  const withoutBaseline = audits.length - compared.length;
+  const cut = audits.some((audit) => audit.truncated || audit.baseline?.incomplete);
+
+  const rowsOf = (list: SuiteReportData['variants']): string => {
+    const rows = list.flatMap((variant) => (variant.accessibility ?? []).map((audit) => ({ variant, audit })));
+    const shown = rows.slice(0, MAX_SUITE_A11Y_ROWS);
+    const html = shown
+      .map(({ variant, audit }) => {
+        const c = audit.counts;
+        const newCell = audit.baseline ? `<span class="${audit.baseline.new > 0 ? 'cell-failed' : 'cell-passed'}">${esc(audit.baseline.new)}</span>` : '<span class="muted">-</span>';
+        const fixedCell = audit.baseline ? esc(audit.baseline.fixed) : '<span class="muted">-</span>';
+        return `<tr><td class="mono">${esc(clip(variant.variantKey, 200))}</td><td>${esc(clip(audit.name, 80))}<br><small>${esc(audit.standard)}${audit.baseline ? ` · ${esc(s.a11yBaseline)}: ${esc(clip(audit.baseline.buildId, 60))}` : ''}</small></td><td>${esc(c.critical)}</td><td>${esc(c.serious)}</td><td>${esc(c.moderate)}</td><td>${esc(c.minor)}</td><td>${newCell}</td><td>${fixedCell}</td><td class="mono">${esc(variant.jobId ?? '')}</td></tr>`;
+      })
+      .join('');
+    return `<table><tr><th>${esc(s.variant)}</th><th>${esc(s.a11ySuiteAudit)}</th><th>critical</th><th>serious</th><th>moderate</th><th>minor</th><th>${esc(s.a11yColNew)}</th><th>${esc(s.a11yColFixed)}</th><th>${esc(s.run)}</th></tr>${html}</table>${
+      rows.length > shown.length ? `<p class="muted">… ${rows.length - shown.length}</p>` : ''
+    }`;
+  };
+
+  return `<h2>${esc(s.a11yTitle)}</h2>
+<table class="meta">
+<tr><th>${esc(s.a11ySuiteVariants)}</th><td>${counted.length} (${audits.length} ${esc(s.a11ySuiteAudits)})${quarantined.length ? ` · + ${quarantined.length} ${esc(s.quarantinedTag)}` : ''}</td></tr>
+<tr><th>${esc(s.a11ySuiteNewTotal)}</th><td>${compared.length > 0 ? `<b class="${newTotal > 0 ? 'cell-failed' : 'cell-passed'}">${newTotal}</b> (${compared.length} ${esc(s.a11ySuiteWithBaseline)})` : `<span class="muted">${esc(s.a11ySuiteNoBaselineAtAll)}</span>`}</td></tr>
+<tr><th>${esc(s.a11ySuiteSevere)}</th><td>${severe}</td></tr>
+</table>
+${counted.length > 0 ? rowsOf(counted) : ''}
+${compared.length > 0 && withoutBaseline > 0 ? `<p class="muted">${withoutBaseline} ${esc(s.a11ySuiteWithoutBaseline)}</p>` : ''}
+${cut ? `<div class="warn">${esc(s.a11yCut)}</div>` : ''}
+${
+  quarantined.length > 0
+    ? `<h3>${esc(s.quarantineTitle)}</h3><div class="warn">${esc(s.quarantineNote)}</div>${rowsOf(quarantined)}`
+    : ''
+}
+${
+  expired.length > 0
+    ? `<div class="warn">${esc(s.a11ySuiteExpired)}: ${expired.slice(0, 10).map((variant) => `<span class="mono">${esc(clip(variant.variantKey, 120))}</span>`).join(', ')}${expired.length > 10 ? ` … ${expired.length - 10}` : ''}</div>`
+    : ''
+}
+<p class="muted">${esc(s.a11ySuiteOpenRun)}</p>`;
+}
+
 export function renderSuiteReport(data: SuiteReportData, lang: ReportLang): string {
   const s = STRINGS[lang];
   const verdict = data.verdict ?? 'infra-error';
@@ -509,6 +587,8 @@ ${
 <table>${header}${variantRows(quarantined)}</table>`
     : ''
 }
+
+${suiteAccessibilityBlock(s, data.variants)}
 
 <div class="footer">
 <h2 style="margin-top:0">${esc(s.integrity)}</h2>

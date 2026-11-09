@@ -373,3 +373,83 @@ test('run report (T6.5): a parallel block shows how each branch ended and its st
   const plain = (await get('/v1/runs/job_rep1/report?lang=en')).text;
   assert.ok(!plain.includes('‖'), 'a run without a block is unchanged');
 });
+
+// T7.4/T7.5: the accessibility summary of the SUITE report.
+const a11yCounts = (critical: number, serious: number, moderate: number, minor: number) => ({ rules: 1, elements: critical + serious + moderate + minor, critical, serious, moderate, minor });
+const a11yFinding = (ruleId: string) => ({ ruleId, impact: 'serious', targetKey: '#a', target: '#a', help: 'h', wcag: ['1.4.3'] });
+const a11yAudit = (counts: ReturnType<typeof a11yCounts>, baseline?: { buildId: string; newRules: string[]; fixedRules: string[]; unchanged: number }) => ({
+  kind: 'accessibility-audit', schemaVersion: 1, axeVersion: '4.10.0', standard: 'wcag2aa', findings: [], counts, needsReview: [], passedRules: 5, truncated: false, notes: [],
+  ...(baseline
+    ? { baseline: { screen: 'home', buildId: baseline.buildId, createdAt: '2026-11-01T00:00:00.000Z', new: baseline.newRules.map(a11yFinding), fixed: baseline.fixedRules.map(a11yFinding), unchanged: baseline.unchanged, incomplete: false } }
+    : {}),
+});
+
+test('T7.4/T7.5 suite report: an Accessibility summary per variant, totals, quarantine apart, expired evidence named, in every language, escaped; no audits = no section', async () => {
+  await makeJob('job_rep_sa1', { extracted: { 'audit-home': a11yAudit(a11yCounts(1, 2, 0, 3), { buildId: 'b9<b>x</b>', newRules: ['color-contrast', 'label'], fixedRules: ['image-alt'], unchanged: 4 }) } });
+  await makeJob('job_rep_sa2', { extracted: { '<img src=x onerror=alert(1)>': a11yAudit(a11yCounts(0, 1, 5, 0)) } });
+  await makeJob('job_rep_sa3', { extracted: { 'audit-q': a11yAudit(a11yCounts(7, 7, 0, 0), { buildId: 'bq', newRules: ['x1', 'x2', 'x3'], fixedRules: [], unchanged: 0 }) } });
+  await makeJob('job_rep_sa4', { extracted: {} });
+  fs.mkdirSync(suitesDir(), { recursive: true });
+  const base = {
+    suiteRunId: 'suite_a11y', name: 'Nightly', createdAt: '2026-11-02T01:00:00.000Z', finishedAt: '2026-11-02T01:05:00.000Z',
+    request: { name: 'x', items: [{ routineId: 'a' }], statuses: ['active'], order: 'asIs', mode: 'sequential', failFast: false, buildId: 'rev42' },
+    total: 5, counts: { pending: 0, running: 0, passed: 5, failed: 0, error: 0, notRun: 0 }, teardownFailures: 0, status: 'completed', verdict: 'green', exitCode: 0,
+    variants: [
+      { variantKey: 'home/cred:admin', routineId: 'home', routineVersion: 1, status: 'passed', jobId: 'job_rep_sa1', durationMs: 100 },
+      { variantKey: 'home/cred:ro<script>', routineId: 'home', routineVersion: 1, status: 'passed', jobId: 'job_rep_sa2', durationMs: 100 },
+      { variantKey: 'plain', routineId: 'plain', routineVersion: 1, status: 'passed', jobId: 'job_rep_sa4', durationMs: 100 },
+      { variantKey: 'old-run', routineId: 'old', routineVersion: 1, status: 'passed', jobId: 'job_rep_gone', durationMs: 100 },
+      { variantKey: 'wobbly', routineId: 'wobbly', routineVersion: 1, status: 'passed', jobId: 'job_rep_sa3', durationMs: 100, quarantined: true },
+    ],
+  };
+  fs.writeFileSync(path.join(suitesDir(), 'suite_a11y.json'), JSON.stringify(base));
+
+  for (const lang of REPORT_LANGS) {
+    const s = STRINGS[lang];
+    const html = (await get(`/v1/suites/suite_a11y/report?lang=${lang}`)).text;
+    assert.ok(html.includes(`<h2>${s.a11yTitle}</h2>`), `${lang}: section`);
+    for (const key of ['a11ySuiteVariants', 'a11ySuiteNewTotal', 'a11ySuiteSevere', 'a11ySuiteOpenRun', 'a11ySuiteExpired'] as const) {
+      assert.ok(html.includes(s[key]), `${lang}: ${key}`);
+    }
+    // Totals count the variants that count: sa1 (3 serious+critical, 2 new) + sa2 (1 serious, no baseline). The quarantined audit (14 serious+critical, 3 new) is not in them.
+    assert.ok(html.includes(`${s.a11ySuiteVariants}</th><td>2 (2 ${s.a11ySuiteAudits}) · + 1 ${s.quarantinedTag}`), `${lang}: variants audited`);
+    assert.ok(html.includes(`${s.a11ySuiteSevere}</th><td>4</td>`), `${lang}: serious+critical total excludes the quarantined audit`);
+    assert.ok(html.includes('<b class="cell-failed">2</b> (1 '), `${lang}: new total counts only audits with a baseline, not the quarantined one`);
+    assert.ok(html.includes(s.a11ySuiteWithoutBaseline), `${lang}: audits without a baseline are said not to count`);
+    // The row of the audit with a baseline: the audit, its counts, new 2, fixed 1, and the run to open.
+    assert.match(html, /home\/cred:admin<\/td><td>audit-home<br>/);
+    assert.match(html, /<td>1<\/td><td>2<\/td><td>0<\/td><td>3<\/td><td><span class="cell-failed">2<\/span><\/td><td>1<\/td><td class="mono">job_rep_sa1<\/td>/);
+    assert.ok(html.includes('job_rep_sa2'));
+    // Quarantine apart: its audit sits after the quarantine heading, the counted ones before it; a variant with no audit has no row; the expired run is named.
+    const q = html.lastIndexOf(s.quarantineTitle);
+    assert.ok(html.indexOf('audit-q') > q && html.indexOf('audit-home') < q, `${lang}: quarantined audit listed apart`);
+    assert.equal(html.slice(html.indexOf(`<h2>${s.a11yTitle}</h2>`)).includes('>plain<'), false, `${lang}: a variant that audited nothing has no row`);
+    assert.ok(html.lastIndexOf('old-run') > html.indexOf(s.a11ySuiteExpired), `${lang}: the expired run is named`);
+    // Everything from a run is text.
+    assert.ok(!html.includes('<img src=x') && !html.includes('<script>') && !html.includes('<b>x</b>'), `${lang}: escaped`);
+    assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;') && html.includes('b9&lt;b&gt;x&lt;/b&gt;'), `${lang}: hostile strings kept as text`);
+    assert.ok(!/<script/i.test(html));
+  }
+
+  // No audits anywhere (even with an expired run): no section at all.
+  fs.writeFileSync(path.join(suitesDir(), 'suite_noa11y.json'), JSON.stringify({ ...base, suiteRunId: 'suite_noa11y', variants: [base.variants[2], base.variants[3]] }));
+  const none = (await get('/v1/suites/suite_noa11y/report?lang=en')).text;
+  assert.ok(!none.includes(STRINGS.en.a11yTitle) && !none.includes(STRINGS.en.a11ySuiteExpired));
+});
+
+test('T7.4/T7.5 suite report renderer: only quarantined audits, no baseline anywhere, a cut list', () => {
+  const data = {
+    suiteRunId: 'suite_r', name: 'n', status: 'completed', verdict: 'green' as const, createdAt: 'a', counts: { passed: 1, failed: 0, error: 0, notRun: 0 }, total: 1, executor: 'ScrapForAI', generatedAt: 'now',
+    variants: [
+      { variantKey: 'v1', routineId: 'r', routineVersion: 1, status: 'passed', jobId: 'job_1', accessibility: [{ name: 'a', standard: 'wcag2aa', counts: { critical: 0, serious: 2, moderate: 0, minor: 0 }, truncated: true }] },
+    ],
+  };
+  const en = renderSuiteReport(data, 'en');
+  assert.ok(en.includes(STRINGS.en.a11ySuiteNoBaselineAtAll), 'without any baseline nothing is called new');
+  assert.ok(en.includes(STRINGS.en.a11yCut), 'a cut list is said to be cut');
+  assert.ok(!en.includes(STRINGS.en.a11ySuiteWithoutBaseline));
+
+  const onlyQuarantined = renderSuiteReport({ ...data, variants: [{ ...data.variants[0]!, quarantined: true }] }, 'en');
+  assert.ok(onlyQuarantined.includes('Variants audited</th><td>0 (0 audit(s)) · + 1 quarantined'));
+  assert.ok(onlyQuarantined.includes('Serious + critical violations</th><td>0</td>'));
+});

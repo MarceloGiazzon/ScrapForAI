@@ -1293,7 +1293,8 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 > com o baseline mais recente que auditou aquela tela (ou o do build pedido) e devolve **novas** e **corrigidas**; `GET /v1/evolution/:target/diff` e `CHANGES.md` trazem o mesmo por tela; o relatório da execução mostra só novas/corrigidas.
 > Desvios: o resultado do diff fica **fora** de `counts` e da classificação esperado/inesperado (uma violação nova não é uma mudança estrutural); níveis WCAG ou escopos diferentes **não são comparáveis** (o nível maior chamaria tudo de "novo"); sem baseline o relatório diz isso e mostra só as 20 mais graves.
 > **Feito depois (2026-11-07):** `evolution diff --fail-on-a11y-new` (exit 1 com violação nova; exit 2, nunca 0, quando não há o que comparar).
-> **Não feito:** o resumo de acessibilidade nos relatórios de suíte, e baseline por usuário/papel (um baseline por tela e build).
+> **Feito depois (2026-11-09):** o relatório de suíte (`GET /v1/suites/:id/report`) ganhou uma seção de Acessibilidade: totais (variantes auditadas, novas contra o baseline, graves + críticas) e uma linha só com contagens por auditoria, com o id da execução para abrir o relatório dela; variantes em quarentena à parte e fora dos totais; execução com evidência expirada é nomeada.
+> **Não feito:** baseline por usuário/papel (um baseline por tela e build).
 
 - O baseline por tela fica no snapshot de evolução (T4.4).
 - O relatório mostra **novas** e **corrigidas** desde o baseline, não a lista completa. Num app
