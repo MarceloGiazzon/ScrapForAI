@@ -94,6 +94,10 @@ async function loadKnown(): Promise<KnownSecret[]> {
     console.error('[secret-scan] SECRET_SCAN_NO_VAULT=1: the credential vault is NOT checked on this run');
     return known;
   }
+  // No vault on this machine (CI, a fresh clone): nothing to load. Checked through paths.ts, which reads no configuration: the vault module
+  // pulls in the server's config, which refuses to load without a .env.
+  const { credentialVaultFile } = await import('../src/config/paths.js');
+  if (!existsSync(credentialVaultFile())) return known;
   const { listCredentialValuesForScan } = await import('../src/vault/credentials/credentialVault.js');
   for (const { setId, field, value } of await listCredentialValuesForScan()) known.push({ label: `the vault value of set "${setId}" field "${field}"`, value });
   return known;
