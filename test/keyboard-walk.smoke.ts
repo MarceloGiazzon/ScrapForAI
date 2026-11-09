@@ -26,6 +26,20 @@ const PAGES: Record<string, string> = {
       a.addEventListener('keydown', function (e) { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); b.focus(); } });
       b.addEventListener('keydown', function (e) { if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); a.focus(); } });
     </script>`,
+  // Shift+Tab (T7.6 backward): positive tabindex reorders the forward walk; the backward one is its mirror.
+  '/positive': `<button id="a">A</button><button id="b" tabindex="2">B</button><button id="c" tabindex="1">C</button><button id="d">D</button>`,
+  // A loop that only exists going backward: the handlers act on Shift+Tab, so the forward walk of this page is clean.
+  '/back-trap': `<button id="first">First</button><button id="a">A</button><button id="b">B</button><button id="last">Last</button>
+    <script>
+      var a = document.getElementById('a'), b = document.getElementById('b');
+      a.addEventListener('keydown', function (e) { if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); b.focus(); } });
+      b.addEventListener('keydown', function (e) { if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); a.focus(); } });
+    </script>`,
+  // Focus moved by script going backward: C sends Shift+Tab straight to A, so B is never reached backward although Tab reaches it.
+  '/skip-back': `<button id="a">A</button><button id="b">B</button><button id="c">C</button>
+    <script>
+      document.getElementById('c').addEventListener('keydown', function (e) { if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); document.getElementById('a').focus(); } });
+    </script>`,
 };
 
 const site = await new Promise<{ server: http.Server; origin: string }>((resolve) => {
@@ -59,6 +73,7 @@ interface Walk {
   tabs: number;
   completed: boolean;
   endedBy: string;
+  direction?: string;
   trap?: { startsAt: string; length: number };
   neverFocused?: Array<{ key: string; role: string; name?: string }>;
   invisibleFocus: string[];
@@ -138,4 +153,54 @@ test('maxTabs cuts a walk short and says so; a scope that matches nothing is an 
   const missing = await walk('kbd-scope', '/bad', { scope: '#nowhere' });
   assert.equal(missing.result.status, 'failed');
   assert.match(missing.result.error?.message ?? '', /scope selector matched nothing/);
+});
+
+test('direction forward (explicit) is the same walk as the default, and writes no direction field', async () => {
+  const implicit = await walk('kbd-dir-default', '/good');
+  const explicit = await walk('kbd-dir-forward', '/good', { direction: 'forward' });
+  assert.deepEqual(explicit.walk, implicit.walk);
+  assert.equal('direction' in explicit.walk!, false);
+});
+
+test('backward: Shift+Tab walks the page from the end, and with positive tabindex it is the mirror of the forward order', async () => {
+  const forward = await walk('kbd-pos-fwd', '/positive');
+  const backward = await walk('kbd-pos-back', '/positive', { direction: 'backward' });
+  assert.deepEqual(forward.walk!.order.map((stop) => stop.key), ['#c', '#b', '#a', '#d'], 'positive tabindex first, then document order');
+  assert.equal(backward.walk!.direction, 'backward');
+  assert.deepEqual(backward.walk!.order.map((stop) => stop.key), ['#d', '#a', '#b', '#c'], 'the browser mirrors it going back');
+  assert.equal(backward.walk!.completed, true);
+  assert.ok(['wrap', 'left-document'].includes(backward.walk!.endedBy), backward.walk!.endedBy);
+  assert.deepEqual(backward.walk!.neverFocused, []);
+});
+
+test('backward: a trap that only exists going backward is found, and the forward walk of that page is clean', async () => {
+  const forward = await walk('kbd-bt-fwd', '/back-trap', { failOn: ['focusTrap'] });
+  assert.equal(forward.result.status, 'passed', JSON.stringify(forward.result.error));
+  assert.equal(forward.walk!.trap, undefined);
+
+  const backward = await walk('kbd-bt-back', '/back-trap', { direction: 'backward', failOn: ['focusTrap'] });
+  assert.equal(backward.result.status, 'failed');
+  assert.match(backward.result.error?.message ?? '', /focus trap: Tab loops over 2 element\(s\)/);
+  assert.equal(backward.walk!.direction, 'backward');
+  assert.equal(backward.walk!.endedBy, 'trap');
+  assert.deepEqual(backward.walk!.trap, { startsAt: '#b', length: 2 });
+  assert.equal(backward.walk!.neverFocused, undefined);
+});
+
+test('backward: focus moved by script makes the backward order differ from the reverse of the forward one, and the unreached control is listed', async () => {
+  const forward = await walk('kbd-skip-fwd', '/skip-back');
+  const backward = await walk('kbd-skip-back', '/skip-back', { direction: 'backward' });
+  const forwardKeys = forward.walk!.order.map((stop) => stop.key);
+  const backwardKeys = backward.walk!.order.map((stop) => stop.key);
+  assert.deepEqual(forwardKeys, ['#a', '#b', '#c']);
+  assert.deepEqual(backwardKeys, ['#c', '#a']);
+  assert.notDeepEqual(backwardKeys, [...forwardKeys].reverse());
+  assert.equal(backward.walk!.completed, true);
+  assert.deepEqual(backward.walk!.neverFocused!.map((control) => control.name), ['B'], 'Shift+Tab never reaches B');
+});
+
+test('backward with startSelector: the start element is stop 0 and the walk goes toward the top', async () => {
+  const { walk: kb } = await walk('kbd-pos-start', '/positive', { direction: 'backward', startSelector: '#d' });
+  assert.deepEqual(kb!.order.slice(0, 3).map((stop) => stop.key), ['#d', '#a', '#b']);
+  assert.equal(kb!.neverFocused, undefined, 'a start element without a scope judges no control');
 });

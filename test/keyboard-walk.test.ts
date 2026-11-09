@@ -143,3 +143,38 @@ test('focusIndicatorChanged: outline, shadow or border; identical readings are n
   assert.equal(focusIndicatorChanged({ ...FLAT, border: 'c' }, FLAT), true);
   assert.equal(focusIndicatorChanged(FLAT, { ...FLAT }), false);
 });
+
+test('backward: the same rules apply and the result says so; a forward walk has no direction field', async () => {
+  // The driver presses Shift+Tab; here it is a scripted list read from the end of the page.
+  const forward = await walkKeyboard(driverFor({ tabs: ['#a', '#b', null] }).driver, { maxTabs: 50 });
+  assert.equal('direction' in forward, false, 'default output unchanged');
+  const explicitForward = await walkKeyboard(driverFor({ tabs: ['#a', '#b', null] }).driver, { maxTabs: 50, direction: 'forward' });
+  assert.deepEqual(explicitForward, forward);
+
+  const candidates = [candidate('#a'), candidate('#b'), candidate('#c')];
+  const back = await walkKeyboard(driverFor({ tabs: ['#c', '#b', '#a', null], flat: ['#b'] }).driver, { maxTabs: 50, direction: 'backward', candidates });
+  assert.equal(back.direction, 'backward');
+  assert.equal(back.endedBy, 'left-document');
+  assert.equal(back.completed, true);
+  assert.deepEqual(back.order.map((stop) => stop.key), ['#c', '#b', '#a']);
+  assert.deepEqual(back.invisibleFocus, ['#b']);
+  assert.deepEqual(back.neverFocused, []);
+
+  const wrap = await walkKeyboard(driverFor({ tabs: ['#c', '#b', '#c'] }).driver, { maxTabs: 50, direction: 'backward' });
+  assert.equal(wrap.endedBy, 'wrap');
+  const trap = await walkKeyboard(driverFor({ tabs: ['#c', '#b', '#a', '#b'] }).driver, { maxTabs: 50, direction: 'backward', candidates });
+  assert.equal(trap.endedBy, 'trap');
+  assert.deepEqual(trap.trap, { startsAt: '#b', length: 2 });
+  assert.equal(trap.neverFocused, undefined);
+  assert.equal(trap.direction, 'backward');
+});
+
+test('schema: direction is optional with no default, and only forward or backward', async () => {
+  const { explorationRequestSchema } = await import('../src/schemas/explorationRequest.schema.js');
+  const base = { targetUrl: 'http://127.0.0.1:4999/', steps: [{ action: 'keyboardWalk', name: 'kb' }] };
+  const plain = explorationRequestSchema.parse(base);
+  assert.equal('direction' in plain.steps[0]!, false, 'no default: older digests hold');
+  const back = explorationRequestSchema.parse({ ...base, steps: [{ action: 'keyboardWalk', name: 'kb', direction: 'backward' }] });
+  assert.equal((back.steps[0] as { direction?: string }).direction, 'backward');
+  assert.equal(explorationRequestSchema.safeParse({ ...base, steps: [{ action: 'keyboardWalk', name: 'kb', direction: 'sideways' }] }).success, false);
+});

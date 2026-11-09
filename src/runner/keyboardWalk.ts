@@ -38,7 +38,7 @@ export interface Candidate {
 
 export interface WalkDriver {
   active(): Promise<ActiveElement>;
-  /** Presses Tab once. */
+  /** Presses Tab once (Shift+Tab when the walk goes backward; the driver knows which). */
   press(): Promise<void>;
   /** The style of the element at `key` now, or undefined when it is gone. */
   styleOf(key: string): Promise<StyleSignature | undefined>;
@@ -59,6 +59,8 @@ export interface KeyboardWalkResult {
   tabs: number;
   completed: boolean;
   endedBy: WalkEnd;
+  /** Present only for a backward walk (Shift+Tab), so a default walk's output is unchanged. */
+  direction?: 'backward';
   trap?: { startsAt: string; length: number };
   /** Undefined when the walk did not complete (or no candidates were supplied). */
   neverFocused?: Array<{ key: string; role: string; name?: string }>;
@@ -69,6 +71,8 @@ export interface KeyboardWalkResult {
 
 export interface WalkOptions {
   maxTabs: number;
+  /** Which way the driver presses. Only recorded in the result; the rules are the same going backward (wrap, trap, left-document, never focused, invisible focus). */
+  direction?: 'forward' | 'backward';
   /** The walk starts from this already-focused element (it is stop 0) instead of from the top of the page. */
   startFocused?: boolean;
   candidates?: Candidate[];
@@ -167,6 +171,7 @@ export async function walkKeyboard(driver: WalkDriver, options: WalkOptions): Pr
     tabs,
     completed,
     endedBy,
+    ...(options.direction === 'backward' ? { direction: 'backward' as const } : {}),
     ...(trap ? { trap } : {}),
     ...(neverFocused ? { neverFocused } : {}),
     invisibleFocus: order.filter((stop) => stop.focusVisible === false).map((stop) => stop.key),

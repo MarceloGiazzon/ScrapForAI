@@ -1302,10 +1302,10 @@ Rotinas-modelo na biblioteca (status `draft`, para adaptar):
 
 ### T7.6 — Navegação por teclado · M
 
-> **Implementada em 2026-11-04** (`src/runner/keyboardWalk.ts` + scripts confiáveis, ver AGENTS.md, "Keyboard walk"). Step `keyboardWalk { name, maxTabs, startSelector?, scope?, failOn? }`. Desvios: (1) **não falha por padrão**
+> **Implementada em 2026-11-04** (`src/runner/keyboardWalk.ts` + scripts confiáveis, ver AGENTS.md, "Keyboard walk"). Step `keyboardWalk { name, maxTabs, direction?, startSelector?, scope?, failOn? }`. Desvios: (1) **não falha por padrão**
 > (`failOn: []`), como `probePage`; o chamador lista o que deve falhar; (2) "nunca recebe foco" só é afirmado quando a caminhada **terminou** (voltou ao primeiro elemento ou o foco saiu do documento): depois de uma armadilha ou de
 > `maxTabs` o relatório não lista nada e explica por quê; (3) os candidatos usam as mesmas famílias do inventário (T4.3), calculadas por um script confiável, e um grupo de radios conta como um controle; (4) com `startSelector` (por exemplo,
-> um diálogo) nenhum controle é julgado sem `scope`; (5) "foco invisível" lê o estilo **depois** que o Tab tirou o foco do elemento, em vez de fazer blur/focus (que dispararia eventos da página). **Não feito:** Shift+Tab, Enter/Espaço/Escape,
+> um diálogo) nenhum controle é julgado sem `scope`; (5) "foco invisível" lê o estilo **depois** que o Tab tirou o foco do elemento, em vez de fazer blur/focus (que dispararia eventos da página). **Shift+Tab feito:** `direction: 'backward'` (opcional, sem default), mesmas regras e `direction` no resultado; não há comparação ida x volta no mesmo step (`orderMismatch`). **Não feito:** Enter/Espaço/Escape,
 > shadow DOM e conteúdo de iframes, seção no relatório (depende da T7.5/T7.7).
 
 **Por quê:** o axe não testa teclado.

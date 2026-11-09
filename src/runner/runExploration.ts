@@ -835,7 +835,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
             const walk = await walkKeyboard(
               {
                 active: async () => (await runTrustedScript(frame, 'keyboard-active', {}, secrets)) as ActiveElement,
-                press: () => page.keyboard.press('Tab'),
+                press: () => page.keyboard.press(step.direction === 'backward' ? 'Shift+Tab' : 'Tab'),
                 styleOf: async (key) => {
                   const answer = (await runTrustedScript(frame, 'keyboard-style', { path: key }, secrets)) as { found?: boolean; signature?: StyleSignature };
                   return answer.found ? answer.signature : undefined;
@@ -843,6 +843,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
               },
               {
                 maxTabs: step.maxTabs,
+                ...(step.direction === 'backward' ? { direction: 'backward' as const } : {}),
                 startFocused: step.startSelector !== undefined,
                 ...(candidates ? { candidates } : {}),
                 deadline: Date.now() + Math.max(timeout * 3, 30000),

@@ -2942,6 +2942,13 @@
           "minimum": 1,
           "maximum": 500
         },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "forward",
+            "backward"
+          ]
+        },
         "failOn": {
           "default": [],
           "maxItems": 3,

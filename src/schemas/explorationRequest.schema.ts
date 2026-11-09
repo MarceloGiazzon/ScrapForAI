@@ -298,6 +298,8 @@ const keyboardWalkStep = z
     /** Limits the controls expected to be reached (default: the whole page; with startSelector and no scope, none is judged). */
     scope: selector.optional(),
     maxTabs: z.number().int().min(1).max(500).default(200),
+    /** Optional, NO default (older digests hold): `backward` presses Shift+Tab instead of Tab. Absent = forward. */
+    direction: z.enum(['forward', 'backward']).optional(),
     failOn: z.array(z.enum(['neverFocused', 'focusTrap', 'invisibleFocus'])).max(3).default([]),
     timeoutMs: stepTimeout,
   })

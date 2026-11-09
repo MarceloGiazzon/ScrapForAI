@@ -318,11 +318,12 @@ Everything before it is the setup, run in order as always; the block holds only 
 - To read what a screen IS without reading what it HOLDS: `inspect_dom` with `includeStructure: true`, or, behind a login, the
   `captureInventory { name }` step in `run_exploration` (`extracted[name]` = fields, actions, grids; no value, no typed text, no
   cell text; a select with over 100 options is left out as data). Safe to look at and to put in a report.
-- To check that a screen works **without a mouse**, add a `keyboardWalk { name, maxTabs?, startSelector?, scope?, failOn? }` step after `goto`: it presses Tab and writes
+- To check that a screen works **without a mouse**, add a `keyboardWalk { name, maxTabs?, direction?, startSelector?, scope?, failOn? }` step after `goto`: it presses Tab and writes
   `extracted[name]` = `order` (`key`, `role`, `name`, `focusVisible`), `neverFocused` (controls a keyboard user should reach but Tab never did, e.g. a `div role="button"` with no
   `tabindex`), `trap` (Tab loops and never gets out) and `invisibleFocus` (no outline, shadow or border change when focused: a heuristic, so look before calling it a bug). It does
   not fail the step by itself; list what must fail in `failOn` (`neverFocused`, `focusTrap`, `invisibleFocus`). `neverFocused` is only claimed when the walk reached the end of the page:
-  with a trap or `endedBy: "max-tabs"` read the `notes`. With `startSelector` (e.g. inside a dialog) no control is judged unless you also give a `scope`. It reads no field value, and it
+  with a trap or `endedBy: "max-tabs"` read the `notes`. With `startSelector` (e.g. inside a dialog) no control is judged unless you also give a `scope`. `direction: "backward"` presses Shift+Tab (the result then has `direction: "backward"`): run it as a second step with another `name` to find a loop or a script that
+  moves focus only going back; the rules are the same. It reads no field value, and it
   needs no `ALLOW_EVALUATE`: it runs scripts that ship with the server, never code from you.
 - To check **accessibility** (WCAG, axe-core), add `auditAccessibility { name, standard?, scope?, rules?, failOn?, baseline? }` after `goto` (no `ALLOW_EVALUATE` either). `extracted[name].findings` = `{ ruleId, impact, targetKey, target, help, wcag }` per element (selectors only: no HTML, text or value). By default it only records.
   On a legacy app the whole list has hundreds of rows and nobody acts on it, so judge the DIFFERENCE: ask a person to take a snapshot with `accessibility: true` (`scrapforai evolution snapshot <target> --accessibility`), then pass `baseline: { screen: '<catalogue screen id>' }`; the result gets `baseline.new` / `baseline.fixed`, and `failOn: 'new'` blocks only a regression.
