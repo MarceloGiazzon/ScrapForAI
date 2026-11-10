@@ -162,7 +162,8 @@ export async function writeChanges(
   }
   const { diff, toName } = await diffBuilds(target, options.from, options.to);
   const relative = `${target}/${toName}/${CHANGES_FILE}`;
-  await writeFileAtomic(path.join(targetFolder(target), toName, CHANGES_FILE), renderChangesFile(diff, target, options.narrative));
+  const platform = (await getTarget(target).catch(() => undefined))?.platform;
+  await writeFileAtomic(path.join(targetFolder(target), toName, CHANGES_FILE), renderChangesFile(diff, target, options.narrative, platform));
   const git = await commitSnapshot(target, `evolution(${target}): changes ${diff.from.buildId} -> ${diff.to.buildId}`);
   return { diff, file: relative, git };
 }

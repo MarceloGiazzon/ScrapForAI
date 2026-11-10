@@ -57,6 +57,8 @@ export interface RunReportData {
   targetUrl: string;
   environment?: string;
   application?: string;
+  /** Platform of the target profile (genexus, npdev, ...): picks the accessibility note that applies to the application. */
+  platform?: string;
   buildId?: string;
   startedAt: string;
   finishedAt: string;
@@ -300,18 +302,18 @@ const MAX_A11Y_ROWS = 40;
 const MAX_A11Y_ROWS_NO_BASELINE = 20;
 
 /** Rows of findings. `withGuidance`: the platform note (T7.7) for the rule, in the report's language. */
-function findingRows(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], withGuidance: boolean): string {
+function findingRows(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], withGuidance: boolean, platform?: string): string {
   return findings
     .map((finding) => {
-      const note = withGuidance ? guidanceFor(finding.ruleId, lang) : undefined;
+      const note = withGuidance ? guidanceFor(finding.ruleId, lang, platform) : undefined;
       return `<tr><td><span class="imp imp-${esc(finding.impact)}">${esc(finding.impact)}</span></td><td><b class="mono">${esc(finding.ruleId)}</b><br><small>${esc(clip(finding.help, 160))}${finding.wcag.length ? ` (WCAG ${esc(finding.wcag.join(', '))})` : ''}</small></td><td class="mono">${esc(clip(printable(finding.targetKey), 200))}</td>${withGuidance ? `<td class="adjust">${note ? `<small>${esc(note.title)}</small>${esc(note.platform)}` : '<span class="muted">-</span>'}</td>` : ''}</tr>`;
     })
     .join('');
 }
 
-function findingTable(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], limit: number, withGuidance: boolean): string {
+function findingTable(s: Strings, lang: ReportLang, findings: AccessibilityFinding[], limit: number, withGuidance: boolean, platform?: string): string {
   const shown = findings.slice(0, limit);
-  return `<table><tr><th>${esc(s.a11yImpact)}</th><th>${esc(s.a11yRule)}</th><th>${esc(s.a11yElement)}</th>${withGuidance ? `<th>${esc(s.a11yAdjust)}</th>` : ''}</tr>${findingRows(s, lang, shown, withGuidance)}</table>${
+  return `<table><tr><th>${esc(s.a11yImpact)}</th><th>${esc(s.a11yRule)}</th><th>${esc(s.a11yElement)}</th>${withGuidance ? `<th>${esc(s.a11yAdjust)}</th>` : ''}</tr>${findingRows(s, lang, shown, withGuidance, platform)}</table>${
     findings.length > shown.length ? `<p class="muted">… ${findings.length - shown.length}</p>` : ''
   }`;
 }
@@ -320,7 +322,7 @@ function findingTable(s: Strings, lang: ReportLang, findings: AccessibilityFindi
  * T7.4/T7.5/T7.7. With a baseline the report shows what is NEW and what was FIXED, not the whole list: on a legacy application the whole list has hundreds of
  * rows and nobody acts on it. Without one it says so and shows only the most serious findings. Every finding that has a platform note carries it.
  */
-function accessibilityBlock(s: Strings, lang: ReportLang, items: NonNullable<RunReportData['accessibility']>): string {
+function accessibilityBlock(s: Strings, lang: ReportLang, items: NonNullable<RunReportData['accessibility']>, platform?: string): string {
   return items
     .map(({ result }) => {
       const c = result.counts;
@@ -344,7 +346,7 @@ ${baseline ? `<tr><th>${esc(s.a11yBaseline)}</th><td>${esc(baseline.screen)} · 
         }
         if (baseline.new.length > 0) {
           guided = true;
-          parts.push(`<h3>${esc(s.a11yNew)} (${baseline.new.length})</h3>${findingTable(s, lang, baseline.new, MAX_A11Y_ROWS, true)}`);
+          parts.push(`<h3>${esc(s.a11yNew)} (${baseline.new.length})</h3>${findingTable(s, lang, baseline.new, MAX_A11Y_ROWS, true, platform)}`);
         }
         if (baseline.fixed.length > 0) {
           parts.push(`<h3>${esc(s.a11yFixed)} (${baseline.fixed.length})</h3>${findingTable(s, lang, baseline.fixed, MAX_A11Y_ROWS, false)}`);
@@ -356,7 +358,7 @@ ${baseline ? `<tr><th>${esc(s.a11yBaseline)}</th><td>${esc(baseline.screen)} · 
       } else {
         guided = true;
         const severe = [...result.findings].sort((a, b) => IMPACTS.indexOf(b.impact) - IMPACTS.indexOf(a.impact));
-        parts.push(`<div class="warn">${esc(s.a11yNoBaseline)}</div><h3>${esc(s.a11yTopOnly)}</h3>${findingTable(s, lang, severe, MAX_A11Y_ROWS_NO_BASELINE, true)}`);
+        parts.push(`<div class="warn">${esc(s.a11yNoBaseline)}</div><h3>${esc(s.a11yTopOnly)}</h3>${findingTable(s, lang, severe, MAX_A11Y_ROWS_NO_BASELINE, true, platform)}`);
         if (result.truncated) parts.push(`<div class="warn">${esc(s.a11yCut)}</div>`);
       }
 
@@ -440,7 +442,7 @@ ${data.simulated ? simulatedBlock(s, data.simulated) : ''}
 <table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.steps)}</table>
 ${data.teardown?.length ? `<h2>${esc(s.teardown)}</h2><table><tr><th>${esc(s.step)}</th><th>${esc(s.action)}</th><th>${esc(s.status)}</th><th>${esc(s.time)}</th><th>${esc(s.detail)}</th></tr>${stepRows(s, data.teardown)}</table>` : ''}
 
-${data.accessibility?.length ? `<h2>${esc(s.a11yTitle)}</h2>${accessibilityBlock(s, lang, data.accessibility)}` : ''}
+${data.accessibility?.length ? `<h2>${esc(s.a11yTitle)}</h2>${accessibilityBlock(s, lang, data.accessibility, data.platform)}` : ''}
 
 ${data.privacy?.length ? `<h2>${esc(s.piiTitle)}</h2><p class="muted">${esc(s.piiNote)}</p>${privacyBlock(s, data.privacy)}` : ''}
 

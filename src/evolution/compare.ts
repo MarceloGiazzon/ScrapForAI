@@ -266,7 +266,7 @@ const hasAccessibilityNews = (screen: ScreenDiff): boolean =>
 const MAX_A11Y_LINES = 25;
 
 /** The accessibility part of a screen's section: what is new (with the platform note) and what was fixed. English, like the rest of CHANGES.md. */
-function accessibilityLines(screen: ScreenDiff): string[] {
+function accessibilityLines(screen: ScreenDiff, platform?: string): string[] {
   const a11y = screen.accessibility;
   if (!a11y) return [];
   if (a11y.status === 'first-audit') return [`- Accessibility: first audit of this screen (${a11y.standard}); it is the baseline from now on.`];
@@ -277,7 +277,7 @@ function accessibilityLines(screen: ScreenDiff): string[] {
   if (delta.axeVersionChanged) out.push(`  - axe-core changed from ${delta.axeVersionChanged.before} to ${delta.axeVersionChanged.after}: a new finding may come from a changed rule.`);
   for (const finding of delta.new.slice(0, MAX_A11Y_LINES)) {
     out.push(`  - **NEW** [${finding.impact}] ${finding.ruleId} at \`${finding.targetKey}\`: ${finding.help}${finding.wcag.length ? ` (WCAG ${finding.wcag.join(', ')})` : ''}`);
-    const note = guidanceFor(finding.ruleId, 'en');
+    const note = guidanceFor(finding.ruleId, 'en', platform);
     if (note) out.push(`    - ${note.platform}`);
   }
   if (delta.new.length > MAX_A11Y_LINES) out.push(`  - ... ${delta.new.length - MAX_A11Y_LINES} more new violation(s)`);
@@ -289,7 +289,7 @@ function accessibilityLines(screen: ScreenDiff): string[] {
 const mark = (item: { classification?: 'expected' | 'unexpected'; coveredBy?: string }): string =>
   item.classification === 'unexpected' ? '  **UNEXPECTED**' : item.classification === 'expected' ? `  (expected: ${item.coveredBy})` : '';
 
-export function renderChangesMarkdown(diff: EvolutionDiff, target: string): string {
+export function renderChangesMarkdown(diff: EvolutionDiff, target: string, platform?: string): string {
   const lines: string[] = [];
   lines.push(`# Changes in ${target}: ${diff.from.buildId} -> ${diff.to.buildId}`);
   lines.push('');
@@ -322,15 +322,15 @@ export function renderChangesMarkdown(diff: EvolutionDiff, target: string): stri
       for (const change of screen.changes) lines.push(`- ${change.text}${mark(change)}`);
       if (screen.truncated) lines.push('- ... more changes than are listed here');
     }
-    lines.push(...accessibilityLines(screen));
+    lines.push(...accessibilityLines(screen, platform));
     lines.push('');
   }
   return lines.join('\n');
 }
 
 /** The whole file: the deterministic section, then (when an agent wrote one) a narrative that says it is not verified. */
-export function renderChangesFile(diff: EvolutionDiff, target: string, narrative?: string): string {
-  const base = renderChangesMarkdown(diff, target);
+export function renderChangesFile(diff: EvolutionDiff, target: string, narrative?: string, platform?: string): string {
+  const base = renderChangesMarkdown(diff, target, platform);
   if (!narrative?.trim()) return `${base.trimEnd()}\n`;
   return `${base.trimEnd()}\n\n---\n\n## Narrative (AI-generated summary, not verified)\n\n${narrative.trim()}\n`;
 }

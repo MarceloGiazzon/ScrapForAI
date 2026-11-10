@@ -41,8 +41,8 @@ export function renderMappingDoc(): string {
     'rule means for the HTML the browser sees and where, in a GeneXus model, that HTML usually comes from. The run report (HTML/PDF, `en`/`pt`/`es`) and',
     'the evolution `CHANGES.md` print the same notes next to each violation.',
     '',
-    '**This is orientation, not a recipe.** Property names change with the GeneXus version and the NPDev template, and none of it was checked against a',
-    'particular build. Confirm in your environment before changing a theme or a template that many screens share. Automated rules cover only part of',
+    '**This is orientation, not a recipe.** Property names change with the GeneXus version, and the GeneXus notes were not checked against a particular build',
+    '(the NPDev ones were: see the last section). Confirm in your environment before changing a theme or a template that many screens share. Automated rules cover only part of',
     'WCAG: a page with no violations is not proven accessible (see also `keyboardWalk`, T7.6, which axe does not do).',
     '',
     '## How the audit is used',
@@ -64,6 +64,24 @@ export function renderMappingDoc(): string {
     for (const group of GUIDANCE_GROUPS) {
       const text = group.text[lang];
       lines.push(`| **${cell(group.title[lang])}**<br>${group.rules.map((rule) => `\`${rule}\``).join(' ')} | ${cell(text.what)} | ${cell(text.platform)} |`);
+    }
+    lines.push('');
+  }
+
+  lines.push(
+    '## NPDev applications',
+    '',
+    'NPDev is not GeneXus: "Label Position", "Textblock" or "Theme object" mean nothing in an NPDev workbench. For a target profile of `platform: npdev` the reports and `CHANGES.md`',
+    'therefore print the note below instead of the GeneXus one. A note is written only after the finding was reproduced on a real NPDev build and traced to the generated HTML',
+    '(2026-11-10, the WmsOffice workbenches: `label`, `select-name` and `color-contrast`; the audit found nothing else on the login page, the business UI home and four workbenches).',
+    'A rule without such a note says it is **not verified for NPDev yet**.',
+    '',
+  );
+  for (const lang of ['en', 'pt', 'es'] as const) {
+    const labels = SECTION[lang];
+    lines.push(`### ${labels.heading}`, '', `| ${labels.rule} | NPDev |`, '| --- | --- |');
+    for (const group of GUIDANCE_GROUPS) {
+      if (group.npdev) lines.push(`| **${cell(group.title[lang])}**<br>${group.rules.map((rule) => `\`${rule}\``).join(' ')} | ${cell(group.npdev[lang])} |`);
     }
     lines.push('');
   }

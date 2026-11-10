@@ -297,6 +297,10 @@ test('between builds: new and fixed per screen, kept apart from the structural c
   assert.match(markdown, /\*\*NEW\*\* \[serious\] color-contrast at `\.fresh`/);
   assert.match(markdown, /fixed \[serious\] color-contrast at `\.old`/);
   assert.match(markdown, /theme/i, 'the platform note for colour contrast is attached');
+  const npdevMarkdown = compare.renderChangesMarkdown(diff, 'app', 'npdev');
+  assert.match(npdevMarkdown, /NPDev workbench \(verified on the WmsOffice build/, 'an NPDev target gets the NPDev note');
+  assert.doesNotMatch(npdevMarkdown, /Theme object/);
+  assert.match(compare.renderChangesFile(diff, 'app', undefined, 'npdev'), /NPDev workbench \(verified/);
   assert.ok(!markdown.includes('## Screen ORDERS'), 'a screen with nothing new and nothing fixed is not listed');
 });
 
@@ -359,6 +363,25 @@ test('the report with a baseline shows new and fixed, with the platform note in 
   assert.match(es, /Corrija en el tema/);
 });
 
+test('the report of an NPDev target prints the NPDev note (or says it is not verified), never the GeneXus controls', () => {
+  const result = audited([rawRule('label', ['input[data-fkey="h:dataExpedicao"]']), rawRule('image-alt', ['#logo'])]);
+  const npdev = { ...reportData(result), platform: 'npdev' };
+
+  const en = renderRunReport(npdev as never, 'en');
+  assert.match(en, /NPDev workbench \(verified on the WmsOffice build/);
+  assert.match(en, /Not verified for NPDev yet/, 'a rule nobody checked on NPDev says so');
+  assert.doesNotMatch(en, /Label Position|Textblock/);
+  assert.match(renderRunReport(npdev as never, 'pt'), /Workbench do NPDev \(verificado/);
+  assert.match(renderRunReport(npdev as never, 'es'), /Workbench de NPDev \(verificado/);
+
+  // Same data on a GeneXus target (or one with no platform) keeps the GeneXus text.
+  for (const platform of ['genexus', undefined]) {
+    const html = renderRunReport({ ...reportData(result), platform } as never, 'en');
+    assert.match(html, /Label Position/);
+    assert.doesNotMatch(html, /NPDev workbench \(verified/);
+  }
+});
+
 test('the report without a baseline says so and lists only the most serious findings', () => {
   const many = Array.from({ length: 30 }, (_, index) => `#el${index}`);
   const html = renderRunReport(reportData(audited([rawRule('label', many, { impact: 'minor' }), rawRule('image-alt', ['#hero'], { impact: 'critical' })])) as never, 'en');
@@ -403,6 +426,37 @@ test('every rule axe checks for WCAG has a note, in the three languages, and no 
     }
   }
   assert.equal(guidance.guidanceFor('no-such-rule', 'en'), undefined);
+});
+
+test('NPDev targets get the verified NPDev note, or an honest "not verified"; everything else keeps the GeneXus text', () => {
+  // Reproduced 2026-11-10 on the WmsOffice (NPDev) workbenches: label, select-name and color-contrast, traced to the generated HTML.
+  for (const rule of ['label', 'select-name', 'color-contrast']) {
+    const group = guidance.guidanceGroupFor(rule);
+    assert.ok(group?.npdev, `${rule} must have a verified NPDev note`);
+    for (const lang of guidance.GUIDANCE_LANGS) {
+      const generic = guidance.guidanceFor(rule, lang);
+      const npdev = guidance.guidanceFor(rule, lang, 'npdev');
+      assert.equal(npdev?.platform, group.npdev[lang]);
+      assert.ok(npdev!.platform.length > 60, `${rule} ${lang}`);
+      assert.notEqual(npdev!.platform, generic!.platform);
+      assert.equal(npdev!.what, generic!.what, 'what the rule means is platform-neutral');
+      assert.doesNotMatch(npdev!.platform, /Label Position|Textblock|Theme object|objeto Theme/, `${rule} ${lang}: the NPDev note must not name GeneXus controls`);
+    }
+  }
+  // A group nobody verified on NPDev says so instead of showing GeneXus property names.
+  const unverified = guidance.guidanceFor('image-alt', 'en', 'npdev');
+  assert.equal(unverified?.platform, guidance.NPDEV_UNVERIFIED.en);
+  assert.match(unverified!.platform, /Not verified for NPDev/);
+  // GeneXus, no platform, or an unknown one: the text that was there before.
+  for (const platform of [undefined, 'genexus', 'something-else']) {
+    assert.equal(guidance.guidanceFor('label', 'en', platform)?.platform, guidance.guidanceGroupFor('label')!.text.en.platform);
+  }
+  assert.equal(guidance.guidanceFor('no-such-rule', 'en', 'npdev'), undefined);
+  // Only groups with a verified note carry one, and it exists in every language.
+  for (const group of guidance.GUIDANCE_GROUPS) {
+    if (!group.npdev) continue;
+    for (const lang of guidance.GUIDANCE_LANGS) assert.ok(group.npdev[lang].length > 60, `${group.id} npdev ${lang}`);
+  }
 });
 
 test('docs/a11y-platform-mapping.md is the generated one (run: npm run generate:a11y-doc)', () => {

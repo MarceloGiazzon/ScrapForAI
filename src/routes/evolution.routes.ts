@@ -14,6 +14,7 @@ import { cancelSnapshotRun, getSnapshotRun, startSnapshot, waitForSnapshotRun } 
 import { listSnapshots } from '../evolution/snapshotStore.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { SNAPSHOT_ID_PATTERN, snapshotBodySchema } from '../schemas/evolution.schema.js';
+import { getTarget } from '../targets/targetStore.js';
 import { expectedChangesSchema } from '../schemas/expectedChanges.schema.js';
 import { buildIdSchema, safeName } from '../schemas/explorationRequest.schema.js';
 
@@ -145,8 +146,9 @@ evolutionRouter.get('/:target/diff', async (req, res, next) => {
   if (!query.success) return badRequest(res, 'Invalid query', query.error.issues);
   try {
     const { diff } = await diffBuilds(target, query.data.from, query.data.to);
-    if (query.data.format === 'md') res.type('text/markdown').send(renderChangesMarkdown(diff, target));
-    else res.json({ targetProfile: target, ...diff, markdown: renderChangesMarkdown(diff, target) });
+    const platform = (await getTarget(target).catch(() => undefined))?.platform;
+    if (query.data.format === 'md') res.type('text/markdown').send(renderChangesMarkdown(diff, target, platform));
+    else res.json({ targetProfile: target, ...diff, markdown: renderChangesMarkdown(diff, target, platform) });
   } catch (error) {
     if (!knownError(res, error)) next(error);
   }

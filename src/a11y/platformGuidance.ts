@@ -2,9 +2,13 @@
  * T7.7: what to adjust in a GeneXus/NPDev application for each axe-core rule. Pure data, three languages (the languages of the reports).
  *
  * This is ORIENTATION, not a recipe: it says what the rule means in the HTML the browser sees and where, in a GeneXus model, that HTML usually
- * comes from. Property names change with the GeneXus version and the NPDev template, and none of this was checked against a particular build;
+ * comes from. Property names change with the GeneXus version and the NPDev template, and the GeneXus notes were not checked against a particular build;
  * confirm in your environment. docs/a11y-platform-mapping.md is generated from this file (`npm run generate:a11y-doc`) and a test fails when the two
  * differ, so there is one source of truth.
+ *
+ * NPDev is NOT GeneXus: a note that says "Label Position", "Textblock" or "Theme object" means nothing there. A group may carry an `npdev` note, written
+ * only after the finding was reproduced on a real NPDev build and traced to the generated HTML (2026-11-10: the WmsOffice workbenches; today `form-label`
+ * and `contrast`). For a target profile of `platform: 'npdev'`, a group without that note says so instead of showing the GeneXus text.
  */
 
 export type GuidanceLang = 'en' | 'pt' | 'es';
@@ -23,7 +27,16 @@ export interface GuidanceGroup {
   /** axe-core rule ids this note applies to. */
   rules: readonly string[];
   text: Record<GuidanceLang, GuidanceText>;
+  /** What to change in an NPDev application, only when it was verified on a real NPDev build (see the header). Shown instead of `text.platform` for `platform: 'npdev'`. */
+  npdev?: Record<GuidanceLang, string>;
 }
+
+/** Shown for an NPDev target when the group has no verified NPDev note: the generic text names GeneXus controls that NPDev does not have. */
+export const NPDEV_UNVERIFIED: Record<GuidanceLang, string> = {
+  en: 'Not verified for NPDev yet: the generic note names GeneXus controls and properties that NPDev does not have. Look for the element in the NPDev workbench template (the generated HTML) and fix it there.',
+  pt: 'Ainda não verificado para NPDev: a nota genérica cita controles e propriedades do GeneXus que o NPDev não tem. Procure o elemento no template do workbench do NPDev (o HTML gerado) e corrija lá.',
+  es: 'Aún no verificado para NPDev: la nota genérica nombra controles y propiedades de GeneXus que NPDev no tiene. Busque el elemento en el template del workbench de NPDev (el HTML generado) y corríjalo allí.',
+};
 
 export const GUIDANCE_GROUPS: readonly GuidanceGroup[] = [
   {
@@ -49,6 +62,11 @@ export const GUIDANCE_GROUPS: readonly GuidanceGroup[] = [
     id: 'form-label',
     title: { en: 'Form fields without a label', pt: 'Campos de formulário sem rótulo', es: 'Campos de formulario sin etiqueta' },
     rules: ['label', 'select-name', 'form-field-multiple-labels', 'label-content-name-mismatch'],
+    npdev: {
+      en: 'NPDev workbench (verified on the WmsOffice build of 2026-11-10): the generated screen writes the caption as a <label> with no "for", next to a field that has no id (it carries only data-fkey), and the <select> has no label at all, so the browser cannot tie them together. Fix it once in the workbench template of the NPDev generator, not field by field: give each control an id and its label a matching "for" (or wrap the control in the label, or set aria-label). That covers every generated screen.',
+      pt: 'Workbench do NPDev (verificado na compilação da WmsOffice de 10/11/2026): a tela gerada escreve o rótulo como <label> sem "for", ao lado de um campo sem id (só tem data-fkey), e o <select> não tem rótulo algum; por isso o navegador não os associa. Corrija uma vez no template do workbench do gerador NPDev, não campo a campo: dê um id a cada controle e ao rótulo o "for" correspondente (ou envolva o controle no rótulo, ou use aria-label). Isso cobre todas as telas geradas.',
+      es: 'Workbench de NPDev (verificado en la compilación de WmsOffice del 10/11/2026): la pantalla generada escribe la etiqueta como <label> sin "for", junto a un campo sin id (solo tiene data-fkey), y el <select> no tiene etiqueta alguna; por eso el navegador no los asocia. Corrija una vez en el template del workbench del generador NPDev, no campo por campo: dé un id a cada control y a la etiqueta el "for" correspondiente (o envuelva el control en la etiqueta, o use aria-label). Eso cubre todas las pantallas generadas.',
+    },
     text: {
       en: {
         what: 'An input, select or textarea has no accessible name (or has several, or a visible text that differs from its name).',
@@ -109,6 +127,11 @@ export const GUIDANCE_GROUPS: readonly GuidanceGroup[] = [
     id: 'contrast',
     title: { en: 'Colour contrast', pt: 'Contraste de cor', es: 'Contraste de color' },
     rules: ['color-contrast', 'link-in-text-block'],
+    npdev: {
+      en: 'NPDev workbench (verified on the WmsOffice build of 2026-11-10): the colours come from the CSS of the generated screen (the table header background and the accent colour variable), not from the model. Change them once in the workbench template (its CSS variables and classes) and recheck every screen that uses them.',
+      pt: 'Workbench do NPDev (verificado na compilação da WmsOffice de 10/11/2026): as cores vêm do CSS da tela gerada (o fundo do cabeçalho da tabela e a variável da cor de destaque), não do modelo. Altere uma vez no template do workbench (suas variáveis e classes CSS) e reverifique as telas que as usam.',
+      es: 'Workbench de NPDev (verificado en la compilación de WmsOffice del 10/11/2026): los colores vienen del CSS de la pantalla generada (el fondo del encabezado de la tabla y la variable del color de énfasis), no del modelo. Cámbielos una vez en el template del workbench (sus variables y clases CSS) y revise las pantallas que los usan.',
+    },
     text: {
       en: {
         what: 'Text and its background are too close in brightness (4.5:1 for normal text, 3:1 for large text), or a link inside a paragraph is told apart only by colour.',
@@ -286,10 +309,15 @@ export function guidanceGroupFor(ruleId: string): GuidanceGroup | undefined {
   return BY_RULE.get(ruleId);
 }
 
-/** The note for a rule, or undefined when this file has none (the report then relies on the rule's own help text). */
-export function guidanceFor(ruleId: string, lang: GuidanceLang): (GuidanceText & { title: string; groupId: string }) | undefined {
+/**
+ * The note for a rule, or undefined when this file has none (the report then relies on the rule's own help text).
+ * `platform` is the target profile's: for `'npdev'` the `platform` text is the verified NPDev note of the group, or `NPDEV_UNVERIFIED`; any other value (or none) gets the GeneXus text.
+ */
+export function guidanceFor(ruleId: string, lang: GuidanceLang, platform?: string): (GuidanceText & { title: string; groupId: string }) | undefined {
   const group = BY_RULE.get(ruleId);
-  return group ? { ...group.text[lang], title: group.title[lang], groupId: group.id } : undefined;
+  if (!group) return undefined;
+  const note = { ...group.text[lang], title: group.title[lang], groupId: group.id };
+  return platform === 'npdev' ? { ...note, platform: group.npdev?.[lang] ?? NPDEV_UNVERIFIED[lang] } : note;
 }
 
 /** Every rule that has a note, sorted: the doc's table and the tests use it. */

@@ -6,8 +6,8 @@ When ScrapForAI audits a page (the `auditAccessibility` step, T7.4) it reports a
 rule means for the HTML the browser sees and where, in a GeneXus model, that HTML usually comes from. The run report (HTML/PDF, `en`/`pt`/`es`) and
 the evolution `CHANGES.md` print the same notes next to each violation.
 
-**This is orientation, not a recipe.** Property names change with the GeneXus version and the NPDev template, and none of it was checked against a
-particular build. Confirm in your environment before changing a theme or a template that many screens share. Automated rules cover only part of
+**This is orientation, not a recipe.** Property names change with the GeneXus version, and the GeneXus notes were not checked against a particular build
+(the NPDev ones were: see the last section). Confirm in your environment before changing a theme or a template that many screens share. Automated rules cover only part of
 WCAG: a page with no violations is not proven accessible (see also `keyboardWalk`, T7.6, which axe does not do).
 
 ## How the audit is used
@@ -97,4 +97,32 @@ Cada fila agrupa las reglas de axe-core que piden el mismo tipo de corrección.
 | **Contenido en movimiento y actualización por tiempo**<br>`marquee` `blink` `meta-refresh` `no-autoplay-audio` | Texto que parpadea o se desplaza, página que se actualiza sola por tiempo, o audio que suena solo. | Quite el marquee/blink de la plantilla; reemplace el meta refresh por una recarga iniciada por el usuario (o un intervalo largo y ajustable); no reproduzca sonido automáticamente. |
 | **Subtítulos de audio y video**<br>`audio-caption` `video-caption` | Un elemento de video o audio no tiene pista de subtítulos. | El medio suele incrustarse como HTML personalizado o user control: agregue un <track kind="captions"> con el archivo de subtítulos. |
 | **Ids duplicados**<br>`duplicate-id-aria` | Dos elementos comparten un id al que apunta un atributo ARIA o una etiqueta, y la referencia cae en el elemento equivocado. | GeneXus deriva los ids del nombre de los controles: el mismo nombre dos veces en la página (o un web component incluido dos veces) repite el id. Renombre uno de los controles. Las filas de un Grid reciben sufijo (vNAME_0001) por diseño. |
+
+## NPDev applications
+
+NPDev is not GeneXus: "Label Position", "Textblock" or "Theme object" mean nothing in an NPDev workbench. For a target profile of `platform: npdev` the reports and `CHANGES.md`
+therefore print the note below instead of the GeneXus one. A note is written only after the finding was reproduced on a real NPDev build and traced to the generated HTML
+(2026-11-10, the WmsOffice workbenches: `label`, `select-name` and `color-contrast`; the audit found nothing else on the login page, the business UI home and four workbenches).
+A rule without such a note says it is **not verified for NPDev yet**.
+
+### English
+
+| Rules | NPDev |
+| --- | --- |
+| **Form fields without a label**<br>`label` `select-name` `form-field-multiple-labels` `label-content-name-mismatch` | NPDev workbench (verified on the WmsOffice build of 2026-11-10): the generated screen writes the caption as a <label> with no "for", next to a field that has no id (it carries only data-fkey), and the <select> has no label at all, so the browser cannot tie them together. Fix it once in the workbench template of the NPDev generator, not field by field: give each control an id and its label a matching "for" (or wrap the control in the label, or set aria-label). That covers every generated screen. |
+| **Colour contrast**<br>`color-contrast` `link-in-text-block` | NPDev workbench (verified on the WmsOffice build of 2026-11-10): the colours come from the CSS of the generated screen (the table header background and the accent colour variable), not from the model. Change them once in the workbench template (its CSS variables and classes) and recheck every screen that uses them. |
+
+### Português
+
+| Regras | NPDev |
+| --- | --- |
+| **Campos de formulário sem rótulo**<br>`label` `select-name` `form-field-multiple-labels` `label-content-name-mismatch` | Workbench do NPDev (verificado na compilação da WmsOffice de 10/11/2026): a tela gerada escreve o rótulo como <label> sem "for", ao lado de um campo sem id (só tem data-fkey), e o <select> não tem rótulo algum; por isso o navegador não os associa. Corrija uma vez no template do workbench do gerador NPDev, não campo a campo: dê um id a cada controle e ao rótulo o "for" correspondente (ou envolva o controle no rótulo, ou use aria-label). Isso cobre todas as telas geradas. |
+| **Contraste de cor**<br>`color-contrast` `link-in-text-block` | Workbench do NPDev (verificado na compilação da WmsOffice de 10/11/2026): as cores vêm do CSS da tela gerada (o fundo do cabeçalho da tabela e a variável da cor de destaque), não do modelo. Altere uma vez no template do workbench (suas variáveis e classes CSS) e reverifique as telas que as usam. |
+
+### Español
+
+| Reglas | NPDev |
+| --- | --- |
+| **Campos de formulario sin etiqueta**<br>`label` `select-name` `form-field-multiple-labels` `label-content-name-mismatch` | Workbench de NPDev (verificado en la compilación de WmsOffice del 10/11/2026): la pantalla generada escribe la etiqueta como <label> sin "for", junto a un campo sin id (solo tiene data-fkey), y el <select> no tiene etiqueta alguna; por eso el navegador no los asocia. Corrija una vez en el template del workbench del generador NPDev, no campo por campo: dé un id a cada control y a la etiqueta el "for" correspondiente (o envuelva el control en la etiqueta, o use aria-label). Eso cubre todas las pantallas generadas. |
+| **Contraste de color**<br>`color-contrast` `link-in-text-block` | Workbench de NPDev (verificado en la compilación de WmsOffice del 10/11/2026): los colores vienen del CSS de la pantalla generada (el fondo del encabezado de la tabla y la variable del color de énfasis), no del modelo. Cámbielos una vez en el template del workbench (sus variables y clases CSS) y revise las pantallas que los usan. |
 

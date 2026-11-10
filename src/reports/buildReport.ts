@@ -133,6 +133,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
       scenarioName: result.scenarioName,
       targetUrl: result.targetUrl,
       application: profile?.name,
+      platform: profile?.platform,
       environment: profile?.environment,
       buildId: result.buildId,
       startedAt: result.startedAt,
