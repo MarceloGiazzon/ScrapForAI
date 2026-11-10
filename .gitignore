@@ -19,3 +19,6 @@ installer/staging/
 
 # session handoff (working state, see scripts/ai/Close-Session.ps1)
 /.claude/session-state/
+
+# a person's local permissions for the agent (the shared rules are in .claude/settings.json)
+/.claude/settings.local.json
