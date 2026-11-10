@@ -108,6 +108,8 @@ tbody tr:hover { background: var(--bg); }
 .muted { color: var(--muted); }
 .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
 .hidden { display: none !important; }
+/* Action buttons under the id in the first cell of a wide table (Automation): a column of their own would be pushed off the screen. */
+.cell-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 
 dialog { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); max-width: 900px; width: 92vw; }
 dialog::backdrop { background: rgba(0,0,0,.5); }

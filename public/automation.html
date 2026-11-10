@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Automation</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="executive.html">Executive</a>
+      <a href="health.html">Health</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="timeline.html">Evolution</a>
+      <a href="tables.html">Tables</a>
+      <a href="automation.html">Automation</a>
+      <a href="config.html">Configuration</a>
+      <a href="credentials.html">Credentials</a>
+      <a href="team.html">Team</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Automation</h2>
+      <p class="muted" id="auto-me">Loading…</p>
+      <p class="muted"><strong>Schedules</strong> start runs on their own (a routine, the regression vault, a system-evolution snapshot or a periodic summary). <strong>Webhooks</strong> are the channels (Slack, Teams, Google Chat or a generic JSON endpoint) that hear when a schedule goes from green to red and back, and receive the periodic summary. Both start browsers or send data out of the server without anyone watching, so every change needs an admin's API key, typed below: it is kept in this page's memory only and forgotten after 5 minutes without use or when you leave. A webhook's URL is a secret (anyone holding it can post as the channel): it is write-only, like a password, and the server only ever shows its origin.</p>
+      <div id="auto-banner"></div>
+    </div>
+
+    <div class="card">
+      <h2>Schedules</h2>
+      <p class="muted" id="sch-summary"></p>
+      <div class="table-wrap"><table class="compact">
+        <thead><tr><th>Schedule</th><th>What</th><th>When</th><th>Next and last run</th><th>Tells</th></tr></thead>
+        <tbody id="sch-rows"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>Webhooks</h2>
+      <p class="muted" id="wh-summary"></p>
+      <div class="table-wrap"><table class="compact">
+        <thead><tr><th>Webhook</th><th>Channel and what it hears</th><th>Destination</th><th>Used by</th><th>Last delivery</th></tr></thead>
+        <tbody id="wh-rows"></tbody>
+      </table></div>
+    </div>
+
+    <div id="auto-admin" class="hidden">
+      <div class="card">
+        <h2>Admin key for changes</h2>
+        <form id="key-form" class="filters" autocomplete="off">
+          <input type="password" id="admin-key" placeholder="Admin API key" autocomplete="off" spellcheck="false" aria-label="Admin API key">
+          <button type="submit">Use for changes</button>
+          <button type="button" class="secondary hidden" id="key-forget">Forget key</button>
+          <span class="muted" id="key-state">No key: this screen only reads.</span>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 id="sch-form-title">Add a schedule</h2>
+        <form id="sch-form" autocomplete="off">
+          <div class="field">
+            <label for="sch-id">Id</label>
+            <div class="help">A name for the schedule, e.g. <span class="mono">vault-nightly</span>. Letters, digits, <span class="mono">_</span> and <span class="mono">-</span>. It cannot be changed later.</div>
+            <input type="text" id="sch-id" required pattern="[a-zA-Z0-9_\-]{1,80}" maxlength="80" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="sch-kind">What it runs</label>
+            <select id="sch-kind">
+              <option value="routine">One routine of the library</option>
+              <option value="vault">The regression vault (every active item)</option>
+              <option value="evolutionSnapshot">A system-evolution snapshot of a target</option>
+              <option value="summary">A periodic summary (no browser)</option>
+            </select>
+          </div>
+
+          <div id="sch-kind-routine">
+            <div class="field">
+              <label for="sch-routine">Routine</label>
+              <select id="sch-routine"></select>
+            </div>
+            <div class="field">
+              <label for="sch-version">Version (optional)</label>
+              <div class="help">Empty = the current version at the moment it fires. Pin a number for a reproducible run.</div>
+              <input type="number" id="sch-version" min="1" step="1">
+            </div>
+            <div class="field">
+              <label for="sch-credset">Credential set (optional)</label>
+              <select id="sch-credset"></select>
+            </div>
+            <div class="field">
+              <label for="sch-profileid">Target profile (optional)</label>
+              <select id="sch-profileid"></select>
+            </div>
+            <div class="field">
+              <label for="sch-runprofile">Profile (optional)</label>
+              <select id="sch-runprofile">
+                <option value="">Default (full)</option>
+                <option value="full">full</option>
+                <option value="functional">functional (no images, no screenshots)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sch-build">Build id (optional)</label>
+              <div class="help">Leave empty to record the real build the application reports.</div>
+              <input type="text" id="sch-build" maxlength="100" spellcheck="false">
+            </div>
+          </div>
+
+          <div id="sch-kind-vault" class="hidden">
+            <div class="field">
+              <label for="sch-vault-tags">Only items with these tags (optional)</label>
+              <div class="help">Comma separated. Empty = every active item.</div>
+              <input type="text" id="sch-vault-tags" maxlength="400" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="sch-vault-build">Build id (optional)</label>
+              <input type="text" id="sch-vault-build" maxlength="100" spellcheck="false">
+            </div>
+          </div>
+
+          <div id="sch-kind-snapshot" class="hidden">
+            <div class="field">
+              <label for="sch-snap-target">Target profile</label>
+              <select id="sch-snap-target"></select>
+            </div>
+            <div class="field">
+              <label for="sch-snap-build">Build id (optional)</label>
+              <input type="text" id="sch-snap-build" maxlength="100" spellcheck="false">
+            </div>
+          </div>
+
+          <div id="sch-kind-summary" class="hidden">
+            <div class="field">
+              <label for="sch-sum-days">Days covered</label>
+              <input type="number" id="sch-sum-days" min="1" max="31" step="1" value="7">
+            </div>
+            <div class="field">
+              <label for="sch-sum-targets">Only these target profiles (optional)</label>
+              <div class="help">Comma separated ids. Empty = all.</div>
+              <input type="text" id="sch-sum-targets" maxlength="400" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="sch-sum-lang">Language of the file</label>
+              <select id="sch-sum-lang">
+                <option value="en">English</option>
+                <option value="pt">Português</option>
+                <option value="es">Español</option>
+              </select>
+              <div class="help">Each webhook receives it in its own language.</div>
+            </div>
+            <div class="field">
+              <label class="inline-check"><input type="checkbox" id="sch-sum-file" checked> Also write the summary to a file on the server</label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="sch-cron">When (cron)</label>
+            <div class="help">Five fields: minute hour day-of-month month day-of-week, e.g. <span class="mono">0 2 * * *</span> = every day at 02:00. Macros like <span class="mono">@daily</span> work. A schedule that can never fire (31 February) is refused.</div>
+            <input type="text" id="sch-cron" required maxlength="120" spellcheck="false">
+            <div class="filters">
+              <button type="button" class="secondary" id="sch-preset-nightly">Every day 02:00</button>
+              <button type="button" class="secondary" id="sch-preset-weekdays">Weekdays 08:00</button>
+              <button type="button" class="secondary" id="sch-preset-hourly">Every hour</button>
+              <button type="button" class="secondary" id="sch-preset-monday">Monday 08:00</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="sch-tz">Time zone</label>
+            <div class="help">An IANA name, e.g. <span class="mono">America/Montevideo</span>.</div>
+            <input type="text" id="sch-tz" required maxlength="80" spellcheck="false" value="America/Montevideo">
+          </div>
+          <div class="field">
+            <label for="sch-retries">If a run fails</label>
+            <select id="sch-retries">
+              <option value="1">Try once more (a pass on the second attempt is a pass, and both are recorded)</option>
+              <option value="0">Do not retry</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="sch-jitter">Random delay, up to (seconds)</label>
+            <div class="help">So many schedules do not all start at the same second. 0 = none.</div>
+            <input type="number" id="sch-jitter" min="0" max="600" step="1" value="0">
+          </div>
+          <div class="field">
+            <label>Tell these webhooks</label>
+            <div class="help" id="sch-notify-help">A webhook is told when this schedule turns red or green again, not after every run.</div>
+            <div id="sch-notify"></div>
+          </div>
+          <div class="field">
+            <label class="inline-check"><input type="checkbox" id="sch-enabled" checked> Enabled</label>
+          </div>
+          <div class="filters">
+            <button type="submit" id="sch-save">Save schedule</button>
+            <button type="button" class="secondary hidden" id="sch-cancel">Cancel editing</button>
+          </div>
+        </form>
+        <p class="login-error hidden" id="sch-error"></p>
+        <p class="muted hidden" id="sch-done"></p>
+      </div>
+
+      <div class="card">
+        <h2 id="wh-form-title">Add a webhook</h2>
+        <form id="wh-form" autocomplete="off">
+          <div class="field">
+            <label for="wh-id">Id</label>
+            <div class="help">A name for the channel, e.g. <span class="mono">team-qa</span>. Letters, digits, <span class="mono">_</span> and <span class="mono">-</span>. It cannot be changed later.</div>
+            <input type="text" id="wh-id" required pattern="[a-zA-Z0-9_\-]{1,64}" maxlength="64" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="wh-preset">Channel</label>
+            <select id="wh-preset">
+              <option value="generic">Generic JSON</option>
+              <option value="slack">Slack</option>
+              <option value="teams">Microsoft Teams (Workflows webhook)</option>
+              <option value="googlechat">Google Chat</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="wh-lang">Language of the messages</label>
+            <select id="wh-lang">
+              <option value="en">English</option>
+              <option value="pt">Português</option>
+              <option value="es">Español</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>What it hears about</label>
+            <div><label class="inline-check"><input type="checkbox" id="wh-ev-broken" checked> Broken (green to red)</label></div>
+            <div><label class="inline-check"><input type="checkbox" id="wh-ev-recovered" checked> Recovered (red to green)</label></div>
+          </div>
+          <div class="field">
+            <label class="inline-check"><input type="checkbox" id="wh-summary-on"> Send a daily summary</label>
+            <div class="filters">
+              <input type="time" id="wh-summary-at" value="08:00" aria-label="Time of the daily summary">
+              <input type="text" id="wh-summary-tz" value="America/Montevideo" maxlength="80" spellcheck="false" aria-label="Time zone of the daily summary">
+            </div>
+            <div class="help">Needs the scheduler running on the server.</div>
+          </div>
+          <div class="field">
+            <label for="wh-url">Webhook URL</label>
+            <div class="help" id="wh-url-help">The address the channel gave you. Its origin must be listed in <span class="mono">ALLOWED_NOTIFY_ORIGINS</span> on the server, or nothing is sent.</div>
+            <input type="password" id="wh-url" maxlength="2048" spellcheck="false" autocomplete="new-password" aria-label="Webhook URL">
+            <div class="filters"><label class="inline-check"><input type="checkbox" id="wh-show"> Show what I type</label></div>
+          </div>
+          <div class="field">
+            <label class="inline-check"><input type="checkbox" id="wh-enabled" checked> Enabled</label>
+          </div>
+          <div class="field">
+            <label for="wh-notes">Notes (optional)</label>
+            <input type="text" id="wh-notes" maxlength="500">
+          </div>
+          <div class="filters">
+            <button type="submit" id="wh-save">Save webhook</button>
+            <button type="button" class="secondary hidden" id="wh-cancel">Cancel editing</button>
+          </div>
+        </form>
+        <p class="login-error hidden" id="wh-error"></p>
+        <p class="muted hidden" id="wh-done"></p>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="automation.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapForAI — Tables</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapForAI</h1>
+    <nav>
+      <a href="index.html">History</a>
+      <a href="executive.html">Executive</a>
+      <a href="health.html">Health</a>
+      <a href="vault.html">Vault</a>
+      <a href="performance.html">Performance</a>
+      <a href="timeline.html">Evolution</a>
+      <a href="tables.html">Tables</a>
+      <a href="automation.html">Automation</a>
+      <a href="config.html">Configuration</a>
+      <a href="credentials.html">Credentials</a>
+      <a href="team.html">Team</a>
+      <a href="status.html">Status</a>
+    </nav>
+    <button class="secondary" id="logout">Sign out</button>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Tables of cases</h2>
+      <p class="muted" id="tab-me">Loading…</p>
+      <p class="muted">A <strong>table of cases</strong> is a CSV with the inputs of a test and the result it must give: one row is one case. A routine reads a column as the values it types (<span class="mono">fromTable</span>) and another as the result the page must show (<span class="mono">expected.table</span>), so a suite with as many samples as rows runs every case. Each save is a new, <strong>immutable version</strong>: saving the same content again makes no new version, and a run says which version it used. The first line holds the column names (letters, digits, <span class="mono">_</span> and <span class="mono">-</span>); <span class="mono">,</span> or <span class="mono">;</span> separate the cells (a Portuguese or Spanish spreadsheet saves with <span class="mono">;</span> and a decimal comma). Put test data here, never a password or a key: the server refuses a cell that looks like one.</p>
+      <div id="tab-banner"></div>
+    </div>
+
+    <div class="card">
+      <h2>Stored tables</h2>
+      <p class="muted" id="tab-summary"></p>
+      <div class="table-wrap"><table class="compact">
+        <thead><tr><th>Id</th><th>Title</th><th>Version</th><th>Columns</th><th>Rows</th><th>Saved</th><th></th></tr></thead>
+        <tbody id="tab-rows"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card hidden" id="tab-editor">
+      <h2 id="tab-form-title">Add a table</h2>
+      <form id="tab-form" autocomplete="off">
+        <div class="field">
+          <label for="tab-id">Id</label>
+          <div class="help">What routines call it, e.g. <span class="mono">order-totals</span>. Letters, digits, <span class="mono">_</span> and <span class="mono">-</span>. It cannot be changed later.</div>
+          <input type="text" id="tab-id" required pattern="[a-zA-Z0-9_\-]{1,80}" maxlength="80" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="tab-title">Title (optional)</label>
+          <input type="text" id="tab-title" maxlength="200">
+        </div>
+        <div class="field hidden" id="tab-version-field">
+          <label for="tab-version">Version</label>
+          <div class="help" id="tab-version-help">Open an older version to see it; saving it makes a NEW version with that content.</div>
+          <select id="tab-version"></select>
+        </div>
+        <div class="field">
+          <label for="tab-csv">CSV</label>
+          <div class="help">Header row first, then one row per case, e.g. <span class="mono">qty,price,total</span>. At most 500 rows and 20 columns.</div>
+          <textarea id="tab-csv" rows="12" required spellcheck="false" wrap="off"></textarea>
+        </div>
+        <div class="filters">
+          <button type="submit" id="tab-save">Save table</button>
+          <button type="button" class="secondary" id="tab-sample">Fill with an example</button>
+          <button type="button" class="secondary hidden" id="tab-cancel">Cancel editing</button>
+          <a class="hidden" id="tab-download" href="tables.html" download>Download this CSV</a>
+        </div>
+      </form>
+      <p class="login-error hidden" id="tab-error"></p>
+      <p class="muted hidden" id="tab-done"></p>
+    </div>
+  </main>
+  <script type="module" src="tables.js"></script>
+</body>
+</html>
