@@ -66,6 +66,22 @@ docker compose -f docker-compose.team.yml up -d --build
 - `HEALTHCHECK` in the `Dockerfile`; `init: true` and `shm_size: 1gb` because Chromium needs them in a container.
 - Turn on the scheduler (`SCHEDULER_ENABLED=true`, the default in this file) only if somebody has schedules: it is the reason to have a host that stays on.
 
+### Brought up for real (2026-11-10)
+
+`docker-compose.team.yml` was built and started from a clean checkout with a throwaway `.env` (Docker 29.9.2 on Windows 11, Docker Desktop, image `mcr.microsoft.com/playwright:v1.60.0-noble`, `caddy:2`; the first build took about 35 minutes, almost all of it pulling the Playwright image). What was observed:
+
+- Both containers start; the app reports `healthy` through the `Dockerfile` `HEALTHCHECK`; `docker port` shows **nothing published** for the API, only Caddy's 80 and 443.
+- Caddy obtained a certificate for `localhost` from its **internal** CA (so a browser or CLI must trust Caddy's local CA, as the `Caddyfile` comment says) and answers over TLS with `Strict-Transport-Security` and no `Server` header.
+- Without a key the API answers 401; with the `.env` key, 200. A user created over the API got a key shown once; signing in with it set `sfa_session` with `HttpOnly; SameSite=Strict; Secure`.
+- A `runner` is refused (403) on `/v1/team/users` and `/v1/audit`; a cookie-authenticated `POST` without the UI header is refused (`CsrfProtection`), a Bearer one is accepted.
+- **Chromium runs inside the container:** a five-step run (open, assert, click, assert, screenshot) against a page served by the host passed in about 1.3 s, with the target allowlisted as `http://host.docker.internal:<port>`.
+- The audit log recorded the denials and the run with the user and the `jobId`; `audit verify` was `ok`. After `docker restart` of the app container the user's key still worked and the chain still verified (the data volume held `users.json` and `audit/`).
+- The address in the audit log was `172.18.0.1`, the Docker network gateway: on Docker Desktop for Windows the client's real address is NATed before it reaches Caddy, so this says nothing about the proxy setting. On a Linux host with a published port Caddy sees the real address.
+
+**Not checked:** a public domain with a real certificate (Let's Encrypt), a Linux host, upgrading a running deployment, backup and restore of the volume.
+
+**Runs as `root`:** the container's process is `uid=0`, the default of the Playwright image, and Playwright starts Chromium without its sandbox by default. The pages it opens are the ones in `ALLOWED_TARGET_ORIGINS` (your own dev and test sites), and the container holds only the data volume, but a browser exploit on one of those pages would run as root inside the container. Playwright's guidance for untrusted pages is the image's `pwuser` plus its seccomp profile; that is not done here because a volume written by an earlier root deployment would stop being writable. Keep `ALLOWED_TARGET_ORIGINS` to sites you control.
+
 ## Limits to know before giving keys out
 
 - **A `runner` can use any credential set** of any target profile (the values are never shown, and each set is bound to its origins, but nothing says *who* may use which set). Credential sets per person is not built.
