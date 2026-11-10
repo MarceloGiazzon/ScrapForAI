@@ -36,6 +36,30 @@ test('the validator agrees with documents known to be correct (and refuses the c
   assert.ok(!isValidDocument('cpf', ''));
 });
 
+test('RUT: the examples python-stdnum documents (from the AGESIC data model) are accepted, and the structure counts, not only the check digit', () => {
+  // Cross-check done 2026-11-10 against python-stdnum 2.2 (cpf, cnpj, rut) and cedula-uruguaya 0.1.1 (ci) over 200 000 random numbers each: same verdict on
+  // every one, except that our RUT check ignored the structure python-stdnum enforces. This test pins the fix with an independent re-computation.
+  for (const good of ['211003420017', '21-100342-001-7', '211406340011', '21 140634 001 1']) assert.ok(isValidDocument('rut-uy', good), good);
+  assert.ok(!isValidDocument('rut-uy', '210303670014'), 'wrong check digit (stdnum doctest)');
+
+  const rutWithCheckDigit = (first11: string): string | undefined => {
+    const weights = [4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const total = [...first11].reduce((sum, digit, index) => sum + Number(digit) * weights[index]!, 0);
+    const check = (11 - (total % 11)) % 11; // -total mod 11
+    return check === 10 ? undefined : `${first11}${check}`;
+  };
+  const accepted = (first11: string) => {
+    const full = rutWithCheckDigit(first11);
+    assert.ok(full, `${first11} has a check digit`);
+    return isValidDocument('rut-uy', full);
+  };
+  assert.ok(accepted('21100342001'), 'a RUT with the right shape');
+  assert.ok(!accepted('00100342001'), 'department 00');
+  assert.ok(!accepted('23100342001'), 'department 23');
+  assert.ok(!accepted('21000000001'), 'a serial of 000000');
+  assert.ok(!accepted('21100342002'), 'series 002 with a correct check digit');
+});
+
 test('valid: every generated document passes the check, whatever the seed, formatted or not', () => {
   for (const kind of KINDS) {
     const rng = createRng(`valid:${kind}`);

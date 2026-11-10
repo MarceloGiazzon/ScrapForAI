@@ -141,7 +141,9 @@ function validDocumentDigits(kind: DocumentKind, rng: Rng): number[] {
       }
       default: {
         const prefix = intBetween(rng, 1, 22); // 01..22, the first two digits of a RUT
-        const base = [Math.floor(prefix / 10), prefix % 10, ...digitsOf(rng, 6), 0, 0, 1];
+        const serial = digitsOf(rng, 6);
+        if (serial.every((digit) => digit === 0)) continue; // python-stdnum (an independent implementation) refuses a serial of 000000
+        const base = [Math.floor(prefix / 10), prefix % 10, ...serial, 0, 0, 1];
         const dv = rutCheckDigit(base);
         if (dv === undefined) continue;
         return [...base, dv];
@@ -164,8 +166,14 @@ export function isValidDocument(kind: DocumentKind, text: string): boolean {
     case 'ci-uy':
       return ciCheckDigit(digits.slice(0, 7)) === digits[7];
     default:
-      return rutCheckDigit(digits.slice(0, 11)) === digits[11];
+      return rutStructureIsPossible(digits) && rutCheckDigit(digits.slice(0, 11)) === digits[11];
   }
+}
+
+/** The shape of a RUT apart from its check digit: department 01-22, a serial that is not all zeros, series `001`. A correct check digit alone passes 1 in 11 random numbers. */
+function rutStructureIsPossible(digits: number[]): boolean {
+  const department = digits[0]! * 10 + digits[1]!;
+  return department >= 1 && department <= 22 && digits.slice(2, 8).some((digit) => digit !== 0) && digits[8] === 0 && digits[9] === 0 && digits[10] === 1;
 }
 
 function formatDocument(kind: DocumentKind, digits: string): string {

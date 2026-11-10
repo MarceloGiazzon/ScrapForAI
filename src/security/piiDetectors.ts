@@ -77,11 +77,9 @@ function validCiUy(raw: string): boolean {
   return number >= 100_000 && number < 7_000_000 && isValidDocument('ci-uy', padded);
 }
 
-/** RUT of Uruguay: department 01-22, six digits, series 001, check digit. The structure is required on top of the checksum (1 in 11 random numbers passes it). */
+/** RUT of Uruguay: department 01-22, six digits, series 001, check digit. `isValidDocument` requires the structure on top of the checksum (1 in 11 random numbers passes the checksum alone). */
 function validRutUy(raw: string): boolean {
-  if (raw.length !== 12) return false;
-  const department = Number(raw.slice(0, 2));
-  return department >= 1 && department <= 22 && raw.slice(8, 11) === '001' && isValidDocument('rut-uy', raw);
+  return raw.length === 12 && isValidDocument('rut-uy', raw);
 }
 
 // --- detectors -------------------------------------------------------------------------------------------------------------------------------

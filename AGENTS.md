@@ -50,7 +50,7 @@ step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `en
   upgrade run `npm run generate:schema` and read the diff of `schema/*.json`: the unit tests did not notice this one.
 - **License (T10.4, decided 2026-11-08 by the project owner):** ScrapForAI is **MIT** (`LICENSE`, holder "Punto Exe" as in `package.json`'s `author`; the repository on GitHub is public). `package.json` stays
   `"private": true` (no accidental `npm publish`). The installer and ZIP copy `LICENSE` and `THIRD-PARTY-NOTICES.md` into `docs` (`installer/Build-Staging.ps1`). A new dependency whose license is not permissive
-  (GPL/AGPL/SSPL, or a "non-commercial" one) needs a decision before it is added, because it changes what can be distributed with an MIT project. The commercial model (price, service) is still open.
+  (GPL/AGPL/SSPL, or a "non-commercial" one) needs a decision before it is added, because it changes what can be distributed with an MIT project. **There is no commercial model (decided 2026-11-10 by the project owner): ScrapForAI is free, at no cost: no price, no paid tier, no paid service or support.** Do not add licensing keys, usage metering, "pro" feature gates or payment code.
 
 ## Security model — read before changing anything here
 
