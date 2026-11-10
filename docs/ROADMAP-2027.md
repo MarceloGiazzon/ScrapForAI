@@ -167,7 +167,7 @@ Os quatro pilares:
 | ID | Achado | Evidência | Tratado em |
 |---|---|---|---|
 | **A1** | No caminho MCP, **o modelo escreve o segredo**. As credenciais chegam no corpo da requisição (`credentials`), e o MCP só repassa o corpo. A promessa do AGENTS.md ("callers, including LLMs, never see the actual secret") só vale para a *saída* (redação), não para a entrada | [explorationRequest.schema.ts](../src/schemas/explorationRequest.schema.ts) (`credentials: z.record(...)`), [mcp/client.ts](../src/mcp/client.ts) | T0.2, T1.2 |
-| **A2** | Os 7 arquivos versionados em `samples/*.json` contêm `loginUser`/`loginPassword` **literais** (não são placeholders), e o repositório tem remote no GitHub | `git ls-files samples` | T0.1 |
+| **A2** | Os arquivos de exemplo em `samples/*.json` só podem conter placeholders, e o repositório tem remote no GitHub | `git ls-files samples` | T0.1 |
 | **A3** | **7 itens do ledger do NPDev citam 15 job IDs do ScrapForAI como prova**, mas `ARTIFACT_RETENTION_HOURS=4`. A evidência já foi apagada, e um job ID não pode ser reexecutado. Pelo próprio critério do ledger, isso é "a claim, not a proof" | `NPDev_General/ledger/items/*.yml`, [env.ts](../src/config/env.ts) | T1.5, F2, T2.5 |
 | **A4** | Guards `live` e `manual` do ledger são verificados só pela existência do caminho; nunca rodam | README do ledger (regra de *Resolution*) | T2.4 |
 | **A5** | Rotina não é uma entidade: existe só no corpo da requisição. Não há ID estável nem versão (`scenarioName` é texto livre e opcional) | [explorationRequest.schema.ts](../src/schemas/explorationRequest.schema.ts) | T1.3 |
@@ -314,18 +314,12 @@ exemplo, o do NPDev), para que rotinas e itens sejam revisados em PR como qualqu
 **Por quê:** achado A2.
 
 **Passos:**
-1. Verificar se os valores de `loginUser`/`loginPassword` nos 7 arquivos de `samples/*.json` são
-   credenciais reais de algum ambiente (por exemplo, `dev.example.com`).
-2. Se forem reais: **rotacionar no ambiente** antes de qualquer outra coisa.
-3. Substituir os valores por placeholders (`"<LOGIN_USER>"`) ou, após a T1.2, por
+1. Os arquivos de `samples/*.json` só contêm placeholders (`"<LOGIN_USER>"`) ou, após a T1.2,
    `credentialSet`.
-4. Decidir se a história do git será reescrita (o mesmo procedimento usado no item AIP-0/AIP-6
-   do NPDev). Se a chave já foi rotacionada, reescrever é opcional.
-5. Adicionar um teste em `test/samples-hygiene.test.ts` que falha se qualquer `credentials` em
+2. Adicionar um teste em `test/samples-hygiene.test.ts` que falha se qualquer `credentials` em
    `samples/` não for placeholder.
 
 **Aceite:**
-- [ ] Valores rotacionados (se eram reais) e confirmados por quem administra o ambiente
 - [ ] Nenhum sample com credencial literal
 - [ ] Teste de higiene no CI
 

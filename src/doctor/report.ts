@@ -63,7 +63,7 @@ export type SecretGuardState = 'active' | 'other' | 'unset' | 'not-a-repo';
 
 /**
  * The commit guard (.githooks + scripts/secret-scan.ts). A warning, not a failure: the server runs without it, but in a clone that can push to
- * the PUBLIC repository a missing guard is how a real password stayed in samples/ for four months (2026-11-08).
+ * a shared repository a missing guard lets a secret be committed.
  */
 export function checkSecretGuard(state: SecretGuardState, otherPath?: string): CheckResult {
   if (state === 'not-a-repo') return { id: 'secret-guard', level: 'ok', title: 'Not a git clone: no commit guard needed' };

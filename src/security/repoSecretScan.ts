@@ -4,9 +4,8 @@ import { SECRET_PATTERNS } from '../library/routineLint.js';
  * What must never be COMMITTED (the repository is public). PURE: no I/O, no git, no configuration; `scripts/secret-scan.ts`
  * decides what to read (staged files, the commits of a push, the whole history) and this file decides what counts.
  *
- * Why it exists (2026-11-08): a real login + password sat in `samples/*.json` from the FIRST commit for four months. GitHub's secret
- * scanning and push protection were on and said nothing, because a plain password has no provider format; `test/samples-hygiene.test.ts`
- * came later and only looked at the tree, never at what was being committed. So the rules are, strongest first:
+ * Why it exists: GitHub's secret scanning and push protection say nothing about a plain password, because it has no provider format;
+ * `test/samples-hygiene.test.ts` only looks at the tree, never at what is being committed. So the rules are, strongest first:
  *  - `known-value`: a value this installation really uses (every field of every credential-vault set, the secrets in `.env`). It cannot be
  *    allowed by any rule or file: if it matches, the commit stops. This is the rule that would have caught the leak.
  *  - `forbidden-file`: files that only ever hold secrets or runtime data (`.env`, keys, the data directory, the vault), even if `git add -f`.

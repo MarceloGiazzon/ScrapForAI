@@ -20,8 +20,8 @@ import {
   type ScanContext,
 } from '../src/security/repoSecretScan.js';
 
-// The commit guard (2026-11-08): a real login + password sat in samples/ from the FIRST commit for four months, while GitHub's secret
-// scanning was on. Every fake below is built so it is not a value of this machine; the e2e part uses its own vault in a temp dir.
+// The commit guard: GitHub's secret scanning does not catch a plain password. Every fake below is built so it is not a value of this
+// machine; the e2e part uses its own vault in a temp dir.
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const none: ScanContext = { known: [], allow: [] };
