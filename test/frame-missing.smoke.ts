@@ -46,7 +46,7 @@ after(async () => {
 
 async function run(steps: unknown[], teardown?: unknown[]) {
   const request = explorationRequestSchema.parse({ targetUrl: `${site.origin}/`, steps, ...(teardown ? { teardown } : {}) });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 const open = { id: 'open', action: 'goto', url: `${site.origin}/` };
 const dialog = { name: 'dialog' };

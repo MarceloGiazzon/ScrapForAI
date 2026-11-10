@@ -63,7 +63,7 @@ test('guard on: the other origin is never reached, the blocks are reported with 
     targetUrl: `${site.origin}/`,
     steps: [{ id: 'open', action: 'goto', url: `${site.origin}/` }, { id: 'settle', action: 'waitForTimeout', timeoutMs: 500 }, { id: 'h', action: 'assertVisible', selector: '#t' }],
   });
-  const result = await runExploration(await resolveExplorationRequest(request));
+  const result = await runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.deepEqual(hits, [], 'not one request reached the origin outside the allowlist');
@@ -88,7 +88,7 @@ test('guard on: the allowed origin is untouched (its image loads, nothing of it 
     targetUrl: `${site.origin}/`,
     steps: [{ id: 'open', action: 'goto', url: `${site.origin}/` }, { id: 'settle', action: 'waitForTimeout', timeoutMs: 300 }, { id: 'own', action: 'extractAttribute', selector: '#own', attribute: 'src', name: 'src' }],
   });
-  const result = await runExploration(await resolveExplorationRequest(request));
+  const result = await runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.equal(result.extracted.src, '/own.png');
   assert.ok(!(result.evidence.routing ?? []).some((entry) => entry.pathname === '/own.png'));

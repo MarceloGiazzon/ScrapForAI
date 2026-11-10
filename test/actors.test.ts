@@ -338,7 +338,7 @@ test('each actor gets the values of ITS credential set; main keeps its own; noth
       actors: { bob: { credentialSet: 'bob-set' }, guest: {} },
       steps: [{ action: 'reload' }, { actor: 'bob', action: 'reload' }, { actor: 'guest', action: 'reload' }],
     }),
-  );
+  { initiator: 'system' });
   assert.deepEqual(resolved.credentials, { user: 'mm', pass: 'main-secret-aaaa' });
   assert.deepEqual(resolved.actorCredentials?.['bob']?.credentials, { user: 'bb', pass: 'bob-secret-bbbb' });
   assert.deepEqual(resolved.actorCredentials?.['bob']?.credentialBinding.boundOrigins, [ORIGIN]);
@@ -347,7 +347,7 @@ test('each actor gets the values of ITS credential set; main keeps its own; noth
 
 test('an actor\'s credential set must exist and be allowed for the profile, like the run\'s own', async () => {
   const run = (actors: object, targetProfile = 'app-dev') =>
-    resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile, actors, steps: [{ actor: 'x', action: 'reload' }] }));
+    resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile, actors, steps: [{ actor: 'x', action: 'reload' }] }), { initiator: 'system' });
 
   await assert.rejects(run({ x: { credentialSet: 'ghost-set' } }), (error: { status?: number; message: string }) => error.status === 404 && /actor "x"/.test(error.message));
   await saveCredentialSet('stranger', { boundOrigins: [ORIGIN], values: { pass: 'stranger-secret-cccc' }, tags: [] }, 'create');
@@ -360,14 +360,14 @@ test('more actors on one account than the profile allows is refused, and so is m
     actors: { a: { credentialSet: 'bob-set' }, b: { credentialSet: 'bob-set' } },
     steps: [{ actor: 'a', action: 'reload' }, { actor: 'b', action: 'reload' }],
   };
-  await assert.rejects(resolveExplorationRequest(explorationRequestSchema.parse(twice)), (error: { status?: number; name: string }) => error.status === 400 && error.name === 'TooManySessionsForCredential');
-  const allowed = await resolveExplorationRequest(explorationRequestSchema.parse({ ...twice, targetProfile: 'app-multi' }));
+  await assert.rejects(resolveExplorationRequest(explorationRequestSchema.parse(twice), { initiator: 'system' }), (error: { status?: number; name: string }) => error.status === 400 && error.name === 'TooManySessionsForCredential');
+  const allowed = await resolveExplorationRequest(explorationRequestSchema.parse({ ...twice, targetProfile: 'app-multi' }), { initiator: 'system' });
   assert.deepEqual(Object.keys(allowed.actorCredentials ?? {}), ['a', 'b'], 'a profile that allows two sessions per credential takes both');
 
   // five declared actors + main in use = six contexts, one over the cap
   const five = Object.fromEntries(Array.from({ length: 5 }, (_, index) => [`n${index}`, {}]));
   await assert.rejects(
-    resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', actors: five, steps: [{ action: 'reload' }, ...Object.keys(five).map((actor) => ({ actor, action: 'reload' }))] })),
+    resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', actors: five, steps: [{ action: 'reload' }, ...Object.keys(five).map((actor) => ({ actor, action: 'reload' }))] }), { initiator: 'system' }),
     (error: { status?: number; message: string }) => error.status === 400 && /MAX_ACTORS_PER_JOB/.test(error.message),
   );
 });

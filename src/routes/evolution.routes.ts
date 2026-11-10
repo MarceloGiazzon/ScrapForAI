@@ -17,6 +17,7 @@ import { SNAPSHOT_ID_PATTERN, snapshotBodySchema } from '../schemas/evolution.sc
 import { getTarget } from '../targets/targetStore.js';
 import { expectedChangesSchema } from '../schemas/expectedChanges.schema.js';
 import { buildIdSchema, safeName } from '../schemas/explorationRequest.schema.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /**
  * /v1/evolution: system-evolution snapshots (T4.4). A snapshot logs in through the vault (credential sets by name) and writes
@@ -53,7 +54,7 @@ evolutionRouter.post('/snapshots', async (req, res, next) => {
   }
 
   try {
-    const state = await startSnapshot(parsed.data);
+    const state = await startSnapshot(parsed.data, initiatorOf(req.principal));
     res.status(202).location(`/v1/evolution/snapshots/${state.snapshotId}`).json({
       snapshotId: state.snapshotId,
       targetProfile: state.targetProfile,

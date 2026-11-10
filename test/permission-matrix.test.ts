@@ -287,5 +287,5 @@ test('verdict: red (an unmet expectation or an unexpected gain) wins over infra-
 });
 
 test('running a matrix that does not exist is a 404 and starts nothing', async () => {
-  await assert.rejects(startMatrixRun('ghost', {}), (error: Error & { status?: number }) => error.name === 'PermissionMatrixNotFound' && error.status === 404);
+  await assert.rejects(startMatrixRun('ghost', {}, 'system'), (error: Error & { status?: number }) => error.name === 'PermissionMatrixNotFound' && error.status === 404);
 });

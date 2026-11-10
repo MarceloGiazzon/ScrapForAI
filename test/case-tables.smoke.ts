@@ -65,7 +65,7 @@ const params = (version?: number) => [
 ];
 
 async function runSuite(body: Record<string, unknown>) {
-  const started = await startSuite(suiteRequestSchema.parse({ name: 'tables', ...body }));
+  const started = await startSuite(suiteRequestSchema.parse({ name: 'tables', ...body }), 'system');
   const state = await waitForSuite(started.suiteRunId, 90_000);
   assert.equal(state?.status, 'completed', JSON.stringify(state?.variants));
   return state!;
@@ -81,22 +81,22 @@ test('a routine reads its inputs and its expected total from the same row of a t
   await saveRoutine('shop-table', { title: 'shop table', targetProfile: 'shop', parameters: params() as never, steps: steps() as never });
 
   for (const sample of [0, 1, 2]) {
-    const ok = await runLibraryRoutine('shop-table', undefined, { sample });
+    const ok = await runLibraryRoutine('shop-table', undefined, { sample }, { initiator: 'system' });
     assert.equal(ok.status, 'passed', `row ${sample}: ${JSON.stringify(ok.error)}`);
   }
-  const first = await runLibraryRoutine('shop-table', undefined, { sample: 0 });
+  const first = await runLibraryRoutine('shop-table', undefined, { sample: 0 }, { initiator: 'system' });
   assert.equal(first.parameters?.values.qty, '1');
   assert.equal(first.parameters?.sources.qty?.source, 'case');
   assert.match(String(first.extracted.total), /^R\$ 11,55$/);
   assert.deepEqual(first.tables, [{ id: 'shop-cases', version: 1, sha256: saved.table.sha256, rows: 5 }], 'the result says which table version it ran against');
 
-  const bad = await runLibraryRoutine('shop-table', undefined, { sample: 3 });
+  const bad = await runLibraryRoutine('shop-table', undefined, { sample: 3 }, { initiator: 'system' });
   assert.equal(bad.status, 'failed');
   assert.equal(bad.parameters?.values.qty, '1000');
   assert.match(bad.error?.message ?? '', /assertEquals: total is 11549 but 11\.550,00 gives 11550 \(difference 1/);
   assert.equal(bad.failedStepIndex, 4, 'the failing step is the check of that row');
 
-  const wrapped = await runLibraryRoutine('shop-table', undefined, { sample: 5 });
+  const wrapped = await runLibraryRoutine('shop-table', undefined, { sample: 5 }, { initiator: 'system' });
   assert.equal(wrapped.parameters?.values.qty, '1', 'sample 5 of 5 rows is row 0, as with any cases');
   assert.equal(wrapped.status, 'passed');
 });
@@ -118,11 +118,11 @@ test('a pinned version stays reproducible after the table changes; an unpinned r
   const second = await saveCaseTable('shop-cases', { csv: CASES.replace('11.550,00', '11.549,00').replace('28.875,00', '28.874,00') });
   assert.equal(second.table.version, 2);
 
-  const pinned = await runLibraryRoutine('shop-pinned', undefined, { sample: 3 });
+  const pinned = await runLibraryRoutine('shop-pinned', undefined, { sample: 3 }, { initiator: 'system' });
   assert.equal(pinned.status, 'failed', 'version 1 still expects 11.550,00');
   assert.equal(pinned.tables?.[0]?.version, 1);
 
-  const current = await runLibraryRoutine('shop-table', undefined, { sample: 3 });
+  const current = await runLibraryRoutine('shop-table', undefined, { sample: 3 }, { initiator: 'system' });
   assert.equal(current.status, 'passed', 'the current version expects what the page shows');
   assert.equal(current.tables?.[0]?.version, 2);
 });
@@ -135,18 +135,18 @@ test('an included routine keeps its table reference through the rename of its pa
     title: 'includer', targetProfile: 'shop',
     steps: [{ id: 'open', action: 'goto', url: `${site.origin}/` }, { id: 'row', action: 'include', routineId: 'shop-row' }] as never,
   });
-  const ok = await runLibraryRoutine('shop-includer', undefined, { sample: 1 });
+  const ok = await runLibraryRoutine('shop-includer', undefined, { sample: 1 }, { initiator: 'system' });
   assert.equal(ok.status, 'passed', JSON.stringify(ok.error));
   assert.deepEqual(Object.keys(ok.parameters?.values ?? {}).sort(), ['row_price', 'row_qty']);
   assert.equal(ok.parameters?.values.row_qty, '3');
 
-  const bad = await runLibraryRoutine('shop-includer', undefined, { sample: 3 });
+  const bad = await runLibraryRoutine('shop-includer', undefined, { sample: 3 }, { initiator: 'system' });
   assert.equal(bad.status, 'failed');
   assert.match(bad.error?.message ?? '', /total is 11549 but 11\.550,00/);
 });
 
 test('saving a run as a routine keeps the references as written (never the cells), and parameterValues cannot be mixed with a table', async () => {
-  const run = await runLibraryRoutine('shop-table', undefined, { sample: 1 });
+  const run = await runLibraryRoutine('shop-table', undefined, { sample: 1 }, { initiator: 'system' });
   assert.equal(run.status, 'passed');
   const copy = await saveRoutine('shop-from-run', { fromJobId: run.jobId, title: 'copy of a table run' } as never);
   const stored = copy.routine as unknown as { parameters: unknown; steps: Array<{ expected?: unknown }> };
@@ -155,7 +155,7 @@ test('saving a run as a routine keeps the references as written (never the cells
   assert.ok(!JSON.stringify(stored).includes('34,65'), 'no cell was copied into the routine');
 
   await assert.rejects(
-    runLibraryRoutine('shop-table', undefined, { parameterValues: { qty: '5' } }),
+    runLibraryRoutine('shop-table', undefined, { parameterValues: { qty: '5' } }, { initiator: 'system' }),
     (error: Error & { status?: number }) => error.status === 400 && /table of cases/.test(error.message),
   );
 });

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { teamDir } from '../config/paths.js';
 import { retryTransient } from '../storage/transientIo.js';
 import { generateKey, hashesMatch, hashKey, parseKeyId } from './keys.js';
-import { RESERVED_USER_IDS, ROLES, type Role } from './roles.js';
+import { RESERVED_USER_IDS, ROLES, type Role, USER_ID_MESSAGE, USER_ID_PATTERN } from './roles.js';
 
 /**
  * T10.1 people and their personal API keys: `<dataDir>/team/users.json`.
@@ -32,7 +32,7 @@ export const MAX_ACTIVE_KEYS_PER_USER = 10;
 /** `lastUsedAt` is written to disk at most this often per key (a request must not cost a file write). */
 const LAST_USED_WRITE_INTERVAL_MS = 10 * 60 * 1000;
 
-export const userIdSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,59}$/, 'user id: lower-case letters, digits, . _ - (1-60, starting with a letter or digit)');
+export const userIdSchema = z.string().regex(USER_ID_PATTERN, USER_ID_MESSAGE);
 export const roleSchema = z.enum(ROLES);
 
 const keyRecordSchema = z

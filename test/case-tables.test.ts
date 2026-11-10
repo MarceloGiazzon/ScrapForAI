@@ -214,7 +214,7 @@ test('resolveExplorationRequest: the run gets cases, a literal expectation, the 
     parameters,
     steps: [{ id: 'type', action: 'fill', selector: '#qty', valueFromParameter: 'qty' }, { id: 'read', action: 'extractText', name: 'total', selector: '#t' }, expectation],
   });
-  const resolved = await resolveExplorationRequest(request);
+  const resolved = await resolveExplorationRequest(request, { initiator: 'system' });
   assert.equal(resolved.parameterRecord?.values.qty, '3');
   assert.equal(resolved.parameterRecord?.values.price, '10');
   assert.equal(resolved.parameterRecord?.sources.qty?.source, 'case');
@@ -224,7 +224,7 @@ test('resolveExplorationRequest: the run gets cases, a literal expectation, the 
   assert.deepEqual(resolved.parameters, parameters, 'the request keeps the references as written (a saved routine keeps them)');
 
   await assert.rejects(
-    () => resolveExplorationRequest(explorationRequestSchema.parse({ ...request, parameterValues: { qty: '1' } })),
+    () => resolveExplorationRequest(explorationRequestSchema.parse({ ...request, parameterValues: { qty: '1' } }), { initiator: 'system' }),
     (error: unknown) => error instanceof RequestResolutionError && error.name === 'TableWithFixedValues',
   );
 });

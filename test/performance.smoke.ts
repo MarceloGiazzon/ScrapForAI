@@ -68,17 +68,17 @@ test('a step that gets slower after a new build raises an alert naming the step 
   });
 
   delayMs = 0;
-  for (let i = 0; i < 8; i += 1) assert.equal((await runLibraryRoutine('work', undefined, { buildId: 'r100' })).status, 'passed');
+  for (let i = 0; i < 8; i += 1) assert.equal((await runLibraryRoutine('work', undefined, { buildId: 'r100' }, { initiator: 'system' })).status, 'passed');
   let detail = (await getRoutinePerformance('work'))!;
   assert.equal(detail.greenRuns, 8);
   assert.deepEqual(detail.alerts, [], 'steady');
 
   // A run with fixed parameters (a shrink probe) is not part of the series.
-  await runLibraryRoutine('work', undefined, { buildId: 'r100', parameterValues: {} }).catch(() => undefined);
+  await runLibraryRoutine('work', undefined, { buildId: 'r100', parameterValues: {} }, { initiator: 'system' }).catch(() => undefined);
   assert.equal((await readPerfRecords('work')).length, 8);
 
   delayMs = 1200; // the "new build" is slow on the navigation
-  for (let i = 0; i < 3; i += 1) assert.equal((await runLibraryRoutine('work', undefined, { buildId: 'r101' })).status, 'passed');
+  for (let i = 0; i < 3; i += 1) assert.equal((await runLibraryRoutine('work', undefined, { buildId: 'r101' }, { initiator: 'system' })).status, 'passed');
 
   detail = (await getRoutinePerformance('work'))!;
   assert.ok(detail.alerts.includes('open'), `alerts: ${detail.alerts.join(',')}`);

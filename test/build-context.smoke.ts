@@ -56,7 +56,7 @@ async function runAgainst(buildInfo: unknown, extra: Record<string, unknown> = {
     steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }, { id: 'h', action: 'assertVisible', selector: '#t' }],
     ...extra,
   });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 
 test('httpHeader: the header of the base URL is the build (made safe for a build id)', async () => {

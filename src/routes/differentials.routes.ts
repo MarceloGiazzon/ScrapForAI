@@ -11,6 +11,7 @@ import {
 import { renderDifferentialMarkdown } from '../differential/render.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { differentialCompareRequestSchema, differentialRequestSchema } from '../schemas/differential.schema.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /** /v1/differentials: the same routines against two target profiles, and what differs (T6.3). Asynchronous, like suites. */
 export const differentialsRouter = Router();
@@ -37,7 +38,7 @@ differentialsRouter.post('/', async (req, res, next) => {
   }
 
   try {
-    const state = await startDifferential(parsed.data);
+    const state = await startDifferential(parsed.data, initiatorOf(req.principal));
     res.status(202).location(`/v1/differentials/${state.differentialId}`).json({ differentialId: state.differentialId, status: state.status, labels: state.labels, counts: state.counts, ...(state.warnings ? { warnings: state.warnings } : {}) });
   } catch (error) {
     if (error instanceof RequestResolutionError) {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { webhooksDir } from '../config/paths.js';
 import { type Webhook, webhookSchema, type WebhookState, webhookStateSchema } from '../schemas/webhook.schema.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
+import { SYSTEM_INITIATOR } from '../team/initiator.js';
 import { deleteCredentialSet, getCredentialSetMeta, resolveCredentialSet, saveCredentialSet } from '../vault/credentials/credentialVault.js';
 
 /**
@@ -93,7 +94,7 @@ export async function saveWebhookUrl(id: string, url: string): Promise<void> {
 
 /** SENDER ONLY. The URL is a secret: never put it in a response, a log line or a message. */
 export async function resolveWebhookUrl(id: string): Promise<string | undefined> {
-  return (await resolveCredentialSet(vaultSetId(id)))?.values.url;
+  return (await resolveCredentialSet(vaultSetId(id), SYSTEM_INITIATOR))?.values.url;
 }
 
 /** The origin the URL points at (not secret: it is in ALLOWED_NOTIFY_ORIGINS), or undefined when no URL is stored. */

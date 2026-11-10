@@ -82,9 +82,20 @@ docker compose -f docker-compose.team.yml up -d --build
 
 **Runs as `root`:** the container's process is `uid=0`, the default of the Playwright image, and Playwright starts Chromium without its sandbox by default. The pages it opens are the ones in `ALLOWED_TARGET_ORIGINS` (your own dev and test sites), and the container holds only the data volume, but a browser exploit on one of those pages would run as root inside the container. Playwright's guidance for untrusted pages is the image's `pwuser` plus its seccomp profile; that is not done here because a volume written by an earlier root deployment would stop being writable. Keep `ALLOWED_TARGET_ORIGINS` to sites you control.
 
+## Who may use a credential set
+
+By default any `runner` can start a run that types any credential set. To limit a set, an admin gives it a list of user ids: in the Credentials screen ("Who may use it" → "Only the people listed"), or with `PUT /v1/credentials/<id>` and `"allowedUsers": ["ana", "ben"]` (admin key, like every change to the vault).
+
+- **No list** (the default, and every set made before this existed): anyone who can run, as before. **A list**: those people, plus admins, plus scheduled runs. **An empty list** (`[]`): admins only. `null` on a PUT removes the restriction; **leaving `allowedUsers` out of a PUT keeps the stored list**, so editing an origin or a note never opens a restricted set.
+- Every id must be a person of the team (`400 UnknownUser` otherwise), so a typo does not lock someone out silently.
+- It is checked **where a run loads the set**, for the run's own set and for each actor's, whoever started it: a direct run, a routine, a suite, a permission matrix, a shrink, a differential, a snapshot, a manual build, a vault item. A person who is not on the list gets `403 CredentialSetForbidden` before any browser starts (for a background run, each variant records that error). The message does not say who may use the set. A suite or matrix keeps who started it for its whole life, so a queue is not a way in.
+- **What people see:** everyone sees that a set exists, its origins and field names, and `restricted: true`; only an admin's read lists the people. Nobody ever reads a value: being on the list lets a person make a run type it, nothing more.
+- **What it does not cover:** the MCP server and the CLI act with the installation key (`root`, an admin), so a person who reaches the API only through an AI agent started with that key is not limited, which is why that key must not be handed out. The sets that webhooks and integrations keep (`webhook-*`, `integration-*`) are created open; only an admin can write them and they can only be typed into the origin they are bound to, but restrict them too if a runner should not even be able to name them. There is no rule per target profile or per routine.
+- The audit log records who changed a set (`PUT /v1/credentials/<id>`, with how many people are on the list, never the names or values).
+
 ## Limits to know before giving keys out
 
-- **A `runner` can use any credential set** of any target profile (the values are never shown, and each set is bound to its origins, but nothing says *who* may use which set). Credential sets per person is not built.
+- **A `runner` can use any credential set that has no list of allowed users.** A set can be limited to some people (`allowedUsers`, see "Who may use a credential set" below), but every set made before that exists is open, and a new one is open until an admin restricts it. Values are never shown, and each set is bound to its origins.
 - **A `viewer` can read evidence**: screenshots, reports, `vault/export`, signed evidence exports. Evidence is dev/QA data by design; if a run's screenshot is sensitive, `viewer` is too much.
 - **No SSO, no passwords, no two-factor:** the key is the identity. Keys are long and random, there is no lockout beyond the rate limit on sign-in (10 per 15 minutes per address) and general limits.
 - **Nobody can approve their own work:** not implemented (the roadmap's "four eyes" for sending a bug report or pinning is a decision for a person with an admin key, but one admin can do both).

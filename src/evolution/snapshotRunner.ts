@@ -12,6 +12,7 @@ import { deriveScreenInventory, type StructureInput } from '../inventory/deriveI
 import { expandIncludes } from '../library/includeExpander.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
+import type { Initiator } from '../team/initiator.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { resolveExplorationRequest } from '../runner/resolveRequest.js';
 import { runExploration } from '../runner/runExploration.js';
@@ -58,6 +59,8 @@ interface ActiveRun {
   state: SnapshotRunState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the snapshot: every session loads its credential set on that account. */
+  initiator: Initiator;
 }
 
 const active = new Map<string, ActiveRun>();
@@ -77,7 +80,7 @@ function suiteSlots(): number {
 
 type Captured = { structure: StructureInput; jobId: string; screenshotPath?: string; audit?: AccessibilityAudit };
 
-export async function startSnapshot(body: SnapshotBody): Promise<SnapshotRunState> {
+export async function startSnapshot(body: SnapshotBody, initiator: Initiator): Promise<SnapshotRunState> {
   const profile = await getTarget(body.targetProfile);
   if (!profile) throw new SnapshotError(404, 'TargetProfileNotFound', `Target profile "${body.targetProfile}" does not exist`);
 
@@ -140,7 +143,7 @@ export async function startSnapshot(body: SnapshotBody): Promise<SnapshotRunStat
     warnings: [],
   };
 
-  const run: ActiveRun = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const run: ActiveRun = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.snapshotId, run);
   await persist(state);
 
@@ -191,7 +194,7 @@ async function execute(
             options: { screenshots: body.screenshots ? 'always' : 'off', collectDomOnFailure: false },
             steps: session.steps,
           });
-          return runExploration(await resolveExplorationRequest(request));
+          return runExploration(await resolveExplorationRequest(request, { initiator: run.initiator }));
         },
         { priority: 'suite', ...(session.credentialSet ? { lockKey: session.credentialSet } : {}), maxPerLock: maxSessions, signal: controller.signal },
       );

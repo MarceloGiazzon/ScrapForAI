@@ -163,7 +163,7 @@ test('resolveExplorationRequest hands the runner include-free steps and keeps th
     steps: [{ id: 'auth', action: 'include', routineId: 'with-logout' }, { id: 'check', action: 'reload' }],
     teardown: [{ id: 'bye', action: 'reload' }],
   });
-  const resolved = await resolveExplorationRequest(request);
+  const resolved = await resolveExplorationRequest(request, { initiator: 'system' });
 
   assert.ok(resolved.steps.every((step) => step.action !== 'include'));
   assert.deepEqual(actions(resolved.steps), ['auth.open', 'check']);
@@ -171,7 +171,7 @@ test('resolveExplorationRequest hands the runner include-free steps and keeps th
   assert.equal(resolved.includes?.[0]?.routineId, 'with-logout');
   assert.equal(resolved.unexpanded?.steps[0]?.action, 'include');
 
-  const plain = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', steps: [{ action: 'reload' }] }));
+  const plain = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', steps: [{ action: 'reload' }] }), { initiator: 'system' });
   assert.equal(plain.includes, undefined, 'a run without includes carries no extra metadata');
   assert.equal(plain.teardown, undefined);
 });

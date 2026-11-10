@@ -23,6 +23,7 @@ import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { getTarget } from '../targets/targetStore.js';
 import { listAllCredentialValues } from '../vault/credentials/credentialVault.js';
 import { recordRunMetrics } from '../metrics/perfRecorder.js';
+import type { Initiator } from '../team/initiator.js';
 import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
 import { type ConventionLintResult, lintConventions } from './conventionLint.js';
 import { lintParameters, lintRoutineDoc, lintRoutineSteps } from './routineLint.js';
@@ -252,13 +253,14 @@ export async function lintRoutineContent(input: {
 
 /**
  * Runs a stored routine at a pinned version (default: current). `body` carries per-run inputs only;
- * the steps, target profile and options always come from the stored version.
+ * the steps, target profile and options always come from the stored version. `context.initiator` is who the run is for (REQUIRED: a credential
+ * set may be restricted to some users, see `resolveExplorationRequest`).
  */
 export async function runLibraryRoutine(
   id: string,
   version: number | undefined,
   body: RoutineRunBody,
-  context: { suite?: { suiteRunId: string; variantKey: string } } = {},
+  context: { suite?: { suiteRunId: string; variantKey: string }; initiator: Initiator },
 ): Promise<ExplorationResult> {
   const routine = await getRoutine(id, version);
   if (!routine) {
@@ -296,7 +298,7 @@ export async function runLibraryRoutine(
     teardown: routine.teardown,
   });
 
-  const resolved = await resolveExplorationRequest(request, { includeProfile: routine.targetProfile });
+  const resolved = await resolveExplorationRequest(request, { includeProfile: routine.targetProfile, initiator: context.initiator });
   resolved.routine = { id: routine.id, version: routine.version, sha256: routine.sha256 };
   if (context.suite) {
     resolved.suite = context.suite;
@@ -312,7 +314,7 @@ export async function runLibraryRoutine(
  * no free slot is a 429 and a credential in use by another run is a 409. For flows that run one routine
  * on behalf of a caller (regression vault: run, confirm-green).
  */
-export async function runRoutineInteractive(id: string, version: number | undefined, body: RoutineRunBody): Promise<ExplorationResult> {
+export async function runRoutineInteractive(id: string, version: number | undefined, body: RoutineRunBody, initiator: Initiator): Promise<ExplorationResult> {
   const routine = await getRoutine(id, version);
   if (!routine) {
     throw new RoutineLibraryError(404, 'RoutineNotFound', version === undefined ? `Routine "${id}" does not exist` : `Routine "${id}" has no version ${version}`);
@@ -328,7 +330,7 @@ export async function runRoutineInteractive(id: string, version: number | undefi
   }
 
   try {
-    return await runLibraryRoutine(id, version, body);
+    return await runLibraryRoutine(id, version, body, { initiator });
   } finally {
     slot.release();
   }

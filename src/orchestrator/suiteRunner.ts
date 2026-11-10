@@ -19,6 +19,7 @@ import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
 import { listItems, recordLastRun } from '../vault/regression/regressionVault.js';
 import { orderByImpact } from '../vault/regression/impact.js';
 import { sessionCredentialSets } from '../runner/actors.js';
+import type { Initiator } from '../team/initiator.js';
 import { JobCancelledError } from './jobQueue.js';
 import { attemptMetadata, runAttempts } from './retry.js';
 
@@ -53,6 +54,8 @@ interface ActiveSuite {
   state: SuiteState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the suite: every run of every variant loads its credential sets on that account (see `Initiator`). */
+  initiator: Initiator;
 }
 
 const active = new Map<string, ActiveSuite>();
@@ -379,7 +382,7 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
                   ...(entry.sample === undefined ? {} : { seed: state.seed, sample: entry.sample }),
                   caller: { source: 'suite', correlationId: state.suiteRunId, metadata: { variantKey: variant.variantKey, ...attemptMetadata(attempt, previous) } },
                 },
-                { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey } },
+                { suite: { suiteRunId: state.suiteRunId, variantKey: variant.variantKey }, initiator: suite.initiator },
               ),
             { priority: 'suite', lockKey: entry.lockKey, lockKeys: entry.actorLockKeys, maxPerLock: entry.maxSessions, signal: controller.signal },
           ),
@@ -482,7 +485,7 @@ async function execute(suite: ActiveSuite, planned: PlannedVariant[]): Promise<v
  * Validates and expands the suite, records it, starts it in the background and returns its initial
  * state. Throws SuiteError (404 for an unknown routine, nothing runs) before any run starts.
  */
-export async function startSuite(request: SuiteRequest): Promise<SuiteState> {
+export async function startSuite(request: SuiteRequest, initiator: Initiator): Promise<SuiteState> {
   const planned = await planSuite(request);
 
   const state: SuiteState = {
@@ -497,7 +500,7 @@ export async function startSuite(request: SuiteRequest): Promise<SuiteState> {
     variants: planned.map((entry) => entry.state),
   };
 
-  const suite: ActiveSuite = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const suite: ActiveSuite = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.suiteRunId, suite);
   await persist(state);
 

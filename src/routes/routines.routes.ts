@@ -9,6 +9,7 @@ import { routineLintBodySchema, routineRunBodySchema, routineSaveBodySchema } fr
 import { redactSecrets } from '../security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from '../security/validateTargetUrl.js';
 import { VaultError } from '../vault/credentials/credentialVault.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /** /v1/routines: the versioned routine library (T1.3). */
 export const routinesRouter = Router();
@@ -142,7 +143,7 @@ routinesRouter.post('/:id/run', async (req, res, next) => {
   }
 
   try {
-    const result = await runLibraryRoutine(String(req.params.id), version, parsed.data);
+    const result = await runLibraryRoutine(String(req.params.id), version, parsed.data, { initiator: initiatorOf(req.principal) });
     res.status(result.status === 'passed' ? 200 : 500).json(result);
   } catch (error) {
     if (!sendKnownError(res, error)) {

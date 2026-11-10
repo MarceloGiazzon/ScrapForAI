@@ -14,6 +14,7 @@ import { attemptMetadata, runAttempts } from '../orchestrator/retry.js';
 import { runSummarySchedule } from '../summary/summarySchedule.js';
 import { getSuite, planSuite, startSuite, waitForSuite } from '../orchestrator/suiteRunner.js';
 import type { Dispatched, Dispatcher, RunRef, Settled, SettledFacts } from './scheduler.js';
+import { SYSTEM_INITIATOR } from '../team/initiator.js';
 
 /**
  * T3.2: starts what a schedule points at. Scheduled runs go through the same queue as everything else, with the lowest priority (`scheduled`),
@@ -89,7 +90,7 @@ async function startSuiteTarget(request: SuiteRequest): Promise<Dispatched> {
     const offender = await suiteUsesEvaluate(request);
     if (offender) return refused(offender);
   }
-  const state = await startSuite(request);
+  const state = await startSuite(request, SYSTEM_INITIATOR);
   return { started: true, run: { kind: 'suite', id: state.suiteRunId }, done: untilSuiteEnds(state.suiteRunId) };
 }
 
@@ -118,7 +119,7 @@ export function createDispatcher(): Dispatcher {
                     ...(target.profile ? { profile: target.profile } : {}),
                     ...(target.buildId ? { buildId: target.buildId } : {}),
                     caller: { source: 'schedule', correlationId: schedule.id, metadata: { occurrence: occurrenceIso, ...attemptMetadata(attempt, previous) } },
-                  }),
+                  }, { initiator: SYSTEM_INITIATOR }),
                 { priority: 'scheduled', lockKeys: sessionCredentialSets({ credentialSet, actors: routine.actors }), maxPerLock },
               ),
             { retries: schedule.retries },
@@ -163,7 +164,7 @@ export function createDispatcher(): Dispatcher {
             }),
           );
         case 'evolutionSnapshot': {
-          const state = await startSnapshot(snapshotBodySchema.parse({ targetProfile: target.targetProfile, ...(target.buildId ? { buildId: target.buildId } : {}) }));
+          const state = await startSnapshot(snapshotBodySchema.parse({ targetProfile: target.targetProfile, ...(target.buildId ? { buildId: target.buildId } : {}) }), SYSTEM_INITIATOR);
           const done = (async (): Promise<Settled> => {
             for (;;) {
               const current = await waitForSnapshotRun(state.snapshotId, WAIT_SLICE_MS);

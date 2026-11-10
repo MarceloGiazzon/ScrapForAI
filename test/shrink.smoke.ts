@@ -58,7 +58,7 @@ const steps = [
 ];
 
 async function shrinkAndWait(body: Record<string, unknown>) {
-  const started = await startShrink(shrinkRequestSchema.parse(body));
+  const started = await startShrink(shrinkRequestSchema.parse(body), 'system');
   const state = await waitForShrink(started.shrinkId, 240_000);
   assert.equal(state?.status, 'completed', JSON.stringify(state));
   return state!;
@@ -80,8 +80,8 @@ test('the shrinker finds the exact limit of a boundary bug, ignores the irreleva
   });
 
   // Samples 0 and 1 (qty 1 and 0) pass; sample 2 is qty 5000, the first one over the limit.
-  assert.equal((await runLibraryRoutine('shop-total', undefined, { seed: 'S', sample: 1 })).status, 'passed');
-  const failed = await runLibraryRoutine('shop-total', undefined, { seed: 'S', sample: 2 });
+  assert.equal((await runLibraryRoutine('shop-total', undefined, { seed: 'S', sample: 1 }, { initiator: 'system' })).status, 'passed');
+  const failed = await runLibraryRoutine('shop-total', undefined, { seed: 'S', sample: 2 }, { initiator: 'system' });
   assert.equal(failed.status, 'failed');
   assert.equal(failed.parameters?.values.qty, '5000');
 
@@ -100,11 +100,11 @@ test('the shrinker finds the exact limit of a boundary bug, ignores the irreleva
   // The minimal run exists, failed, and was fed exactly the minimal values.
   const minimalJobId = state.result?.minimalJobId;
   assert.ok(minimalJobId);
-  const replayed = await runLibraryRoutine('shop-total', 1, { parameterValues: state.result!.minimal });
+  const replayed = await runLibraryRoutine('shop-total', 1, { parameterValues: state.result!.minimal }, { initiator: 'system' });
   assert.equal(replayed.status, 'failed');
   assert.deepEqual(replayed.parameters?.values, state.result!.minimal);
   assert.ok(Object.values(replayed.parameters!.sources).every((source) => source.source === 'fixed'));
-  const justBelow = await runLibraryRoutine('shop-total', 1, { parameterValues: { ...state.result!.minimal, qty: '999' } });
+  const justBelow = await runLibraryRoutine('shop-total', 1, { parameterValues: { ...state.result!.minimal, qty: '999' } }, { initiator: 'system' });
   assert.equal(justBelow.status, 'passed', 'the neighbour the shrinker reported really passes');
 
   // "Save to vault": a SCENARIO whose routine has the parameters FIXED at the minimal values.
@@ -119,7 +119,7 @@ test('the shrinker finds the exact limit of a boundary bug, ignores the irreleva
     { name: 'note', cases: ['a'] },
     { name: 'qty', cases: ['1000'] },
   ]);
-  const again = await runLibraryRoutine('reg-501', added.routine.version, { seed: 'anything', sample: 7 });
+  const again = await runLibraryRoutine('reg-501', added.routine.version, { seed: 'anything', sample: 7 }, { initiator: 'system' });
   assert.equal(again.status, 'failed', 'the pinned scenario fails on every run, whatever the seed');
   assert.equal(again.parameters?.values.qty, '1000');
 });
@@ -142,6 +142,6 @@ test('requests that cannot be shrunk are refused before anything runs', async ()
   assert.equal(shrinkRequestSchema.safeParse({}).success, false);
   assert.equal(shrinkRequestSchema.safeParse({ fromJobId: 'job_x', routineId: 'a', seed: 's', sample: 1 }).success, false);
   assert.equal(shrinkRequestSchema.safeParse({ routineId: 'a', seed: 's' }).success, false);
-  await assert.rejects(() => startShrink(shrinkRequestSchema.parse({ fromJobId: 'job_doesnotexist' })), (e: Error) => e.name === 'EvidenceNotFound');
-  await assert.rejects(() => startShrink(shrinkRequestSchema.parse({ routineId: 'ghost', seed: 's', sample: 0 })), (e: Error) => e.name === 'RoutineNotFound');
+  await assert.rejects(() => startShrink(shrinkRequestSchema.parse({ fromJobId: 'job_doesnotexist' }), 'system'), (e: Error) => e.name === 'EvidenceNotFound');
+  await assert.rejects(() => startShrink(shrinkRequestSchema.parse({ routineId: 'ghost', seed: 's', sample: 0 }), 'system'), (e: Error) => e.name === 'RoutineNotFound');
 });

@@ -71,7 +71,7 @@ test('vault file is encrypted at rest and contains no plaintext', async () => {
 });
 
 test('resolveCredentialSet returns the values (runner-only path)', async () => {
-  const set = await vault.resolveCredentialSet('gam-admin');
+  const set = await vault.resolveCredentialSet('gam-admin', 'system');
   assert.equal(set?.values.loginPassword, SENTINEL);
   assert.deepEqual(set?.boundOrigins, [ORIGIN]);
 });
@@ -112,7 +112,7 @@ test('without SCRAPFORAI_VAULT_KEY a key file is generated and reused', async ()
     await vault.saveCredentialSet('k', { boundOrigins: [ORIGIN], values: { loginUser: 'u' }, tags: [] }, 'create');
     const keyFile = path.join(otherDir, 'vault.key');
     assert.equal(Buffer.from(fs.readFileSync(keyFile, 'utf8'), 'base64').length, 32);
-    assert.equal((await vault.resolveCredentialSet('k'))?.values.loginUser, 'u');
+    assert.equal((await vault.resolveCredentialSet('k', 'system'))?.values.loginUser, 'u');
   } finally {
     process.env.SCRAPFORAI_DATA_DIR = realDir;
     process.env.SCRAPFORAI_VAULT_KEY = realKey;
@@ -127,7 +127,7 @@ test('create conflicts on an existing id; upsert without values keeps the stored
   );
 
   await vault.saveCredentialSet('gam-admin', { boundOrigins: [ORIGIN], tags: ['role:admin', 'edited'] }, 'upsert');
-  assert.equal((await vault.resolveCredentialSet('gam-admin'))?.values.loginPassword, SENTINEL);
+  assert.equal((await vault.resolveCredentialSet('gam-admin', 'system'))?.values.loginPassword, SENTINEL);
 
   await assert.rejects(
     () => vault.saveCredentialSet('brand-new', { boundOrigins: [ORIGIN], tags: [] }, 'upsert'),
@@ -184,7 +184,7 @@ test('credentialSet is loaded server-side; vault values win over inline ones; fi
       credentials: { loginPassword: 'inline-attempt', extra: 'kept' },
       steps: [{ action: 'fill', selector: '#p', valueFromCredential: 'loginPassword' }],
     }),
-  );
+  { initiator: 'system' });
 
   assert.equal(resolved.credentials?.loginPassword, SENTINEL, 'an inline value must not shadow a vaulted one');
   assert.equal(resolved.credentials?.extra, 'kept');
@@ -194,7 +194,7 @@ test('credentialSet is loaded server-side; vault values win over inline ones; fi
 
 test('an unknown credential set is CredentialSetNotFound', async () => {
   await assert.rejects(
-    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetUrl: `${ORIGIN}/`, credentialSet: 'nope', steps: [{ action: 'reload' }] })),
+    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetUrl: `${ORIGIN}/`, credentialSet: 'nope', steps: [{ action: 'reload' }] }), { initiator: 'system' }),
     (error: Error) => error instanceof RequestResolutionError && error.name === 'CredentialSetNotFound',
   );
 });
@@ -214,7 +214,7 @@ test('a target profile restricts which credential sets may be used', async () =>
   });
 
   await assert.rejects(
-    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'restricted', credentialSet: 'gam-admin', steps: [{ action: 'reload' }] })),
+    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'restricted', credentialSet: 'gam-admin', steps: [{ action: 'reload' }] }), { initiator: 'system' }),
     (error: Error) => error instanceof RequestResolutionError && error.name === 'CredentialSetNotAllowed',
   );
 });

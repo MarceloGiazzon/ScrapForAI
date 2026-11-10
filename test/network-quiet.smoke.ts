@@ -62,7 +62,7 @@ after(async () => {
 
 async function run(steps: unknown[], options: Record<string, unknown> = {}) {
   const request = explorationRequestSchema.parse({ targetUrl: `${site.origin}/`, options, steps });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 const open = { id: 'open', action: 'goto', url: `${site.origin}/` };
 const frameText = { name: 'inner', action: 'extractText', selector: '#inner', frame: { urlContains: '/inner' } };

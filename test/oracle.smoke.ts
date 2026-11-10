@@ -66,19 +66,19 @@ test('the oracle passes on correct totals, in the page\'s own number format, and
   });
 
   for (const sample of [0, 1, 2]) {
-    const ok = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample });
+    const ok = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample }, { initiator: 'system' });
     assert.equal(ok.status, 'passed', `sample ${sample}: ${JSON.stringify(ok.error)}`);
   }
 
-  const first = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 0 });
+  const first = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 0 }, { initiator: 'system' });
   assert.match(String(first.extracted.total), /^R\$ 11,55$/, 'the page prints the Brazilian format and the oracle still agrees');
 
-  const bad = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 3 });
+  const bad = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 3 }, { initiator: 'system' });
   assert.equal(bad.status, 'failed');
   assert.equal(bad.parameters?.values.qty, '1000');
   assert.match(bad.error?.message ?? '', /assertEquals: total is 11549 but round\(price \* qty \* 1\.1, 2\) gives 11550 \(difference 1, tolerance 1e-9\); with price=10\.5, qty=1000/);
 
-  const huge = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 4 });
+  const huge = await runLibraryRoutine('shop-total', undefined, { seed: 's', sample: 4 }, { initiator: 'system' });
   assert.match(huge.error?.message ?? '', /total is 28874 but .* gives 28875/, 'the page printed "R$ 28.874,00": thousands separators are understood');
 });
 
@@ -88,7 +88,7 @@ test('a tolerance absorbs a known difference; the same page then passes', async 
     parameters: [PRICE, { name: 'qty', cases: ['1000'] }] as never,
     steps: calcSteps(FORMULA).map((step) => (step.action === 'assertEquals' ? { ...step, tolerance: { absolute: 1 } } : step)) as never,
   });
-  const result = await runLibraryRoutine('shop-total-tolerant', undefined, {});
+  const result = await runLibraryRoutine('shop-total-tolerant', undefined, {}, { initiator: 'system' });
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
 });
 
@@ -114,7 +114,7 @@ test('a formula in an included routine follows the rename of its parameters; two
     ] as never,
   });
 
-  const result = await runLibraryRoutine('shop-twice', undefined, { seed: 'x', sample: 1 });
+  const result = await runLibraryRoutine('shop-twice', undefined, { seed: 'x', sample: 1 }, { initiator: 'system' });
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.deepEqual(Object.keys(result.parameters?.values ?? {}).sort(), ['one_price', 'one_qty', 'two_price', 'two_qty']);
   assert.equal(result.steps.filter((step) => step.action === 'assertEquals' && step.status === 'passed').length, 2);

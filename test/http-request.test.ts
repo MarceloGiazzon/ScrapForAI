@@ -142,16 +142,16 @@ test('resolve: only the methods the profile lists are allowed (default GET/HEAD)
       ...(where === 'teardown' ? { teardown: [call({ method, body: '{}' })] } : {}),
     });
 
-  await resolveExplorationRequest(withMethod('plain', 'GET'));
-  await resolveExplorationRequest(withMethod(undefined, 'GET'));
+  await resolveExplorationRequest(withMethod('plain', 'GET'), { initiator: 'system' });
+  await resolveExplorationRequest(withMethod(undefined, 'GET'), { initiator: 'system' });
   await assert.rejects(
-    () => resolveExplorationRequest(withMethod('plain', 'POST')),
+    () => resolveExplorationRequest(withMethod('plain', 'POST'), { initiator: 'system' }),
     (error: unknown) => error instanceof RequestResolutionError && error.status === 403 && error.name === 'HttpMethodNotAllowed' && /http\.allowedMethods/.test(error.message),
   );
-  await assert.rejects(() => resolveExplorationRequest(withMethod(undefined, 'POST')), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
-  await assert.rejects(() => resolveExplorationRequest(withMethod('plain', 'DELETE', 'teardown')), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
+  await assert.rejects(() => resolveExplorationRequest(withMethod(undefined, 'POST'), { initiator: 'system' }), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
+  await assert.rejects(() => resolveExplorationRequest(withMethod('plain', 'DELETE', 'teardown'), { initiator: 'system' }), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
 
-  const allowed = await resolveExplorationRequest(withMethod('writer', 'POST'));
+  const allowed = await resolveExplorationRequest(withMethod('writer', 'POST'), { initiator: 'system' });
   assert.deepEqual(allowed.httpMethods, ['GET', 'POST']);
-  await assert.rejects(() => resolveExplorationRequest(withMethod('writer', 'DELETE')), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
+  await assert.rejects(() => resolveExplorationRequest(withMethod('writer', 'DELETE'), { initiator: 'system' }), (error: unknown) => error instanceof RequestResolutionError && error.status === 403);
 });

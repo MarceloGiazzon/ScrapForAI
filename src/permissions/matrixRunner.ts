@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { permissionsDir } from '../config/paths.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
+import type { Initiator } from '../team/initiator.js';
 import { resolveExplorationRequest } from '../runner/resolveRequest.js';
 import { runExploration } from '../runner/runExploration.js';
 import { explorationRequestSchema } from '../schemas/explorationRequest.schema.js';
@@ -38,6 +39,8 @@ interface ActiveRun {
   state: MatrixRunState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the matrix: every role's session loads its credential set on that account. */
+  initiator: Initiator;
 }
 
 const active = new Map<string, ActiveRun>();
@@ -73,7 +76,7 @@ async function previousRun(matrixId: string, targetProfile: string): Promise<Mat
   return undefined;
 }
 
-export async function startMatrixRun(matrixId: string, body: MatrixRunBody): Promise<MatrixRunState> {
+export async function startMatrixRun(matrixId: string, body: MatrixRunBody, initiator: Initiator): Promise<MatrixRunState> {
   const stored = await getMatrix(matrixId);
   if (!stored) {
     throw new PermissionMatrixError(404, 'PermissionMatrixNotFound', `Permission matrix "${matrixId}" does not exist`);
@@ -118,7 +121,7 @@ export async function startMatrixRun(matrixId: string, body: MatrixRunBody): Pro
     counts: { pending: 0, allowed: 0, denied: 0, error: 0, mismatches: 0, alerts: 0, unofferedAccess: 0 },
   };
 
-  const run: ActiveRun = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const run: ActiveRun = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.runId, run);
   await persist(state);
 
@@ -171,7 +174,7 @@ async function execute(
             options: { collectDomOnFailure: true, ...(body.retention ? { retention: body.retention } : {}) },
             steps: session.steps,
           });
-          return runExploration(await resolveExplorationRequest(request));
+          return runExploration(await resolveExplorationRequest(request, { initiator: run.initiator }));
         },
         { priority: 'suite', lockKey: session.role, maxPerLock: maxSessions, signal: controller.signal },
       );

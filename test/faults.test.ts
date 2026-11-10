@@ -336,10 +336,10 @@ test('resolve: a staging profile refuses injectFault unless flags.allowFaults is
   const noFault = explorationRequestSchema.parse({ targetProfile: 'app-stg', steps: [{ action: 'goto', url: '$targetUrl' }] });
 
   await assert.rejects(
-    () => resolveExplorationRequest(withFault('app-stg')),
+    () => resolveExplorationRequest(withFault('app-stg'), { initiator: 'system' }),
     (error: unknown) => error instanceof RequestResolutionError && error.status === 403 && /allowFaults/.test(error.message),
   );
-  await resolveExplorationRequest(withFault('app-stg-chaos'));
-  await resolveExplorationRequest(withFault('app-dev'));
-  await resolveExplorationRequest(noFault);
+  await resolveExplorationRequest(withFault('app-stg-chaos'), { initiator: 'system' });
+  await resolveExplorationRequest(withFault('app-dev'), { initiator: 'system' });
+  await resolveExplorationRequest(noFault, { initiator: 'system' });
 });

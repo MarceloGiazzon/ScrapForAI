@@ -10,6 +10,7 @@ import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
 import { firstOverflow } from '../orchestrator/jobQueue.js';
+import type { Initiator } from '../team/initiator.js';
 import { actorsInUse, sessionCredentialSets } from './actors.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -83,10 +84,13 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
  *    re-validated here, and every navigation is re-validated again by the runner);
  *  - `credentialSet` -> `credentials`, loaded from the vault. Vault values WIN over inline ones of
  *    the same name, so a caller can never shadow a vaulted secret.
+ *
+ * `initiator` is who the run is for and is REQUIRED (not defaulted): a credential set can be restricted to some users, and this is the one
+ * place every run loads its sets (the run's own and each actor's), so a caller that forgot to say who is asking could not compile.
  */
 export async function resolveExplorationRequest(
   request: ExplorationRequest,
-  options: { includeProfile?: string } = {},
+  options: { includeProfile?: string; initiator: Initiator },
 ): Promise<ResolvedExplorationRequest> {
   let targetUrl = request.targetUrl;
   let allowedSets: string[] | undefined;
@@ -233,7 +237,7 @@ export async function resolveExplorationRequest(
       );
     }
 
-    const set = await resolveCredentialSet(request.credentialSet);
+    const set = await resolveCredentialSet(request.credentialSet, options.initiator);
     if (!set) {
       throw new RequestResolutionError(404, 'CredentialSetNotFound', `Credential set "${request.credentialSet}" does not exist`);
     }
@@ -252,7 +256,7 @@ export async function resolveExplorationRequest(
         `Credential set "${actor.credentialSet}" (actor "${actorName}") is not allowed for target profile "${request.targetProfile}"`,
       );
     }
-    const set = await resolveCredentialSet(actor.credentialSet);
+    const set = await resolveCredentialSet(actor.credentialSet, options.initiator);
     if (!set) {
       throw new RequestResolutionError(404, 'CredentialSetNotFound', `Credential set "${actor.credentialSet}" (actor "${actorName}") does not exist`);
     }

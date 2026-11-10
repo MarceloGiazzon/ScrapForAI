@@ -1,7 +1,8 @@
-import { Router, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 
-import { credentialSetWriteSchema } from '../schemas/credentialSet.schema.js';
+import { type CredentialSetMeta, credentialSetWriteSchema } from '../schemas/credentialSet.schema.js';
 import { requireBearer } from '../security/apiAuth.js';
+import { getUser } from '../team/userStore.js';
 import {
   deleteCredentialSet,
   getCredentialSetMeta,
@@ -20,9 +21,19 @@ function sendVaultError(res: Response, error: VaultError): void {
   res.status(error.status).json({ error: { type: error.name, message: error.message } });
 }
 
-credentialsRouter.get('/', async (_req, res) => {
+/**
+ * What a reader may see of a set. Everyone learns THAT it is restricted (so a person is not surprised by a refusal); the list of people is for
+ * admins, like the rest of the team's membership.
+ */
+function viewFor(req: Request, meta: CredentialSetMeta): CredentialSetMeta {
+  if (req.principal?.role === 'admin') return meta;
+  const { allowedUsers: _hidden, ...visible } = meta;
+  return visible;
+}
+
+credentialsRouter.get('/', async (req, res) => {
   try {
-    res.json({ credentialSets: await listCredentialSets() });
+    res.json({ credentialSets: (await listCredentialSets()).map((meta) => viewFor(req, meta)) });
   } catch (error) {
     if (error instanceof VaultError) {
       sendVaultError(res, error);
@@ -39,7 +50,7 @@ credentialsRouter.get('/:id', async (req, res) => {
       res.status(404).json({ error: { type: 'CredentialSetNotFound', message: 'Credential set does not exist' } });
       return;
     }
-    res.json(meta);
+    res.json(viewFor(req, meta));
   } catch (error) {
     if (error instanceof VaultError) {
       sendVaultError(res, error);
@@ -64,9 +75,22 @@ function writeHandler(mode: 'create' | 'upsert') {
       return;
     }
 
+    // A typo in a user id would silently lock that person out of a set (or name nobody), so every id must be a person of the team.
+    const named = parsed.data.allowedUsers ?? [];
+    const unknown: string[] = [];
+    for (const userId of named) {
+      if (!(await getUser(userId))) unknown.push(userId);
+    }
+    if (unknown.length > 0) {
+      res.status(400).json({ error: { type: 'UnknownUser', message: `allowedUsers names people who are not in the team: ${unknown.join(', ')}` } });
+      return;
+    }
+
     try {
       const meta = await saveCredentialSet(String(req.params.id), parsed.data, mode);
-      res.status(mode === 'create' ? 201 : 200).json(meta);
+      // For the audit log: who may use the set changed (never a value). A count, not the names.
+      res.locals.auditDetail = { set: String(req.params.id), access: parsed.data.allowedUsers === undefined ? 'unchanged' : parsed.data.allowedUsers === null ? 'open' : parsed.data.allowedUsers.length };
+      res.status(mode === 'create' ? 201 : 200).json(viewFor(req, meta));
     } catch (error) {
       if (error instanceof VaultError) {
         sendVaultError(res, error);

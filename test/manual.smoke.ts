@@ -216,7 +216,7 @@ test('the highlight is in the figure, the click is photographed before it happen
   assert.ok(Math.abs(meanLuminance('01-orders/open') - before) < 3, 'before the click the page is the page it was');
 
   // A normal run of the same routine: no figure, no `doc` on any step, and the overlay assertion passes.
-  const result = await runLibraryRoutine('01-orders', undefined, {});
+  const result = await runLibraryRoutine('01-orders', undefined, {}, { initiator: 'system' });
   assert.equal(result.status, 'passed');
   assert.ok(result.steps.every((step) => step.doc === undefined), 'doc is inert metadata unless the run asks for figures');
   assert.ok(!result.evidence.screenshots.some((shot) => shot.name.startsWith('doc-')));

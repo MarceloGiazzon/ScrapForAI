@@ -5,6 +5,7 @@ import { getMatrix, listMatrices, saveMatrix } from '../permissions/matrixStore.
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { safeName } from '../schemas/explorationRequest.schema.js';
 import { matrixRunBodySchema, permissionMatrixSchema } from '../schemas/permissionMatrix.schema.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /**
  * /v1/permissions: permission matrices (T6.1). A definition holds no secret (roles are credential-set NAMES), so,
@@ -140,7 +141,7 @@ permissionsRouter.post('/:id/run', async (req, res, next) => {
   }
 
   try {
-    const state = await startMatrixRun(id, parsed.data);
+    const state = await startMatrixRun(id, parsed.data, initiatorOf(req.principal));
     res.status(202).location(`/v1/permissions/runs/${state.runId}`).json({
       runId: state.runId,
       matrixId: state.matrixId,

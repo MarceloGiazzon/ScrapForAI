@@ -96,7 +96,7 @@ async function audit(routineId: string, pagePath: string, extra: Record<string, 
     targetProfile: 'a11y',
     steps: [{ id: 'open', action: 'goto', url: `${site.origin}${pagePath}` }, auditStep(extra)] as never,
   });
-  const result = await runLibraryRoutine(routineId, undefined, {});
+  const result = await runLibraryRoutine(routineId, undefined, {}, { initiator: 'system' });
   return { result, audit: result.extracted.a11y as unknown as Audit | undefined };
 }
 
@@ -174,7 +174,7 @@ test('a stricter level finds at least as much as a looser one', async () => {
 });
 
 async function snapshot(buildId: string) {
-  const started = await startSnapshot(snapshotBodySchema.parse({ targetProfile: 'a11y', buildId, screenshots: false, accessibility: true, settleMs: 0 }));
+  const started = await startSnapshot(snapshotBodySchema.parse({ targetProfile: 'a11y', buildId, screenshots: false, accessibility: true, settleMs: 0 }), 'system');
   const state = await waitForSnapshotRun(started.snapshotId, 90_000);
   assert.equal(state!.status, 'completed', JSON.stringify(state));
   return state!;

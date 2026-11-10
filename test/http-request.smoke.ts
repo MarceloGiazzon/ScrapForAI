@@ -99,7 +99,7 @@ after(async () => {
 
 async function run(steps: unknown[]) {
   const request = explorationRequestSchema.parse({ targetProfile: 'api-app', steps });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 const login = { id: 'login', action: 'goto', url: `${site.origin}/login` };
 const get = (over: Record<string, unknown> = {}) => ({ action: 'httpRequest', name: 'r', method: 'GET', url: '/api/me', ...over });
@@ -173,7 +173,7 @@ test('parameters reach the body and the url: each sample is one call, and the or
       seed: 'http-params',
       sample,
     });
-    return runExploration(await resolveExplorationRequest(request));
+    return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
   };
 
   const ok = await withSample(0);
@@ -195,7 +195,7 @@ test('a hostile value in the url is one encoded segment: it cannot add a path, a
     steps: [{ id: 'echo', action: 'httpRequest', name: 'e', method: 'GET', url: '/api/echo/{{who}}', extract: [{ name: 'seen', json: 'segment' }] }],
     parameters: [{ name: 'who', cases: ['a b/../c?x=1#y'] }],
   });
-  const result = await runExploration(await resolveExplorationRequest(request));
+  const result = await runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
   assert.equal(result.status, 'passed', JSON.stringify(result.error));
   assert.equal(result.extracted.seen, 'a b/../c?x=1#y', 'the server saw the whole value as ONE segment');
   assert.ok(calls.some((call) => call.url === '/api/echo/a%20b%2F..%2Fc%3Fx%3D1%23y'));
@@ -227,9 +227,9 @@ test('an address off the allowlist is refused before any request is made', async
 
 test('a method the profile does not list is refused by the runner too, not only by the resolver', async () => {
   const request = explorationRequestSchema.parse({ targetProfile: 'api-app', steps: [get({ id: 'del', method: 'DELETE', url: '/api/me' })] });
-  await assert.rejects(() => resolveExplorationRequest(request), /DELETE/);
+  await assert.rejects(() => resolveExplorationRequest(request, { initiator: 'system' }), /DELETE/);
   // Bypass the resolver on purpose: a resolved request built another way must still be stopped.
-  const resolved = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'api-app', steps: [get()] }));
+  const resolved = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'api-app', steps: [get()] }), { initiator: 'system' });
   const forged = { ...resolved, steps: [{ ...get({ id: 'del', method: 'DELETE', url: '/api/me' }) }], httpMethods: ['GET' as const, 'POST' as const] };
   const result = await runExploration(forged as never);
   assert.equal(result.status, 'failed');

@@ -9,6 +9,7 @@ import { RequestResolutionError, resolveExplorationRequest } from '../runner/res
 import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { runExploration } from '../runner/runExploration.js';
 import { VaultError } from '../vault/credentials/credentialVault.js';
+import { initiatorOf } from '../team/initiator.js';
 
 export const explorationRouter = Router();
 
@@ -58,7 +59,7 @@ explorationRouter.post('/run', async (req, res, next) => {
   }
 
   try {
-    const result = await runExploration(await resolveExplorationRequest(parsed.data));
+    const result = await runExploration(await resolveExplorationRequest(parsed.data, { initiator: initiatorOf(req.principal) }));
     res.status(result.status === 'passed' ? 200 : 500).json(result);
   } catch (error) {
     if (error instanceof RequestResolutionError || error instanceof VaultError) {

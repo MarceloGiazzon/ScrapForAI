@@ -79,10 +79,17 @@ function clearRows() {
   byId('cred-fields').replaceChildren();
 }
 
+/** The list of people is only asked for when the set is restricted. */
+function showUsersInput() {
+  byId('cred-users').classList.toggle('hidden', byId('cred-access').value !== 'list');
+}
+
 function resetForm() {
   editing = '';
   clearRows();
-  for (const id of ['cred-id', 'cred-origins', 'cred-tags', 'cred-notes']) byId(id).value = '';
+  for (const id of ['cred-id', 'cred-origins', 'cred-tags', 'cred-notes', 'cred-users']) byId(id).value = '';
+  byId('cred-access').value = 'open';
+  showUsersInput();
   byId('cred-id').readOnly = false;
   byId('cred-form-title').textContent = 'Add a credential set';
   byId('cred-save').textContent = 'Save credential set';
@@ -102,6 +109,10 @@ function startEditing(meta) {
   byId('cred-origins').value = meta.boundOrigins.join('\n');
   byId('cred-tags').value = meta.tags.join(', ');
   byId('cred-notes').value = meta.notes ?? '';
+  // An admin's read carries the list (nobody else can edit here); an empty list is "admins only".
+  byId('cred-access').value = meta.restricted ? 'list' : 'open';
+  byId('cred-users').value = (meta.allowedUsers ?? []).join(', ');
+  showUsersInput();
   for (const name of meta.fields) addFieldRow(name, { keep: true });
   byId('cred-form-title').textContent = `Edit ${meta.id}`;
   byId('cred-save').textContent = 'Save changes';
@@ -130,6 +141,10 @@ function buildBody() {
   const tags = byId('cred-tags').value.split(',').map((tag) => tag.trim()).filter(Boolean);
   const notes = byId('cred-notes').value.trim();
   const body = { boundOrigins: origins, tags, ...(notes ? { notes } : {}) };
+  // The form always says who may use the set. A server PUT that leaves the list out KEEPS the stored one, so "open" while editing is sent
+  // as an explicit null (otherwise choosing "Everyone" would silently change nothing); a new open set simply has no list.
+  if (byId('cred-access').value === 'list') body.allowedUsers = byId('cred-users').value.split(/[\s,]+/).filter(Boolean);
+  else if (editing) body.allowedUsers = null;
 
   const typedAny = rows.some((entry) => entry.value.value !== '');
   if (editing && !typedAny) {
@@ -189,6 +204,10 @@ byId('cred-cancel').addEventListener('click', () => {
   showDone('');
   resetForm();
 });
+byId('cred-access').addEventListener('change', () => {
+  showUsersInput();
+  if (byId('cred-access').value === 'list') byId('cred-users').focus();
+});
 byId('cred-add-field').addEventListener('click', () => addFieldRow().name.focus());
 byId('cred-preset-login').addEventListener('click', () => addPreset(['username', 'password']));
 byId('cred-preset-genexus').addEventListener('click', () => addPreset(['loginUser', 'loginPassword']));
@@ -224,6 +243,14 @@ function actionsOf(set) {
   ];
 }
 
+/** Everyone sees THAT a set is restricted; only an admin's read carries who (an empty list is "admins only"). */
+function accessCell(set) {
+  if (!set.restricted) return el('td', { class: 'muted', text: 'everyone who can run' });
+  if (!Array.isArray(set.allowedUsers)) return el('td', {}, [badge('restricted')]);
+  if (set.allowedUsers.length === 0) return el('td', {}, [badge('admins only')]);
+  return el('td', { class: 'wrap' }, set.allowedUsers.map((user) => badge(user)));
+}
+
 function renderSets() {
   const tbody = byId('cred-rows');
   tbody.replaceChildren();
@@ -233,6 +260,7 @@ function renderSets() {
         el('td', {}, [el('div', { class: 'mono', text: set.id }), set.notes ? el('div', { class: 'muted wrap', text: set.notes }) : null]),
         el('td', { class: 'wrap' }, set.boundOrigins.map((origin) => el('div', { class: 'mono', text: origin }))),
         el('td', { class: 'wrap' }, set.fields.map((field) => badge(field))),
+        accessCell(set),
         el('td', { class: 'muted', text: set.tags.length > 0 ? set.tags.join(', ') : '—' }),
         el('td', { class: 'muted', text: formatDateTime(set.updatedAt) }),
         el('td', { class: 'muted', text: set.lastUsedAt ? formatDateTime(set.lastUsedAt) : 'never' }),

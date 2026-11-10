@@ -110,16 +110,16 @@ test('unknown fields and bad enums are rejected (strict schema)', async () => {
 test('targetProfile supplies the default targetUrl; an explicit targetUrl still wins', async () => {
   const steps = [{ action: 'reload' }];
 
-  const fromProfile = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', steps }));
+  const fromProfile = await resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'app-dev', steps }), { initiator: 'system' });
   assert.equal(fromProfile.targetUrl, `${ORIGIN}/app`);
 
   const explicit = await resolveExplorationRequest(
     explorationRequestSchema.parse({ targetProfile: 'app-dev', targetUrl: `${ORIGIN}/other`, steps }),
-  );
+  { initiator: 'system' });
   assert.equal(explicit.targetUrl, `${ORIGIN}/other`);
 
   await assert.rejects(
-    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'nope', steps })),
+    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'nope', steps }), { initiator: 'system' }),
     (error: Error) => error instanceof RequestResolutionError && error.name === 'TargetProfileNotFound' && error.status === 404,
   );
 });
@@ -132,7 +132,7 @@ test('a profile whose origin is later removed from the allowlist cannot be used'
   );
 
   await assert.rejects(
-    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'stale', steps: [{ action: 'reload' }] })),
+    () => resolveExplorationRequest(explorationRequestSchema.parse({ targetProfile: 'stale', steps: [{ action: 'reload' }] }), { initiator: 'system' }),
     (error: Error) => error.name === 'TargetUrlNotAllowed',
   );
 });
@@ -140,7 +140,7 @@ test('a profile whose origin is later removed from the allowlist cannot be used'
 test('regression: a routine without targetProfile validates and resolves exactly as before', async () => {
   const routine = { targetUrl: `${ORIGIN}/x`, credentials: { loginUser: 'u' }, steps: [{ action: 'reload' }] };
   const parsed = explorationRequestSchema.parse(routine);
-  const resolved = await resolveExplorationRequest(parsed);
+  const resolved = await resolveExplorationRequest(parsed, { initiator: 'system' });
 
   assert.equal(resolved.targetUrl, `${ORIGIN}/x`);
   assert.deepEqual(resolved.credentials, { loginUser: 'u' });

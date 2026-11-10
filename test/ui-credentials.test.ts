@@ -66,6 +66,18 @@ test('credentials.js: every write goes through change() with the admin key, and 
   assert.deepEqual([...new Set(calls)].sort(), ['/v1/auth/me', '/v1/credentials']);
 });
 
+test('credentials screen: the form always says who may use the set; "everyone" while editing is an explicit null (the server keeps an omitted list)', () => {
+  const script = read('credentials.js');
+  assert.match(script, /body\.allowedUsers = byId\('cred-users'\)/);
+  assert.match(script, /else if \(editing\) body\.allowedUsers = null/);
+  // Everyone sees THAT a set is restricted; the names only come with an admin's read, and an empty list reads "admins only".
+  assert.match(script, /badge\('restricted'\)/);
+  assert.match(script, /badge\('admins only'\)/);
+  const html = read('credentials.html');
+  for (const id of ['cred-access', 'cred-users']) assert.match(html, new RegExp(`id="${id}"`), id);
+  assert.match(html, /<th>Who may use it<\/th>/);
+});
+
 test('credentials.js: the sets the webhook and integration stores write are never edited or deleted from here', () => {
   const script = read('credentials.js');
   assert.match(script, /\['webhook-', 'a webhook'\]/);

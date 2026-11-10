@@ -5,6 +5,7 @@ import { RequestResolutionError } from '../runner/resolutionError.js';
 import { safeName } from '../schemas/explorationRequest.schema.js';
 import { manualBuildBodySchema } from '../schemas/manual.schema.js';
 import { requireBearer } from '../security/apiAuth.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /**
  * /v1/manual: the living manual (T9.2). Building one starts browsers and writes files into MANUAL_OUTPUT_DIR, so starting and cancelling a build need the
@@ -38,7 +39,7 @@ manualRouter.post('/builds', requireBearer, async (req, res, next) => {
   }
 
   try {
-    const state = await startManualBuild(parsed.data);
+    const state = await startManualBuild(parsed.data, initiatorOf(req.principal));
     res
       .status(202)
       .location(`/v1/manual/builds/${state.buildRunId}`)

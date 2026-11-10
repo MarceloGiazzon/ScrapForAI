@@ -3,6 +3,7 @@ import { Router, type Response } from 'express';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { shrinkRequestSchema } from '../schemas/shrink.schema.js';
 import { cancelShrink, getShrink, SHRINK_ID_PATTERN, startShrink, waitForShrink } from '../shrink/shrinkService.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /** /v1/shrinks: find the smallest input that still fails (T5.6). Asynchronous, like suites. */
 export const shrinksRouter = Router();
@@ -29,7 +30,7 @@ shrinksRouter.post('/', async (req, res, next) => {
   }
 
   try {
-    const state = await startShrink(parsed.data);
+    const state = await startShrink(parsed.data, initiatorOf(req.principal));
     res.status(202).location(`/v1/shrinks/${state.shrinkId}`).json({ shrinkId: state.shrinkId, status: state.status, routine: state.routine, maxShrinkRuns: parsed.data.maxShrinkRuns });
   } catch (error) {
     if (error instanceof RequestResolutionError) {

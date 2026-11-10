@@ -94,7 +94,7 @@ const request = (extra: Record<string, unknown>) =>
   explorationRequestSchema.parse({ targetProfile: 'gx-app', credentialSet: 'gx-admin', steps: [{ id: 'home', action: 'goto', url: '$targetUrl' }, { id: 'check', action: 'assertVisible', selector: '#menu' }], ...extra });
 
 test('genexus + credential set: the login routine and the gate are included before the steps', async () => {
-  const resolved = await resolveExplorationRequest(request({}));
+  const resolved = await resolveExplorationRequest(request({}), { initiator: 'system' });
   assert.deepEqual(ids(resolved.steps), ['autologin.open', 'autologin.user', 'autologin.pass', 'autologin.submit', 'autologin-gate', 'home', 'check']);
   const gate = resolved.steps[4] as { action: string; value: string; timeoutMs: number };
   assert.deepEqual([gate.action, gate.value, gate.timeoutMs], ['waitForUrlContains', 'hwbwkw01', 8000]);
@@ -104,29 +104,29 @@ test('genexus + credential set: the login routine and the gate are included befo
 });
 
 test('no gate configured: the login is included without one', async () => {
-  const resolved = await resolveExplorationRequest(request({ targetProfile: 'gx-nogate' }));
+  const resolved = await resolveExplorationRequest(request({ targetProfile: 'gx-nogate' }), { initiator: 'system' });
   assert.equal(resolved.steps.some((step) => step.id === 'autologin-gate'), false);
   assert.equal(resolved.autoLogin?.gate, false);
 });
 
 test('options.autoLogin=false, no credential set, or a non-genexus profile: nothing is added', async () => {
-  const off = await resolveExplorationRequest(request({ options: { autoLogin: false } }));
+  const off = await resolveExplorationRequest(request({ options: { autoLogin: false } }), { initiator: 'system' });
   assert.deepEqual(ids(off.steps), ['home', 'check']);
   assert.equal(off.autoLogin, undefined);
 
-  const noSet = await resolveExplorationRequest(request({ credentialSet: undefined }));
+  const noSet = await resolveExplorationRequest(request({ credentialSet: undefined }), { initiator: 'system' });
   assert.deepEqual(ids(noSet.steps), ['home', 'check']);
 
-  const generic = await resolveExplorationRequest(request({ targetProfile: 'plain-app' }));
+  const generic = await resolveExplorationRequest(request({ targetProfile: 'plain-app' }), { initiator: 'system' });
   assert.deepEqual(ids(generic.steps), ['home', 'check']);
 });
 
 test('a run that already types a credential (explicit include, or the login routine itself) is not logged in twice', async () => {
-  const explicit = await resolveExplorationRequest(request({ steps: [{ id: 'auth', action: 'include', routineId: 'gx-login' }, { id: 'check', action: 'assertVisible', selector: '#menu' }] }));
+  const explicit = await resolveExplorationRequest(request({ steps: [{ id: 'auth', action: 'include', routineId: 'gx-login' }, { id: 'check', action: 'assertVisible', selector: '#menu' }] }), { initiator: 'system' });
   assert.deepEqual(ids(explicit.steps), ['auth.open', 'auth.user', 'auth.pass', 'auth.submit', 'check']);
   assert.equal(explicit.autoLogin, undefined);
 
-  const own = await resolveExplorationRequest(request({ steps: loginSteps }));
+  const own = await resolveExplorationRequest(request({ steps: loginSteps }), { initiator: 'system' });
   assert.equal(own.steps.length, loginSteps.length);
   assert.equal(own.autoLogin, undefined);
 });

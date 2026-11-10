@@ -98,7 +98,7 @@ async function run(input: { url?: string; steps: unknown[]; options?: Record<str
     ...(input.options ? { options: input.options } : {}),
     steps: [{ id: 'open', action: 'goto', url: input.url ?? `${site.origin}/` }, ...input.steps],
   });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 
 const stateBecomes = (text: string) => ({ action: 'waitForSelector', selector: `#state:has-text("${text}")`, state: 'visible', timeoutMs: 8000 });
@@ -232,7 +232,7 @@ test('T7.9: the profile re-rates and suppresses; the suppressed finding stays vi
     options: { piiScan: true },
     steps: [{ id: 'open', action: 'goto', url: leakyUrl() }, ...leakySteps, { id: 'hunt', action: 'scanForPii', name: 'pii', surfaces: ['hidden-input', 'storage', 'response-body'], failOn: 'medium' }],
   });
-  const result = await runExploration(await resolveExplorationRequest(request));
+  const result = await runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
   const pii = result.pii!;
   assert.ok(pii);
 

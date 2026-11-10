@@ -10,6 +10,7 @@ import { getRoutine, listRoutines } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
 import { sessionCredentialSets } from '../runner/actors.js';
+import type { Initiator } from '../team/initiator.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import { DOC_TAG } from '../schemas/docStep.schema.js';
@@ -89,6 +90,8 @@ interface Active {
   state: ManualBuildState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the build: every routine loads its credential sets on that account. */
+  initiator: Initiator;
 }
 
 const active = new Map<string, Active>();
@@ -280,7 +283,7 @@ async function worker(entry: Active, title: string, pinned: Pinned[]): Promise<v
               ...(state.request.variables ? { variables: state.request.variables } : {}),
               ...(state.request.buildId ? { buildId: state.request.buildId } : {}),
               caller: { source: 'manual', correlationId: state.buildRunId },
-            }),
+            }, { initiator: entry.initiator }),
           { priority: 'suite', lockKeys: sessionCredentialSets({ credentialSet: routine.credentialSet, actors: routine.actors }), maxPerLock, signal: controller.signal },
         );
         results.set(routine.id, result);
@@ -325,7 +328,7 @@ async function worker(entry: Active, title: string, pinned: Pinned[]): Promise<v
 }
 
 /** Validates, starts in the background, returns the initial state. Throws ManualError (404/409) before anything runs. */
-export async function startManualBuild(body: ManualBuildBody): Promise<ManualBuildState> {
+export async function startManualBuild(body: ManualBuildBody, initiator: Initiator): Promise<ManualBuildState> {
   for (const running of active.values()) {
     if (running.state.targetProfile === body.targetProfile && running.state.status === 'running') {
       throw new ManualError(409, 'ManualBuildRunning', `A manual build of "${body.targetProfile}" is already running (${running.state.buildRunId})`);
@@ -342,7 +345,7 @@ export async function startManualBuild(body: ManualBuildBody): Promise<ManualBui
     routines: pinned.map((routine) => ({ routineId: routine.id, version: routine.version, title: routine.title, state: 'pending' as const })),
     skipped,
   };
-  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.buildRunId, entry);
   await persist(state);
 

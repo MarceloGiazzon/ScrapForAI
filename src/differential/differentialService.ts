@@ -11,6 +11,7 @@ import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
 import { sessionCredentialSets } from '../runner/actors.js';
+import type { Initiator } from '../team/initiator.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { DiffConfigInput } from '../schemas/diffConfig.schema.js';
@@ -82,6 +83,8 @@ interface Active {
   state: DifferentialState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the comparison: both sides load their credential sets on that account. */
+  initiator: Initiator;
 }
 
 const active = new Map<string, Active>();
@@ -202,7 +205,7 @@ async function worker(entry: Active, pinned: PinnedRoutine[], leftDiff: DiffConf
           recordTraffic: true,
           ...(request.retention ? { retention: request.retention } : {}),
           caller: { source: 'differential', correlationId: state.differentialId, metadata: { side: which } },
-        } as never),
+        } as never, { initiator: entry.initiator }),
       { priority: 'suite', lockKeys: sessionCredentialSets({ credentialSet, actors: routine.actors }), maxPerLock, signal: controller.signal },
     );
   };
@@ -241,7 +244,7 @@ async function worker(entry: Active, pinned: PinnedRoutine[], leftDiff: DiffConf
 }
 
 /** Validates, starts in the background, returns the initial state. Throws DifferentialError (404/400/409) before anything runs. */
-export async function startDifferential(request: DifferentialRequest): Promise<DifferentialState> {
+export async function startDifferential(request: DifferentialRequest, initiator: Initiator): Promise<DifferentialState> {
   const { routines, leftDiff, warnings } = await validate(request);
 
   const state: DifferentialState = {
@@ -254,7 +257,7 @@ export async function startDifferential(request: DifferentialRequest): Promise<D
     counts: { total: routines.length, same: 0, different: 0, infraError: 0, notRun: routines.length },
     ...(warnings.length > 0 ? { warnings } : {}),
   };
-  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.differentialId, entry);
   await persist(state);
 

@@ -18,7 +18,9 @@ Detail lives in the repo: `AGENTS.md` (security model and every feature), `docs/
 
 1. **Never put a secret in a step.** Call `list_credential_sets` (ids, bound origins, field names; never
    values), pass `credentialSet`, and use `valueFromCredential: "<fieldName>"` in `fill` steps. A literal
-   password or token is refused when saving a routine (`RoutineLintError`).
+   password or token is refused when saving a routine (`RoutineLintError`). A set may be limited to some people:
+   `restricted: true` in `list_credential_sets` says so. You act with the installation key (an admin), so it
+   does not stop you, but a person running the same routine and not on the list gets `CredentialSetForbidden`.
 2. **Stay on the allowlist.** A target outside `ALLOWED_TARGET_ORIGINS` fails with `TargetUrlNotAllowed`,
    including `localhost` unless that exact origin is listed. You cannot change the allowlist. Tell the user
    which origin to add (`ALLOWED_TARGET_ORIGINS` and `ALLOWED_RESOURCE_ORIGINS` in `.env`, then restart the

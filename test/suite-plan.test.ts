@@ -125,8 +125,8 @@ test('T3.5: a quarantined routine RUNS by default and is marked quarantined; ask
 });
 
 test('an unknown routine or version fails the whole suite before anything runs', async () => {
-  await assert.rejects(() => startSuite(parse({ name: 'x', items: [{ routineId: 'crud' }, { routineId: 'ghost' }] })), expectError('SuiteItemNotFound'));
-  await assert.rejects(() => startSuite(parse({ name: 'x', items: [{ routineId: 'crud', version: 99 }] })), expectError('SuiteItemNotFound'));
+  await assert.rejects(() => startSuite(parse({ name: 'x', items: [{ routineId: 'crud' }, { routineId: 'ghost' }] }), 'system'), expectError('SuiteItemNotFound'));
+  await assert.rejects(() => startSuite(parse({ name: 'x', items: [{ routineId: 'crud', version: 99 }] }), 'system'), expectError('SuiteItemNotFound'));
   assert.deepEqual(fs.existsSync(suitesDir()) ? fs.readdirSync(suitesDir()) : [], [], 'nothing was recorded');
 });
 
@@ -176,10 +176,10 @@ test('T5.4: the expansion counts against the 500-run limit', async () => {
 });
 
 test('T5.4: a suite with samples records one seed, the caller\'s or a fresh one', async () => {
-  const mine = await startSuite(parse({ name: 'seeded', samples: 1, seed: 'my-seed', items: [{ routineId: 'flaky' }] }));
+  const mine = await startSuite(parse({ name: 'seeded', samples: 1, seed: 'my-seed', items: [{ routineId: 'flaky' }] }), 'system');
   assert.equal(mine.seed, 'my-seed');
-  assert.equal((await startSuite(parse({ name: 'fresh', samples: 1, items: [{ routineId: 'flaky' }] }))).seed?.length, 12);
-  assert.equal((await startSuite(parse({ name: 'none', items: [{ routineId: 'flaky' }] }))).seed, undefined, 'no samples, no seed: the suite is what it was');
+  assert.equal((await startSuite(parse({ name: 'fresh', samples: 1, items: [{ routineId: 'flaky' }] }), 'system')).seed?.length, 12);
+  assert.equal((await startSuite(parse({ name: 'none', items: [{ routineId: 'flaky' }] }), 'system')).seed, undefined, 'no samples, no seed: the suite is what it was');
 });
 
 test('request validation: strict, bounded, sensible defaults', () => {

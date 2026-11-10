@@ -77,7 +77,7 @@ const STEPS = [
 async function run(options: Record<string, unknown>) {
   hits.clear();
   const request = explorationRequestSchema.parse({ targetUrl: `${site.origin}/`, steps: STEPS, options });
-  const result = await runExploration(await resolveExplorationRequest(request));
+  const result = await runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
   return { result, hits: new Map(hits) };
 }
 
@@ -147,14 +147,14 @@ test('a saved routine runs as functional when asked (REST body / run_routine / s
   });
 
   hits.clear();
-  const functional = await runLibraryRoutine('home', undefined, { profile: 'functional' });
+  const functional = await runLibraryRoutine('home', undefined, { profile: 'functional' }, { initiator: 'system' });
   assert.equal(functional.status, 'passed', JSON.stringify(functional.error));
   assert.equal(functional.profile, 'functional');
   assert.equal(functional.evidence.screenshots.length, 0);
   assert.ok(!hits.has('/photo.png'));
 
   hits.clear();
-  const full = await runLibraryRoutine('home', undefined, {});
+  const full = await runLibraryRoutine('home', undefined, {}, { initiator: 'system' });
   assert.equal(full.profile, undefined);
   assert.ok(hits.has('/photo.png'));
   assert.ok(full.evidence.screenshots.length > 0);

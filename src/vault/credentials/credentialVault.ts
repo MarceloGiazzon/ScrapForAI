@@ -7,6 +7,7 @@ import type { CredentialSetMeta, CredentialSetWrite } from '../../schemas/creden
 import { safeName } from '../../schemas/explorationRequest.schema.js';
 import { createMutex, writeFileAtomic } from '../../storage/atomicWrite.js';
 import { restrictToCurrentUser } from '../../storage/restrictFile.js';
+import { type Initiator, mayUseCredentialSet } from '../../team/initiator.js';
 
 /**
  * T1.2 server-side credential vault.
@@ -42,6 +43,8 @@ interface StoredSet {
   values: Record<string, string>;
   tags: string[];
   notes?: string;
+  /** Who may use the set in a run (user ids). Absent = anyone who can run (the state of every set made before this existed). */
+  allowedUsers?: string[];
   createdAt: string;
   updatedAt: string;
   lastUsedAt?: string;
@@ -169,6 +172,8 @@ function toMeta(set: StoredSet): CredentialSetMeta {
     fields: Object.keys(set.values).sort(),
     tags: set.tags,
     ...(set.notes === undefined ? {} : { notes: set.notes }),
+    restricted: set.allowedUsers !== undefined,
+    ...(set.allowedUsers === undefined ? {} : { allowedUsers: [...set.allowedUsers] }),
     createdAt: set.createdAt,
     updatedAt: set.updatedAt,
     ...(set.lastUsedAt === undefined ? {} : { lastUsedAt: set.lastUsedAt }),
@@ -210,6 +215,9 @@ export function saveCredentialSet(id: string, body: CredentialSetWrite, mode: 'c
       throw new VaultError(400, 'ValidationError', 'values are required when creating a credential set');
     }
 
+    // Omitted keeps the stored list (an edit of an origin or a note must never open a restricted set); null removes the restriction.
+    const allowedUsers = body.allowedUsers === undefined ? existing?.allowedUsers : (body.allowedUsers ?? undefined);
+
     const now = new Date().toISOString();
     const stored: StoredSet = {
       id,
@@ -217,6 +225,7 @@ export function saveCredentialSet(id: string, body: CredentialSetWrite, mode: 'c
       values,
       tags: body.tags,
       ...(body.notes === undefined ? {} : { notes: body.notes }),
+      ...(allowedUsers === undefined ? {} : { allowedUsers }),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       ...(existing?.lastUsedAt === undefined ? {} : { lastUsedAt: existing.lastUsedAt }),
@@ -248,14 +257,21 @@ export function deleteCredentialSet(id: string): Promise<boolean> {
 /**
  * RUNNER ONLY. Returns the secret values of a set and records `lastUsedAt`. Never pass the result
  * to a response, log line or history entry; the runner adds the values to its redaction list.
+ *
+ * `initiator` is who the work is done for and is REQUIRED: a set with a list of allowed users answers 403 `CredentialSetForbidden` to anyone
+ * else (admins and the server's own `'system'` aside), before the values are read out and without counting as a use. The message does not say
+ * who is allowed.
  */
-export async function resolveCredentialSet(id: string): Promise<ResolvedCredentialSet | undefined> {
+export async function resolveCredentialSet(id: string, initiator: Initiator): Promise<ResolvedCredentialSet | undefined> {
   assertId(id);
   const key = await loadKey();
   const file = credentialVaultFile();
   const set = (await readPayload(key, file)).sets[id];
   if (!set) {
     return undefined;
+  }
+  if (!mayUseCredentialSet(set.allowedUsers, initiator)) {
+    throw new VaultError(403, 'CredentialSetForbidden', `You are not allowed to use credential set "${id}"; ask an admin to add you to its allowed users`);
   }
 
   // Best effort: a failure to record usage must never fail the run.

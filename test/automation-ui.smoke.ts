@@ -108,7 +108,7 @@ function filesContaining(dir: string, needle: string): string[] {
 test('an admin manages schedules and webhooks from the Automation screen; the webhook address goes to the vault and nowhere else', async () => {
   const { resolveCredentialSet } = await import('../src/vault/credentials/credentialVault.js');
   const urlOfWebhook = async (id: string) => {
-    const set = await resolveCredentialSet(`webhook-${id}`);
+    const set = await resolveCredentialSet(`webhook-${id}`, 'system');
     await sleep(500); // reading records lastUsedAt in the background
     return set?.values.url;
   };

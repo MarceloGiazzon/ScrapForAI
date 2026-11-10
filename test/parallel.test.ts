@@ -365,7 +365,7 @@ test('resolving a request with a block keeps its structure and hands a teardown 
       actors: { alice: {}, bob: {} },
       steps: [race([{ id: 'in-a', action: 'include', routineId: 'login', actor: 'alice' }], [click('#save', 'bob', 'save-b')])],
     }),
-  );
+  { initiator: 'system' });
   assert.equal(resolved.steps[0]!.action, 'parallel');
   assert.deepEqual(actorsInUse(resolved), ['alice', 'bob']);
   assert.equal(resolved.teardown?.length, 1, "alice's login teardown");

@@ -16,6 +16,10 @@ const RANK: Record<Role, number> = { viewer: 1, runner: 2, admin: 3 };
 
 export const roleAtLeast = (have: Role, need: Role): boolean => RANK[have] >= RANK[need];
 
+/** What a user id looks like (also what a credential set's `allowedUsers` accepts). One pattern, so the two can never disagree. */
+export const USER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,59}$/;
+export const USER_ID_MESSAGE = 'user id: lower-case letters, digits, . _ - (1-60, starting with a letter or digit)';
+
 /** The id the `.env` key acts as. Reserved: no user can take it (or the ones the server itself acts as). */
 export const ROOT_USER_ID = 'root';
 export const RESERVED_USER_IDS: readonly string[] = [ROOT_USER_ID, 'system', 'scheduler', 'anonymous'];

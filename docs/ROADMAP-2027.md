@@ -1557,7 +1557,7 @@ num host sempre ligado.
 
 > **Implementado (2026-11-05)**, ver `docs/TEAM-SERVER.md`. Chaves pessoais (`sfa_<id>_<segredo>`, só o SHA-256 fica no servidor, mostrada uma vez), papéis `viewer`/`runner`/`admin` numa única função de política, a chave do
 > `.env` continua como `root` (admin), sessão da UI que acompanha a pessoa (papel relido a cada requisição), log de auditoria encadeado por hash (`scrapforai audit [verify]`), CLI `users ...`, `docker-compose.team.yml` com Caddy/HTTPS,
-> `TRUST_PROXY` e `HEALTHCHECK`. **Fica de fora:** tela de equipe na UI, credenciais por pessoa (um `runner` usa qualquer conjunto do cofre), SSO/2FA, rotação e assinatura do log, execuções do agendador no log, quem iniciou a
+> `TRUST_PROXY` e `HEALTHCHECK`. **Fica de fora:** tela de equipe na UI, credenciais por pessoa (feito depois, 2026-11-10: `allowedUsers` no conjunto do cofre; ver `AGENTS.md`), SSO/2FA, rotação e assinatura do log, execuções do agendador no log, quem iniciou a
 > execução no histórico. O compose foi validado com `docker compose config`, mas **não foi levantado de verdade** neste ambiente.
 
 ### T10.2 — Pacote para empresas GeneXus · M

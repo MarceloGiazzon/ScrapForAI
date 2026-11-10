@@ -84,7 +84,7 @@ const walkStep = (extra: Record<string, unknown> = {}) => ({ id: 'walk', action:
 
 async function walk(routineId: string, page: string, extra: Record<string, unknown> = {}) {
   await saveRoutine(routineId, { title: routineId, targetProfile: 'kbd', steps: [{ id: 'open', action: 'goto', url: `${site.origin}${page}` }, walkStep(extra)] as never });
-  const result = await runLibraryRoutine(routineId, undefined, {});
+  const result = await runLibraryRoutine(routineId, undefined, {}, { initiator: 'system' });
   return { result, walk: result.extracted.kb as unknown as Walk | undefined };
 }
 

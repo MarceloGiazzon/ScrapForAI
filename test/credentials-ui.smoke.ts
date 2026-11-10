@@ -89,7 +89,7 @@ test('an admin manages credential sets from the Credentials screen; the typed va
   const { resolveCredentialSet } = await import('../src/vault/credentials/credentialVault.js');
   /** What the vault really holds. Reading records `lastUsedAt` in the background, so wait before the next change by the server. */
   const valuesOf = async (id: string) => {
-    const set = await resolveCredentialSet(id);
+    const set = await resolveCredentialSet(id, 'system');
     await sleep(500);
     return set?.values;
   };
@@ -276,6 +276,59 @@ test('an admin manages credential sets from the Credentials screen; the typed va
     assert.deepEqual(filesContaining(dataDir, SECRET_2), []);
     assert.ok(replies.every((reply) => !reply.includes(SECRET_2)));
 
+    // ---- who may use it: a list of people of the team, set from the form
+    const teamMember = await fetch(`${base}/v1/team/users`, { method: 'POST', headers: { ...auth, 'content-type': 'application/json' }, body: JSON.stringify({ id: 'ben', name: 'Ben', role: 'runner' }) });
+    assert.equal(teamMember.status, 201);
+    const accessOf = async (id: string) => {
+      const read = (await (await fetch(`${base}/v1/credentials/${id}`, { headers: auth })).json()) as { restricted: boolean; allowedUsers?: string[] };
+      return { restricted: read.restricted, allowedUsers: read.allowedUsers };
+    };
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: false, allowedUsers: undefined }, 'a set made before the feature is open');
+    assert.match((await row.textContent()) ?? '', /everyone who can run/);
+
+    await page.locator('#admin-key').fill(ROOT_KEY);
+    await page.locator('#key-form button[type=submit]').click();
+    await row.getByRole('button', { name: 'Edit' }).click();
+    assert.equal(await page.locator('#cred-access').inputValue(), 'open');
+    assert.equal(await page.locator('#cred-users').isVisible(), false, 'the people field only appears when the set is restricted');
+    await page.locator('#cred-access').selectOption('list');
+    assert.equal(await page.locator('#cred-users').isVisible(), true);
+    await page.locator('#cred-users').fill('ben, nobody');
+    await page.locator('#cred-save').click();
+    await page.locator('#cred-error', { hasText: /not in the team: nobody/ }).waitFor();
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: false, allowedUsers: undefined }, 'a typo changed nothing');
+
+    await page.locator('#cred-users').fill('ben');
+    await page.locator('#cred-save').click();
+    await page.locator('#cred-done:not(.hidden)', { hasText: 'stored values were kept' }).waitFor();
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: true, allowedUsers: ['ben'] });
+    assert.deepEqual(await row.locator('td').nth(3).locator('.badge').allTextContents(), ['ben']);
+    assert.deepEqual(await valuesOf('qa-admin'), { username: 'qa-two', password: SECRET_2 }, 'changing who may use it does not touch the values');
+
+    // Editing again shows the list; an edit that changes only a note keeps it (the form sends the list it shows).
+    await row.getByRole('button', { name: 'Edit' }).click();
+    assert.equal(await page.locator('#cred-access').inputValue(), 'list');
+    assert.equal(await page.locator('#cred-users').inputValue(), 'ben');
+    await page.locator('#cred-notes').fill('still restricted');
+    await page.locator('#cred-save').click();
+    await page.locator('#cred-done:not(.hidden)', { hasText: 'stored values were kept' }).waitFor();
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: true, allowedUsers: ['ben'] });
+
+    // An empty list is "admins only"; choosing Everyone removes the restriction (an explicit null: leaving the list out would keep it).
+    await row.getByRole('button', { name: 'Edit' }).click();
+    await page.locator('#cred-users').fill('');
+    await page.locator('#cred-save').click();
+    await page.locator('#cred-done:not(.hidden)', { hasText: 'stored values were kept' }).waitFor();
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: true, allowedUsers: [] });
+    assert.deepEqual(await row.locator('td').nth(3).locator('.badge').allTextContents(), ['admins only']);
+    await row.getByRole('button', { name: 'Edit' }).click();
+    await page.locator('#cred-access').selectOption('open');
+    await page.locator('#cred-save').click();
+    await page.locator('#cred-done:not(.hidden)', { hasText: 'stored values were kept' }).waitFor();
+    assert.deepEqual(await accessOf('qa-admin'), { restricted: false, allowedUsers: undefined });
+    assert.match((await row.textContent()) ?? '', /everyone who can run/);
+    assert.deepEqual(await valuesOf('qa-admin'), { username: 'qa-two', password: SECRET_2 });
+
     // ---- a set a webhook owns is listed but cannot be edited or deleted here
     const managed = await fetch(`${base}/v1/credentials/webhook-demo`, {
       method: 'PUT',
@@ -283,6 +336,12 @@ test('an admin manages credential sets from the Credentials screen; the typed va
       body: JSON.stringify({ boundOrigins: ['https://hooks.example.com'], values: { url: 'https://hooks.example.com/services/T000/B000/xyz' }, tags: ['webhook'] }),
     });
     assert.equal(managed.status, 200);
+    const restrictedSet = await fetch(`${base}/v1/credentials/locked-demo`, {
+      method: 'PUT',
+      headers: { ...auth, 'content-type': 'application/json' },
+      body: JSON.stringify({ boundOrigins: ['https://dev.example.com'], values: { username: 'locked-user', password: 'locked-pass-8842' }, tags: [], allowedUsers: ['ben'] }),
+    });
+    assert.equal(restrictedSet.status, 200);
     await page.reload();
     await page.locator('#cred-admin:not(.hidden)').waitFor();
     const managedRow = page.locator('#cred-rows tr', { hasText: 'webhook-demo' });
@@ -290,6 +349,7 @@ test('an admin manages credential sets from the Credentials screen; the typed va
     assert.match((await managedRow.textContent()) ?? '', /managed by a webhook/);
     assert.equal(await managedRow.getByRole('button').count(), 0);
     assert.equal(await page.locator('#cred-rows tr', { hasText: 'qa-admin' }).getByRole('button').count(), 2);
+    assert.deepEqual(await page.locator('#cred-rows tr', { hasText: 'locked-demo' }).locator('td').nth(3).locator('.badge').allTextContents(), ['ben'], 'an admin sees who');
 
     // ---- delete
     await page.locator('#admin-key').fill(ROOT_KEY);
@@ -318,6 +378,9 @@ test('an admin manages credential sets from the Credentials screen; the typed va
     assert.match((await runnerPage.locator('#cred-banner').textContent()) ?? '', /for admins/);
     assert.match((await runnerPage.locator('#cred-me').textContent()) ?? '', /Signed in as ana \(runner\)/);
     await runnerPage.locator('#cred-rows tr', { hasText: 'webhook-demo' }).waitFor();
+    const lockedRow = runnerPage.locator('#cred-rows tr', { hasText: 'locked-demo' });
+    assert.deepEqual(await lockedRow.locator('td').nth(3).locator('.badge').allTextContents(), ['restricted'], 'a runner learns THAT it is restricted');
+    assert.ok(!((await lockedRow.textContent()) ?? '').includes('ben'), 'but not who may use it');
     assert.equal(await runnerPage.locator('#cred-admin.hidden').count(), 1);
     assert.equal(await runnerPage.locator('#cred-rows button').count(), 0);
     await runnerPage.close();

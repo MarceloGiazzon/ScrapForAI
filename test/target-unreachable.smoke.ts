@@ -49,7 +49,7 @@ after(async () => {
 
 async function run(targetUrl: string, steps: unknown[]) {
   const request = explorationRequestSchema.parse({ targetUrl, steps });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 
 function assertPlainSentence(message: string): void {

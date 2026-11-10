@@ -8,6 +8,7 @@ import { runRoutineInteractive, saveRoutine } from '../../library/routineService
 import type { ExplorationResult } from '../../schemas/explorationResult.schema.js';
 import type { AddFromRun, EvidenceRef, RegressionItem } from '../../schemas/regressionItem.schema.js';
 import { createItemWithEvidence, getItem, recordLastRun, setFirstGreen, VaultItemError } from './regressionVault.js';
+import type { Initiator } from '../../team/initiator.js';
 
 /**
  * T2.2 RED -> GREEN flow. Evidence is never typed in: a RED is a real failing run that gets pinned, a
@@ -103,13 +104,13 @@ function summarize(result: ExplorationResult): ItemRunOutcome['result'] {
 }
 
 /** Runs the item's routine at the version the item pins, and records `lastRun`. */
-export async function runItem(id: string, options: { buildId?: string } = {}): Promise<ItemRunOutcome> {
+export async function runItem(id: string, options: { buildId?: string }, initiator: Initiator): Promise<ItemRunOutcome> {
   const item = await getItem(id);
   if (!item) {
     throw new VaultItemError(404, 'ItemNotFound', `Item ${id} does not exist`);
   }
 
-  const result = await runRoutineInteractive(item.routine.id, item.routine.version, { ...(options.buildId ? { buildId: options.buildId } : {}) });
+  const result = await runRoutineInteractive(item.routine.id, item.routine.version, { ...(options.buildId ? { buildId: options.buildId } : {}) }, initiator);
   const updated = await recordLastRun(id, {
     jobId: result.jobId,
     status: result.status,
@@ -124,7 +125,7 @@ export async function runItem(id: string, options: { buildId?: string } = {}): P
  * Runs the item against the (fixed) build. If it PASSES, that run is pinned as `firstGreen`. If it still
  * fails, the item is left exactly as it was and the failure is reported: the fix is not there yet.
  */
-export async function confirmGreen(id: string, options: { buildId?: string } = {}): Promise<ItemRunOutcome & { confirmed: boolean }> {
+export async function confirmGreen(id: string, options: { buildId?: string }, initiator: Initiator): Promise<ItemRunOutcome & { confirmed: boolean }> {
   const item = await getItem(id);
   if (!item) {
     throw new VaultItemError(404, 'ItemNotFound', `Item ${id} does not exist`);
@@ -138,7 +139,7 @@ export async function confirmGreen(id: string, options: { buildId?: string } = {
     throw new VaultItemError(404, 'RoutineNotFound', `Routine "${item.routine.id}" v${item.routine.version} no longer exists`);
   }
 
-  const result = await runRoutineInteractive(item.routine.id, item.routine.version, { ...(options.buildId ? { buildId: options.buildId } : {}) });
+  const result = await runRoutineInteractive(item.routine.id, item.routine.version, { ...(options.buildId ? { buildId: options.buildId } : {}) }, initiator);
 
   if (result.status !== 'passed') {
     return { confirmed: false, item, result: summarize(result) };

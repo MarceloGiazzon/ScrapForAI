@@ -13,6 +13,7 @@ import { getRoutine } from '../library/routineLibrary.js';
 import { runLibraryRoutine } from '../library/routineService.js';
 import { JobCancelledError } from '../orchestrator/jobQueue.js';
 import { sessionCredentialSets } from '../runner/actors.js';
+import type { Initiator } from '../team/initiator.js';
 import { jobQueue, maxSessionsFor } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolutionError.js';
 import type { ExplorationResult } from '../schemas/explorationResult.schema.js';
@@ -66,6 +67,8 @@ interface Active {
   state: ShrinkState;
   controller: AbortController;
   finished: Promise<void>;
+  /** Who started the shrink: every probe loads its credential sets on that account. */
+  initiator: Initiator;
 }
 
 const active = new Map<string, Active>();
@@ -146,7 +149,7 @@ async function worker(entry: Active, source: Source): Promise<void> {
   const maxPerLock = await maxSessionsFor(targetProfile ?? routine.targetProfile);
 
   const run = (body: Record<string, unknown>): Promise<ExplorationResult> =>
-    jobQueue.run(() => runLibraryRoutine(source.routineId, source.version, { ...base, ...body } as never), {
+    jobQueue.run(() => runLibraryRoutine(source.routineId, source.version, { ...base, ...body } as never, { initiator: entry.initiator }), {
       priority: 'suite',
       lockKeys: sessionCredentialSets({ credentialSet: effectiveCredential, actors: routine.actors }),
       maxPerLock,
@@ -227,7 +230,7 @@ async function worker(entry: Active, source: Source): Promise<void> {
 }
 
 /** Validates, starts in the background, returns the initial state. Throws ShrinkError (404/400/409) before anything runs. */
-export async function startShrink(request: ShrinkRequest): Promise<ShrinkState> {
+export async function startShrink(request: ShrinkRequest, initiator: Initiator): Promise<ShrinkState> {
   const source = await resolveSource(request);
 
   const state: ShrinkState = {
@@ -239,7 +242,7 @@ export async function startShrink(request: ShrinkRequest): Promise<ShrinkState> 
     ...(source.failing ? { signature: source.failing.signature, currentValues: source.failing.values } : {}),
     runs: 0,
   };
-  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve() };
+  const entry: Active = { state, controller: new AbortController(), finished: Promise.resolve(), initiator };
   active.set(state.shrinkId, entry);
   await persist(state);
 

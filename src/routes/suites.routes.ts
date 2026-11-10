@@ -5,6 +5,7 @@ import { suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { cancelSuite, getSuite, listSuites, startSuite, SUITE_ID_PATTERN, waitForSuite } from '../orchestrator/suiteRunner.js';
 import { sendReport } from './reportHandler.js';
 import { RoutineLibraryError } from '../library/routineLibrary.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /** /v1/suites: asynchronous multi-routine runs (T1.6). */
 export const suitesRouter = Router();
@@ -30,7 +31,7 @@ suitesRouter.post('/', async (req, res, next) => {
   }
 
   try {
-    const state = await startSuite(parsed.data);
+    const state = await startSuite(parsed.data, initiatorOf(req.principal));
     // 202: accepted, running in the background. Poll GET /v1/suites/:id (optionally ?wait=N).
     res.status(202).location(`/v1/suites/${state.suiteRunId}`).json({
       suiteRunId: state.suiteRunId,

@@ -42,7 +42,7 @@ after(async () => {
 const open = { id: 'open', action: 'goto', url: `${site.origin}/` };
 
 async function runSuite(body: Record<string, unknown>) {
-  const started = await startSuite(suiteRequestSchema.parse({ name: 'samples', ...body }));
+  const started = await startSuite(suiteRequestSchema.parse({ name: 'samples', ...body }), 'system');
   const state = await waitForSuite(started.suiteRunId, 60_000);
   assert.equal(state?.status, 'completed', JSON.stringify(state?.variants));
   return state!;

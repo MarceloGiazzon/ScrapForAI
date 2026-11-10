@@ -50,7 +50,7 @@ const typeAndRead = (fillExtra: Record<string, unknown>) => [
 
 async function run(body: Record<string, unknown>) {
   const request = explorationRequestSchema.parse({ targetUrl: `${site.origin}/`, ...body });
-  return runExploration(await resolveExplorationRequest(request));
+  return runExploration(await resolveExplorationRequest(request, { initiator: 'system' }));
 }
 
 const QTY = { name: 'qty', generator: { type: 'int', min: 1, max: 10 } };
@@ -110,7 +110,7 @@ test('a run with no parameter and no generator has no `parameters` in its result
 
 test('a parameter that nobody declared is a 400 from the server, with the names that were declared', async () => {
   const unvalidated = { targetUrl: `${site.origin}/`, steps: typeAndRead({ valueFromParameter: 'nope' }), parameters: [{ name: 'qty', cases: ['1'], }], options: explorationRequestSchema.shape.options.parse(undefined) };
-  await assert.rejects(resolveExplorationRequest(unvalidated as never), (error: Error) => {
+  await assert.rejects(resolveExplorationRequest(unvalidated as never, { initiator: 'system' }), (error: Error) => {
     assert.ok(error instanceof RequestResolutionError);
     assert.equal((error as InstanceType<typeof RequestResolutionError>).status, 400);
     // The post-expansion validation names it first; the resolver's own UnknownParameter is the second line of defence (unit-tested).
@@ -148,7 +148,7 @@ test('saved as a routine from a run, it keeps what the author wrote (generators,
   assert.ok(!JSON.stringify(saved.routine).includes('gen_b'), 'the implicit parameter is not written into the routine');
   assert.ok(!JSON.stringify(saved.routine).includes('"orig"'), 'the seed is per run, not part of the routine');
 
-  const again = await runLibraryRoutine('param-routine', undefined, { seed: 'picked', sample: 2 });
+  const again = await runLibraryRoutine('param-routine', undefined, { seed: 'picked', sample: 2 }, { initiator: 'system' });
   assert.equal(again.status, 'passed', JSON.stringify(again.error));
   assert.deepEqual([again.parameters?.seed, again.parameters?.sample, again.parameters?.values.qty], ['picked', 2, '10']);
   assert.equal(again.extracted.typed, again.parameters?.values.gen_b, 'the inline generator of the last fill is what stays in the page');
@@ -254,7 +254,7 @@ test('an included routine declares its own parameters: renamed after the include
   // an including routine can be saved: the check at save sees the renamed parameters of what it includes
   const saved = await saveRoutine('includer', { title: 'includer', targetProfile: 'fixture', steps: steps as never });
   assert.equal(saved.routine.version, 1);
-  const viaLibrary = await runLibraryRoutine('includer', undefined, { seed: 'lib', sample: 0 });
+  const viaLibrary = await runLibraryRoutine('includer', undefined, { seed: 'lib', sample: 0 }, { initiator: 'system' });
   assert.equal(viaLibrary.status, 'passed', JSON.stringify(viaLibrary.error));
   assert.deepEqual(Object.keys(viaLibrary.parameters!.values).sort(), ['a_qty', 'b_qty']);
 });

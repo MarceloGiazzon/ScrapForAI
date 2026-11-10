@@ -11,6 +11,7 @@ import { VaultError } from '../vault/credentials/credentialVault.js';
 import { addFromRun, confirmGreen, runItem } from '../vault/regression/regressionFlows.js';
 import { exportVault, getItem, listItems, saveItem, VaultItemError } from '../vault/regression/regressionVault.js';
 import { orderByImpact } from '../vault/regression/impact.js';
+import { initiatorOf } from '../team/initiator.js';
 
 /** /v1/vault: the regression vault (T2). Writes that capture evidence need the bearer token. */
 export const vaultRouter = Router();
@@ -152,7 +153,7 @@ vaultRouter.post(
   '/:id/run',
   handler(async (req, res) => {
     const body = confirmGreenSchema.parse(req.body ?? {});
-    const outcome = await runItem(String(req.params.id), body);
+    const outcome = await runItem(String(req.params.id), body, initiatorOf(req.principal));
     res.status(outcome.result.status === 'passed' ? 200 : 500).json(outcome);
   }),
 );
@@ -162,7 +163,7 @@ vaultRouter.post(
   requireBearer,
   handler(async (req, res) => {
     const body = confirmGreenSchema.parse(req.body ?? {});
-    const outcome = await confirmGreen(String(req.params.id), body);
+    const outcome = await confirmGreen(String(req.params.id), body, initiatorOf(req.principal));
     // A still-red routine is not an error of the API: 409 says "the item was NOT changed".
     res.status(outcome.confirmed ? 200 : 409).json(outcome.confirmed ? outcome : { error: { type: 'StillRed', message: 'The routine still fails; the item was not changed' }, ...outcome });
   }),

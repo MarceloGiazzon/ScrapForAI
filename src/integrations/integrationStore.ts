@@ -4,6 +4,7 @@ import path from 'node:path';
 import { integrationsDir } from '../config/paths.js';
 import { type Integration, integrationSchema } from '../schemas/integration.schema.js';
 import { createMutex, writeFileAtomic } from '../storage/atomicWrite.js';
+import { SYSTEM_INITIATOR } from '../team/initiator.js';
 import { deleteCredentialSet, getCredentialSetMeta, resolveCredentialSet, saveCredentialSet } from '../vault/credentials/credentialVault.js';
 
 /**
@@ -73,7 +74,7 @@ export async function saveIntegrationToken(id: string, token: string, apiOrigin:
 
 /** SENDER ONLY. The token is a secret: never put it in a response, a log line or a report. */
 export async function resolveIntegrationToken(id: string): Promise<{ token: string; boundOrigin: string | undefined } | undefined> {
-  const set = await resolveCredentialSet(integrationVaultSetId(id));
+  const set = await resolveCredentialSet(integrationVaultSetId(id), SYSTEM_INITIATOR);
   const token = set?.values.token;
   return token ? { token, boundOrigin: set.boundOrigins[0] } : undefined;
 }
