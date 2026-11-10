@@ -3,7 +3,10 @@
  * step outcomes never differ between profiles (the acceptance criterion) and prints the timings as a markdown table to paste into
  * docs/. The speed-up is measured, not promised: against a local server it can be small.
  *
- *   npm run bench:profile -- <routineId> [<routineId>...] [--runs 10] [--target id] [--credential set]
+ *   npm run bench:profile -- <routineId> [<routineId>...] [--runs 10] [--target id] [--credential set] [--url http://host:port]
+ *
+ * `--url` points the CLI at another ScrapForAI server than the one in .env (the API key still comes from .env), e.g. a scratch server started on
+ * another port with its own data directory, so a benchmark against a throttled fixture touches nothing of the real installation.
  *
  * Needs the server running and the routines saved. Runs against a real application: use a dev/QA target, and routines that are
  * safe to repeat (a routine that creates data will create it 2 x N times; give it a teardown).
@@ -11,10 +14,10 @@
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
-const { values, positionals } = parseArgs({ allowPositionals: true, options: { runs: { type: 'string' }, target: { type: 'string' }, credential: { type: 'string' } } });
+const { values, positionals } = parseArgs({ allowPositionals: true, options: { runs: { type: 'string' }, target: { type: 'string' }, credential: { type: 'string' }, url: { type: 'string' } } });
 const runs = Number(values.runs ?? '10');
 if (positionals.length === 0 || !Number.isInteger(runs) || runs < 1) {
-  console.error('usage: npm run bench:profile -- <routineId>... [--runs N] [--target id] [--credential set]');
+  console.error('usage: npm run bench:profile -- <routineId>... [--runs N] [--target id] [--credential set] [--url http://host:port]');
   process.exit(2);
 }
 
@@ -29,6 +32,7 @@ function runOnce(routineId: string, profile: 'full' | 'functional'): Sample {
   const args = ['tsx', 'src/cli.ts', 'run', routineId, '--profile', profile, '--json'];
   if (values.target) args.push('--target', values.target);
   if (values.credential) args.push('--credential', values.credential);
+  if (values.url) args.push('--url', values.url);
   const proc = spawnSync('npx', args, { encoding: 'utf8', shell: process.platform === 'win32' });
   const line = proc.stdout.trim().split('\n').at(-1) ?? '';
   const out = JSON.parse(line) as { exitCode: number; result?: { durationMs: number; status: string; steps: { total: number; passed: number; failed: number }; failedStepIndex?: number } };
