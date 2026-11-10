@@ -166,3 +166,13 @@ td.wrap { white-space: normal; min-width: 220px; }
 /* Team screen (T10.1): classes only, the CSP forbids inline style. */
 .card .card { background: var(--bg); }
 td select { padding: 4px 8px; }
+
+/* Credentials screen: one row per secret field (name + value + remove). */
+.field-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.field .field-row input { width: auto; flex: 1 1 200px; }
+/* A table whose cells may wrap (Credentials: origins, notes and dates must not push the action buttons off screen). */
+table.compact td { white-space: normal; }
+table.compact td .mono { overflow-wrap: anywhere; }
+/* A checkbox with its text on one line, inside a .field (whose inputs are otherwise full width). */
+.field label.inline-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; }
+.field label.inline-check input { width: auto; }

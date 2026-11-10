@@ -30,11 +30,19 @@ test('team.js: DOM built with textContent only, no style attribute, classes from
 
 test('team.js: the admin key lives in a variable only (no storage, no cookie, no URL) and every change sends it as a Bearer token', () => {
   const script = read('team.js');
-  assert.ok(!/localStorage|sessionStorage|indexedDB|document\.cookie|location\.(search|hash)/.test(script));
-  // Reads go with the session; every write goes through change(), which sends the key.
+  const keyModule = read('adminKey.js');
+  for (const source of [script, keyModule]) {
+    assert.ok(!/localStorage|sessionStorage|indexedDB|document\.cookie|location\.(search|hash)/.test(source));
+    assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write|\.style\b|className\s*=/.test(source));
+  }
+  // Reads go with the session; every write goes through change() (adminKey.js), which sends the key.
+  assert.match(script, /import \{ setupAdminKey \} from '\.\/adminKey\.js'/);
+  assert.match(script, /const \{ change \} = setupAdminKey\(/);
+  assert.ok(!/bearer/.test(script), 'team.js never builds a Bearer request itself');
   const writes = [...script.matchAll(/method:\s*['"](POST|PUT|PATCH|DELETE)/gi)];
   assert.equal(writes.length, 0, 'a write outside change() would go with the session alone');
-  assert.match(script, /apiFetch\(pathname, \{ method, bearer: adminKey/);
+  assert.match(keyModule, /apiFetch\(pathname, \{ method, bearer: adminKey/);
+  assert.match(keyModule, /window\.addEventListener\('pagehide', forgetKey\)/);
   const changes = [...script.matchAll(/change\(\s*['"](POST|PATCH|DELETE)['"],\s*([`'"][^`'"]+)/g)].map((m) => `${m[1]} ${m[2]!.slice(1).replace(/\$\{[^}]*\}/g, ':x')}`);
   assert.deepEqual(
     [...new Set(changes)].sort(),

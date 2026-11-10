@@ -1,11 +1,11 @@
+import { setupAdminKey } from './adminKey.js';
 import { apiFetch, el, formatDateTime, logout, markActiveNav } from './api.js';
 
 markActiveNav();
 document.getElementById('logout').addEventListener('click', logout);
 
 // T10.1 Team screen. Reads go with the session. Every CHANGE needs an admin's API key as a Bearer token (a session alone is refused by the
-// server), typed here and held in this variable only: not in storage, not in the DOM after it is typed, forgotten after IDLE_MS or on leaving.
-const IDLE_MS = 5 * 60 * 1000;
+// server): `change()` comes from adminKey.js, which keeps the typed key in memory only (see there).
 const AUDIT_PAGE = 50;
 const ROLES = ['viewer', 'runner', 'admin'];
 const EXPIRY_CHOICES = [
@@ -15,8 +15,6 @@ const EXPIRY_CHOICES = [
   ['365', 'expires in 1 year', 365],
 ];
 
-let adminKey = '';
-let forgetTimer;
 let selectedUser = '';
 let people = [];
 let auditBefore = null; // `seq` the next page must be older than
@@ -30,35 +28,7 @@ function badge(kind, text) {
   return el('span', { class: cls, text });
 }
 
-// ---- admin key (memory only)
-
-function setKeyState() {
-  const has = adminKey !== '';
-  byId('key-state').textContent = has ? 'Key in memory: changes are enabled for a few minutes.' : 'No key: this screen only reads.';
-  byId('key-forget').classList.toggle('hidden', !has);
-}
-
-function forgetKey() {
-  adminKey = '';
-  clearTimeout(forgetTimer);
-  setKeyState();
-}
-
-function touchKey() {
-  clearTimeout(forgetTimer);
-  forgetTimer = setTimeout(forgetKey, IDLE_MS);
-}
-
-byId('key-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const input = byId('admin-key');
-  adminKey = input.value.trim();
-  input.value = '';
-  if (adminKey) touchKey();
-  setKeyState();
-});
-byId('key-forget').addEventListener('click', forgetKey);
-window.addEventListener('pagehide', forgetKey);
+// ---- admin key (memory only, see adminKey.js)
 
 function showError(message) {
   const box = byId('team-error');
@@ -66,26 +36,7 @@ function showError(message) {
   box.classList.toggle('hidden', !message);
 }
 
-/** One change: needs the key; a rejected key is forgotten so a wrong one is not retried silently. Returns the answer, or undefined after showing why not. */
-async function change(method, pathname, body) {
-  showError('');
-  if (!adminKey) {
-    showError('Type an admin API key above first: changes are never made with the session alone.');
-    return undefined;
-  }
-  touchKey();
-  try {
-    return await apiFetch(pathname, { method, bearer: adminKey, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  } catch (error) {
-    // A key the server does not recognise is ignored, and the session behind it is then refused as "not a key" (403 BearerTokenRequired);
-    // a key of a lower role is refused as such. Either way it is forgotten, so it is not retried by accident.
-    if (error.status === 401 || error.type === 'BearerTokenRequired' || error.type === 'InsufficientRole') forgetKey();
-    const details = (error.details ?? []).map((detail) => `${detail.path}: ${detail.message}`);
-    const message = error.type === 'BearerTokenRequired' ? 'That key was not accepted. Type a valid admin API key.' : error.message;
-    showError([message, ...details].join(' — '));
-    return undefined;
-  }
-}
+const { change } = setupAdminKey({ showError });
 
 // ---- new key (shown once)
 
@@ -349,7 +300,6 @@ async function start() {
     return;
   }
   byId('team-admin').classList.remove('hidden');
-  setKeyState();
   await Promise.all([loadPeople(), loadAudit(false)]);
 }
 
