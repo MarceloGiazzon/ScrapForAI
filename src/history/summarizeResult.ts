@@ -45,6 +45,7 @@ export function summarizeResult(result: ExplorationResult, retention: 'ephemeral
 
     callerSource: result.caller?.source,
     callerCorrelationId: result.caller?.correlationId,
+    startedBy: result.startedBy?.userId,
 
     stepCount: result.steps.length,
     passedSteps,

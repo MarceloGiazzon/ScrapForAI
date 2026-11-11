@@ -10,7 +10,7 @@ import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
 import { firstOverflow } from '../orchestrator/jobQueue.js';
-import type { Initiator } from '../team/initiator.js';
+import { startedByOf, type Initiator, type StartedBy } from '../team/initiator.js';
 import { actorsInUse, sessionCredentialSets } from './actors.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -76,6 +76,8 @@ export type ResolvedExplorationRequest = Omit<ExplorationRequest, 'steps' | 'tea
   buildProbe?: { info: BuildInfo; baseUrl: string };
   /** T5.7: the methods an `httpRequest` step may use (the target profile's `http.allowedMethods`; absent = GET and HEAD). */
   httpMethods?: HttpMethod[];
+  /** Who the run is for, from the initiator `resolveExplorationRequest` was given (never from the request body); recorded in the result and the history. */
+  startedBy?: StartedBy;
 };
 
 /**
@@ -211,6 +213,8 @@ export async function resolveExplorationRequest(
     ...rest,
     targetUrl,
     steps: parameterized.steps,
+    // After `...rest`, so nothing the caller sent can say the run was somebody else's.
+    startedBy: startedByOf(options.initiator),
     ...(buildProbe ? { buildProbe } : {}),
     ...(httpMethods ? { httpMethods } : {}),
     ...(autoLogin ? { autoLogin } : {}),

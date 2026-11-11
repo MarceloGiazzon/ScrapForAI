@@ -50,6 +50,7 @@ runsRouter.get('/', async (req, res, next) => {
     const result = await listRuns({
       status: parseStatusParam(req.query.status),
       scenario: optionalString(req.query.scenario),
+      startedBy: optionalString(req.query.startedBy),
       since: optionalString(req.query.since),
       until: optionalString(req.query.until),
       q: optionalString(req.query.q),

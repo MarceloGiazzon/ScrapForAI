@@ -72,6 +72,13 @@ const toSteps = (steps: ExplorationResult['steps'] | undefined): ReportStep[] =>
   }));
 
 /** Self-contained HTML report of one run (screenshots embedded). Needs the evidence to still exist. */
+/** "Executed by": the person (or `root`, the installation's key) with the calling tool in brackets; the scheduler is the server itself, so it reads as before. */
+export function executorOf(result: Pick<ExplorationResult, 'caller' | 'startedBy'>): string {
+  const via = result.caller?.source ?? 'ScrapForAI';
+  const who = result.startedBy?.userId;
+  return who && who !== 'system' ? `${who} (${via})` : via;
+}
+
 export async function buildRunReport(jobId: string, lang: ReportLang): Promise<string> {
   if (!JOB_ID_PATTERN.test(jobId)) {
     throw new EvidenceError(400, 'ValidationError', 'Invalid job id');
@@ -139,7 +146,7 @@ export async function buildRunReport(jobId: string, lang: ReportLang): Promise<s
       startedAt: result.startedAt,
       finishedAt: result.finishedAt,
       durationMs: result.durationMs,
-      executor: result.caller?.source ?? 'ScrapForAI',
+      executor: executorOf(result),
       ...(result.routine ? { routine: { id: result.routine.id, version: result.routine.version } } : {}),
       ...(result.error ? { error: result.error } : {}),
       failedStepIndex: result.failedStepIndex,

@@ -23,6 +23,8 @@ const freePort = (): Promise<number> =>
 
 const port = await freePort();
 const base = `http://127.0.0.1:${port}`;
+// A port nothing listens on: a run against it fails fast and by itself (TargetUnreachable), which is all the "who started it" check needs.
+const deadOrigin = `http://127.0.0.1:${await freePort()}`;
 const env = {
   ...process.env,
   PORT: String(port),
@@ -32,7 +34,7 @@ const env = {
   SCRAPFORAI_API_KEY: ROOT_KEY,
   SCRAPFORAI_DATA_DIR: dataDir,
   ARTIFACT_DIR: path.join(dataDir, 'artifacts'),
-  ALLOWED_TARGET_ORIGINS: 'https://dev.example.com',
+  ALLOWED_TARGET_ORIGINS: `https://dev.example.com,${deadOrigin}`,
   TRUST_PROXY: '1',
   SCHEDULER_ENABLED: 'false',
   UI_ENABLED: 'true',
@@ -123,6 +125,26 @@ test('roles hold on the real routes: viewer reads, runner runs, only an admin ke
   const me = await api('GET', '/v1/auth/me', anaKey);
   assert.deepEqual(me.json.user, { id: 'ana', role: 'runner' });
   assert.equal((await api('GET', '/v1/runs', 'sfa_000000000000_' + 'x'.repeat(43))).status, 401);
+});
+
+test('a real run records who started it: the person, root for the installation key; the history filters on it and the report names it', async () => {
+  const run = (key: string) => api('POST', '/v1/explorations/run', key, { targetUrl: `${deadOrigin}/`, steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }] });
+
+  const byAna = await run(anaKey);
+  assert.equal(byAna.status, 500, 'the target is down, so the run fails, and the result is in the body');
+  assert.deepEqual(byAna.json.startedBy, { userId: 'ana', role: 'runner' });
+  const byRoot = await run(ROOT_KEY);
+  assert.deepEqual(byRoot.json.startedBy, { userId: 'root', role: 'admin' });
+
+  const mine = await api('GET', '/v1/runs?startedBy=ana', veraKey);
+  assert.equal(mine.json.total, 1, 'a viewer may read who ran what');
+  assert.equal(mine.json.items[0].jobId, byAna.json.jobId);
+  assert.equal(mine.json.items[0].startedBy, 'ana');
+  assert.equal((await api('GET', '/v1/runs?startedBy=root', ROOT_KEY)).json.items[0].jobId, byRoot.json.jobId);
+
+  const report = await fetch(`${base}/v1/runs/${byAna.json.jobId}/report?lang=en`, { headers: { authorization: `Bearer ${ROOT_KEY}` } });
+  assert.equal(report.status, 200);
+  assert.match(await report.text(), /ana \(ScrapForAI\)/);
 });
 
 test('revoking and disabling take effect at once', async () => {

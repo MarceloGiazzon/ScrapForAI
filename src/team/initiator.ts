@@ -17,6 +17,20 @@ export type Initiator = 'system' | { userId: string; role: Role };
 export const SYSTEM_INITIATOR: Initiator = 'system';
 
 /**
+ * Who a run was started for, as it is RECORDED in the result and the run history. The server sets it from the initiator
+ * (`resolveExplorationRequest`); a request cannot carry it, so it cannot be claimed for someone else. `system` has no role: it is the
+ * server acting on its own account (today: the scheduler). A run started with the installation's own key is `root`, an admin, as everywhere else.
+ */
+export interface StartedBy {
+  userId: string;
+  role?: Role;
+}
+
+export function startedByOf(who: Initiator): StartedBy {
+  return who === 'system' ? { userId: 'system' } : { userId: who.userId, role: who.role };
+}
+
+/**
  * The initiator of an HTTP request. A request with no principal (a router mounted without `apiAuth`, which only tests do) is treated as the
  * lowest, anonymous caller: it can use what is open to everyone and nothing that is restricted. Failing closed costs nothing here.
  */

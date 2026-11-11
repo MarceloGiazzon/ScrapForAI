@@ -58,6 +58,28 @@
         }
       ]
     },
+    "startedBy": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "viewer",
+            "runner",
+            "admin"
+          ]
+        }
+      },
+      "required": [
+        "userId"
+      ],
+      "additionalProperties": false
+    },
     "parameters": {
       "type": "object",
       "properties": {

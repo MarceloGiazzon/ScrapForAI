@@ -1336,6 +1336,7 @@ async function runExplorationInner(request: ResolvedExplorationRequest): Promise
     durationMs: finishedAt.getTime() - startedAt.getTime(),
     targetUrl: normalizedTargetUrl,
     caller: request.caller ?? null,
+    ...(request.startedBy ? { startedBy: request.startedBy } : {}),
     ...(functional ? { profile: 'functional' as const } : {}),
     ...(clockEvents.length > 0 ? { clock: clockEvents } : {}),
     ...(piiReport ? { pii: piiReport } : {}),

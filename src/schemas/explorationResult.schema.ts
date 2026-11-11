@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { ROLES } from '../team/roles.js';
 import { docCaptionSchema } from './docStep.schema.js';
 import { parameterRecordSchema } from './parameters.schema.js';
 import { piiReportSchema } from './pii.schema.js';
@@ -144,6 +145,11 @@ export const explorationResultSchema = z.object({
   durationMs: z.number(),
   targetUrl: z.string(),
   caller: callerSchema.nullable(),
+  /**
+   * Who the run was started for, set by the server from the authenticated caller (a request cannot carry it). `userId` is the person's id,
+   * `root` for the installation's own key, `system` for the scheduler. Absent on runs recorded before this existed.
+   */
+  startedBy: z.object({ userId: z.string().min(1).max(100), role: z.enum(ROLES).optional() }).strict().optional(),
   /** The values the run's parameters took, with the seed that reproduces them (T5.3). Present only when the run used parameters. */
   parameters: parameterRecordSchema.optional(),
   /** Present only for a `functional` run (T5.2): screenshots/trace were off and images, media and fonts were stand-ins. */

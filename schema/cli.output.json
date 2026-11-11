@@ -869,6 +869,10 @@
                 "callerCorrelationId": {
                   "type": "string"
                 },
+                "startedBy": {
+                  "type": "string",
+                  "maxLength": 100
+                },
                 "stepCount": {
                   "type": "number"
                 },

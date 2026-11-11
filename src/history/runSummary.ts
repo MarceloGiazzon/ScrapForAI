@@ -37,6 +37,9 @@ export const runSummarySchema = z.object({
   callerSource: z.string().optional(),
   callerCorrelationId: z.string().optional(),
 
+  /** Who the run was started for: a person's id, `root` (the installation's key) or `system` (the scheduler). Absent on runs recorded before it existed. */
+  startedBy: z.string().max(100).optional(),
+
   stepCount: z.number(),
   passedSteps: z.number(),
   failedSteps: z.number(),

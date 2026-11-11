@@ -111,11 +111,13 @@ export async function appendRun(summary: RunSummary): Promise<void> {
 export interface ListRunsQuery {
   status?: 'passed' | 'failed';
   scenario?: string;
+  /** Exact user id the run was started for (`root`, `system` too). Runs recorded before the field existed never match. */
+  startedBy?: string;
   /** ISO date-time; inclusive lower bound on startedAt. */
   since?: string;
   /** ISO date-time; inclusive upper bound on startedAt. */
   until?: string;
-  /** Case-insensitive substring over scenarioName, targetUrl and jobId. */
+  /** Case-insensitive substring over scenarioName, targetUrl, jobId and startedBy. */
   q?: string;
   limit?: number;
   offset?: number;
@@ -142,6 +144,9 @@ export async function listRuns(query: ListRunsQuery = {}): Promise<ListRunsResul
     if (query.scenario && run.scenarioName !== query.scenario) {
       return false;
     }
+    if (query.startedBy && run.startedBy !== query.startedBy) {
+      return false;
+    }
     if (query.since && run.startedAt < query.since) {
       return false;
     }
@@ -149,7 +154,7 @@ export async function listRuns(query: ListRunsQuery = {}): Promise<ListRunsResul
       return false;
     }
     if (needle) {
-      const haystack = `${run.scenarioName ?? ''} ${run.targetUrl} ${run.jobId}`.toLowerCase();
+      const haystack = `${run.scenarioName ?? ''} ${run.targetUrl} ${run.jobId} ${run.startedBy ?? ''}`.toLowerCase();
       if (!haystack.includes(needle)) {
         return false;
       }

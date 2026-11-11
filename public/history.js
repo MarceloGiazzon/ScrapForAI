@@ -56,7 +56,7 @@ async function loadRuns() {
 
   body.replaceChildren();
   if (data.items.length === 0) {
-    body.appendChild(el('tr', {}, [el('td', { colspan: '7', class: 'muted', text: 'No runs match these filters.' })]));
+    body.appendChild(el('tr', {}, [el('td', { colspan: '8', class: 'muted', text: 'No runs match these filters.' })]));
   }
 
   for (const run of data.items) {
@@ -72,6 +72,7 @@ async function loadRuns() {
       el('td', {}, [el('span', { class: `badge ${run.status}`, text: run.status })]),
       el('td', { text: `${run.passedSteps}/${run.stepCount}` }),
       el('td', { text: formatDuration(run.durationMs) }),
+      el('td', { class: run.startedBy ? '' : 'muted', text: run.startedBy ?? '—' }),
       el('td', { class: 'muted', text: issues.join(', ') || '—' }),
     ]);
     body.appendChild(row);
@@ -96,7 +97,7 @@ async function showDetail(jobId) {
       el('p', { class: 'mono muted', text: summary.targetUrl }),
       el('p', {}, [
         el('span', { class: `badge ${summary.status}`, text: summary.status }),
-        el('span', { class: 'muted', text: `  ${formatDateTime(summary.startedAt)} · ${formatDuration(summary.durationMs)}` }),
+        el('span', { class: 'muted', text: `  ${formatDateTime(summary.startedAt)} · ${formatDuration(summary.durationMs)}${summary.startedBy ? ` · started by ${summary.startedBy}` : ''}` }),
       ]),
       summary.errorMessage ? el('pre', { text: `${summary.errorType ?? 'Error'}: ${summary.errorMessage}` }) : null,
     ]),
