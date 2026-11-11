@@ -13,6 +13,7 @@ import { differentialCompareRequestSchema, differentialRequestSchema } from '../
 import { shrinkRequestSchema } from '../schemas/shrink.schema.js';
 import { suiteRequestSchema } from '../schemas/suiteRequest.schema.js';
 import { getJson, inspectDom, postJson, putJson, runExploration, ScrapForAiRequestError } from './client.js';
+import { describeMcpIdentity, mcpCredentials } from './identity.js';
 
 const server = new McpServer(
   { name: 'scrapforai', version: '1.0.0' },
@@ -946,6 +947,8 @@ server.registerPrompt(
 );
 
 try {
+  // Who this server acts as, once, for whoever reads the client's log (stderr: stdout is the protocol). Never the key.
+  console.error(`ScrapForAI MCP server ${describeMcpIdentity(mcpCredentials.identity)}`);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 } catch (error) {

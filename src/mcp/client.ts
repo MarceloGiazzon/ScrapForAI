@@ -1,4 +1,5 @@
 import { mcpConfig } from './config.js';
+import { mcpCredentials } from './identity.js';
 
 export class ScrapForAiRequestError extends Error {
   readonly status: number;
@@ -52,7 +53,7 @@ async function requestJson(method: 'GET' | 'POST' | 'PUT', path: string, body?: 
       method,
       headers: {
         ...(method === 'GET' ? {} : { 'content-type': 'application/json' }),
-        authorization: `Bearer ${mcpConfig.apiKey}`,
+        authorization: `Bearer ${mcpCredentials.apiKey}`,
       },
       ...(method === 'GET' ? {} : { body: JSON.stringify(body ?? {}) }),
       signal: AbortSignal.timeout(mcpConfig.requestTimeoutMs),

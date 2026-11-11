@@ -19,8 +19,11 @@ Detail lives in the repo: `AGENTS.md` (security model and every feature), `docs/
 1. **Never put a secret in a step.** Call `list_credential_sets` (ids, bound origins, field names; never
    values), pass `credentialSet`, and use `valueFromCredential: "<fieldName>"` in `fill` steps. A literal
    password or token is refused when saving a routine (`RoutineLintError`). A set may be limited to some people:
-   `restricted: true` in `list_credential_sets` says so. You act with the installation key (an admin), so it
+   `restricted: true` in `list_credential_sets` says so. By default you act with the installation key (an admin), so it
    does not stop you, but a person running the same routine and not on the list gets `CredentialSetForbidden`.
+   If the user gave this server a personal key (`SCRAPFORAI_MCP_API_KEY`), you act as that person: then a refusal
+   (`CredentialSetForbidden`, `TargetProfileForbidden`, `InsufficientRole`) is a decision about the PERSON, not a bug. Tell the
+   user which set or profile it was and that an admin must add them; never look for another way in.
 2. **Stay on the allowlist.** A target outside `ALLOWED_TARGET_ORIGINS` fails with `TargetUrlNotAllowed`,
    including `localhost` unless that exact origin is listed. You cannot change the allowlist. Tell the user
    which origin to add (`ALLOWED_TARGET_ORIGINS` and `ALLOWED_RESOURCE_ORIGINS` in `.env`, then restart the
@@ -385,6 +388,7 @@ A routine tagged `doc` is also a chapter of the manual of its target profile. Yo
 | `TargetNavigationTimeout` / `TargetTlsError` | The target answered too slowly / has a certificate this machine rejects (ScrapForAI never ignores certificate errors) | Report it; a slow page may need a larger step timeout, a certificate problem is the user's to fix |
 | `BrowserLaunchFailed` | Chromium is not installed or lacks system libraries on the machine running ScrapForAI | Tell the user to run `npm run doctor`; the install command needs their decision (sudo on Linux) |
 | `CredentialOriginMismatch` | The credential set is bound to other origins | Use the set meant for this origin |
+| `CredentialSetForbidden` / `TargetProfileForbidden` (403) | The person you act as is not on the list of that credential set / target profile | Tell the user which one; an admin adds them. Do not try another set to get around it |
 | `CredentialInUse` (409) | That login is in another session | Wait and retry, or use another set |
 | `TooManySessionsForCredential` (400) | More actors use one credential set than the profile allows at once | Give the actors different sets, or ask for `flags.maxSessionsPerCredential` |
 | `TooManyActors` (400) | The run uses more actors than `MAX_ACTORS_PER_JOB` | Split the scenario |

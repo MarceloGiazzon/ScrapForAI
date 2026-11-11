@@ -32,7 +32,7 @@ scrapforai users delete ana
 
 - A key looks like `sfa_<keyId>_<secret>`. The `keyId` is public (it names the key in lists and in the audit log); the secret is 256 random bits. The server stores only the **SHA-256 of the key** in `<dataDir>/team/users.json`. The key is shown **once**, in the answer that creates it, with `Cache-Control: no-store`; nothing afterwards can show it again. A lost key is revoked and replaced.
 - A person can have up to 10 active keys (one per machine or tool). Keys can expire.
-- Use the key as `Authorization: Bearer <key>`, in the CLI's `.env` (`SCRAPFORAI_API_KEY=`), in the MCP server's `.env` (an agent should have its **own `runner` key**: then the audit log says what the agent did), or paste it in the web console's sign-in box.
+- Use the key as `Authorization: Bearer <key>`, in the CLI's `.env` (`SCRAPFORAI_API_KEY=`), in the MCP server's environment (an agent should have its **own `runner` key**: then the audit log says what the agent did; see "Giving an agent its own key" below), or paste it in the web console's sign-in box.
 - The web console signs in with the same key. The session **is the person**: their role is read again on every request, so a demotion, a disabled user or a revoked key is seen at once, not at the end of the session.
 - **Team screen** (web console > Team, admins only): the same operations without the CLI. Reading (people, keys, the audit log, "verify the chain") uses your session; **every change asks for an admin API key**, typed in the box at the top of the screen and sent as a Bearer token, because a browser session alone can never create a person or a key. The key is held in the page's memory only: never stored, forgotten after 5 minutes without use, when you leave, or when the server rejects it. A new key is shown once, with a Copy button, and is wiped from the page when you hide it.
 - Reserved ids: `root` (the `.env` key), `system`, `scheduler`, `anonymous`.
@@ -90,7 +90,7 @@ By default any `runner` can start a run that types any credential set. To limit 
 - Every id must be a person of the team (`400 UnknownUser` otherwise), so a typo does not lock someone out silently.
 - It is checked **where a run loads the set**, for the run's own set and for each actor's, whoever started it: a direct run, a routine, a suite, a permission matrix, a shrink, a differential, a snapshot, a manual build, a vault item. A person who is not on the list gets `403 CredentialSetForbidden` before any browser starts (for a background run, each variant records that error). The message does not say who may use the set. A suite or matrix keeps who started it for its whole life, so a queue is not a way in.
 - **What people see:** everyone sees that a set exists, its origins and field names, and `restricted: true`; only an admin's read lists the people. Nobody ever reads a value: being on the list lets a person make a run type it, nothing more.
-- **What it does not cover:** the MCP server and the CLI act with the installation key (`root`, an admin), so a person who reaches the API only through an AI agent started with that key is not limited, which is why that key must not be handed out. The sets that webhooks and integrations keep (`webhook-*`, `integration-*`) are created open; only an admin can write them and they can only be typed into the origin they are bound to, but restrict them too if a runner should not even be able to name them. A target profile has its own list (see "Limiting who may run through a target profile"); there is no rule per routine.
+- **What it does not cover:** the MCP server and the CLI act, by default, with the installation key (`root`, an admin), so a person who reaches the API only through an AI agent started with that key is not limited, which is why that key must not be handed out; give the agent a personal key instead (see "Giving an agent its own key"). The sets that webhooks and integrations keep (`webhook-*`, `integration-*`) are created open; only an admin can write them and they can only be typed into the origin they are bound to, but restrict them too if a runner should not even be able to name them. A target profile has its own list (see "Limiting who may run through a target profile"); there is no rule per routine.
 - The audit log records who changed a set (`PUT /v1/credentials/<id>`, with how many people are on the list, never the names or values).
 
 ### Limiting who may run through a target profile
@@ -98,6 +98,23 @@ By default any `runner` can start a run that types any credential set. To limit 
 A target profile can carry the same kind of list: `PUT /v1/targets/<id>` with `"allowedUsers": ["ana", "ben"]` (admin key). The rule is the same as for a set (no list = anyone who can run; a list = those people, admins and scheduled runs; `[]` = admins only; leaving it out of a PUT keeps the stored list; `null` removes it; ids must be people of the team). A person not on the list gets `403 TargetProfileForbidden` before any browser starts, and the message does not say who may. Everyone sees `restricted: true`; only an admin's read lists the people.
 
 **What it does and does not do:** it restricts the use of the *profile*: its default address, its credential sets, its flags and its automatic login. It does **not** close the network: a run that gives `targetUrl` itself on an allowed origin does not name a profile, so a profile's list does not stop it. To protect a login, restrict the credential set (above); the allowed origins stay global (`ALLOWED_TARGET_ORIGINS`). There is no list on a routine: a routine version is immutable and a list inside it would be a new version for every change, and the set's list already guards every run that logs in.
+
+## Giving an agent its own key
+
+By default the MCP server (`npm run mcp`, the `.mcp.json` of this repository) uses the installation key: it is `root`, an admin, and nothing a team restricts applies to it. To make an agent act as **one person**, give the MCP server that person's personal key:
+
+1. An admin makes the key: `scrapforai users key-create <user>` (shown once). A `runner` key lets the agent run; a `viewer` key only reads.
+2. The person keeps it in **their own** environment, not in `.env` (that file is the installation's) and not in `.mcp.json` (it is versioned). On Windows, in PowerShell 7, without it landing in the shell history:
+   ```
+   $k = Read-Host 'Personal key' -MaskInput
+   [Environment]::SetEnvironmentVariable('SCRAPFORAI_MCP_API_KEY', $k, 'User')
+   ```
+   Restart the client (Claude Code, the editor) so the MCP server it starts inherits the variable. `.claude/settings.local.json` (git-ignored) with `{"env": {"SCRAPFORAI_MCP_API_KEY": "<your personal key>"}}` also works for one project.
+3. On start the server writes one line to the client's log saying who it acts as: the personal key's **id** (never the key) or "the installation key".
+
+From then on every call the agent makes is that person's: a `viewer` cannot run, a credential set or a target profile that does not list the person answers `403 CredentialSetForbidden` / `TargetProfileForbidden`, the run history says `startedBy` that person, and the audit log names them. A value that is **not** shaped like a personal key stops the server with a message; it never falls back to the installation key, so a typo cannot turn someone's agent into `root`.
+
+Things to know: the variable is read **only by the MCP server**. The CLI ignores it, on purpose: the variable lives in the user's environment, so a terminal started by an admin inherits it, and the admin's own `scrapforai users ...` must keep using the installation key. To use the CLI as a person, give it the personal key through `SCRAPFORAI_API_KEY` for that one command. An MCP server on another machine than the server needs the repository, a `.env` whose two required variables hold placeholders (any 16+ characters for `SCRAPFORAI_API_KEY`: it is never sent when a personal key is set) and `SCRAPFORAI_MCP_BASE_URL` pointing at the team server.
 
 ## Limits to know before giving keys out
 
