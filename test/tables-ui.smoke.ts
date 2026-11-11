@@ -134,6 +134,10 @@ test('a runner manages tables from the Tables screen: versions, an old version, 
     await page.locator('#tab-csv').fill(CSV_V2.replaceAll('\n', '\r\n'));
     await page.locator('#tab-save').click();
     await page.locator('#tab-done:not(.hidden)', { hasText: 'Saved order-totals as version 2' }).waitFor();
+    // The message appears as soon as the server answers; the list and the version picker are re-read right after (loadTables, then open). Wait for
+    // the state, not only for the message: asserting at once read the old picker whenever the machine was busy (it failed 2 of 3 runs on the commit before this one too).
+    await page.locator('#tab-version option', { hasText: 'v2 (current)' }).waitFor({ state: 'attached' });
+    await row.locator('td', { hasText: /^5$/ }).waitFor();
     assert.deepEqual(await page.locator('#tab-version option').allTextContents(), ['v2 (current)', 'v1']);
     assert.equal(await row.locator('td').nth(4).textContent(), '5');
     assert.match((await row.textContent()) ?? '', /v2/);
