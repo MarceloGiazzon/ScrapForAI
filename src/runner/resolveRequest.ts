@@ -10,7 +10,7 @@ import type { BuildInfo } from './buildProbe.js';
 import { usesFaults } from './faults.js';
 import { RequestResolutionError } from './resolutionError.js';
 import { firstOverflow } from '../orchestrator/jobQueue.js';
-import { startedByOf, type Initiator, type StartedBy } from '../team/initiator.js';
+import { mayUseTargetProfile, startedByOf, type Initiator, type StartedBy } from '../team/initiator.js';
 import { actorsInUse, sessionCredentialSets } from './actors.js';
 import type { CredentialBinding } from '../security/credentialBinding.js';
 import { getTarget } from '../targets/targetStore.js';
@@ -106,6 +106,10 @@ export async function resolveExplorationRequest(
     const profile = await getTarget(request.targetProfile);
     if (!profile) {
       throw new RequestResolutionError(404, 'TargetProfileNotFound', `Target profile "${request.targetProfile}" does not exist`);
+    }
+    // Before anything of the profile is used. The message does not say who is allowed.
+    if (!mayUseTargetProfile(profile.allowedUsers, options.initiator)) {
+      throw new RequestResolutionError(403, 'TargetProfileForbidden', `You are not allowed to run against target profile "${profile.id}"; ask an admin to add you to its allowed users`);
     }
 
     targetUrl ??= validateTargetUrl(profile.baseUrl);

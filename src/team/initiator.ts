@@ -39,14 +39,18 @@ export function initiatorOf(principal: Principal | undefined): Initiator {
 }
 
 /**
- * May this initiator use a credential set whose `allowedUsers` is this?
- *  - no list (the set was never restricted): anyone who can run, as before;
+ * May this initiator use something (a credential set, a target profile) whose `allowedUsers` is this?
+ *  - no list (never restricted): anyone who can run, as before;
  *  - an admin: always (an admin edits the list, so excluding one would only be a detour) and `'system'`;
- *  - anyone else: only a user named in the list. An EMPTY list restricts the set to admins.
+ *  - anyone else: only a user named in the list. An EMPTY list restricts it to admins.
+ * One rule for every restrictable thing, so they cannot drift apart.
  */
-export function mayUseCredentialSet(allowedUsers: readonly string[] | undefined, who: Initiator): boolean {
+export function mayUseRestricted(allowedUsers: readonly string[] | undefined, who: Initiator): boolean {
   if (allowedUsers === undefined) return true;
   if (who === 'system') return true;
   if (roleAtLeast(who.role, 'admin')) return true;
   return allowedUsers.includes(who.userId);
 }
+
+export const mayUseCredentialSet = mayUseRestricted;
+export const mayUseTargetProfile = mayUseRestricted;

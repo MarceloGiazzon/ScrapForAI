@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { USER_ID_MESSAGE, USER_ID_PATTERN } from '../team/roles.js';
 import { diffConfigSchema } from './diffConfig.schema.js';
 import { safeName } from './explorationRequest.schema.js';
 import { HTTP_METHODS } from './httpMethods.js';
@@ -50,6 +51,11 @@ export const targetProfileSchema = z
     baseUrl: z.string().url().max(2048),
     // Vault credential sets (T1.2) a run against this profile may use.
     credentialSets: z.array(safeName).max(50).default([]),
+    // Who may start a run THROUGH this profile (a user id of the team); admins and the server itself always may. Absent: anyone who can run, as before
+    // (every older profile). An EMPTY list: admins only. It restricts the use of the profile (its default URL, credential sets, flags, login), NOT the
+    // network: a run that gives `targetUrl` itself on an allowed origin never names the profile, and the credential set's own list is what protects a login.
+    // `PUT /v1/targets/:id` keeps the stored list when the body omits it, and removes it when the body says `null` (neither is in this stored shape).
+    allowedUsers: z.array(z.string().regex(USER_ID_PATTERN, USER_ID_MESSAGE)).max(200).optional(),
     loginRoutine: safeName.optional(),
     // T8.1: the "login gate" (genexus conventions, 1): where the app must be once the login is done. With platform `genexus`, a run that uses a
     // credential set gets `loginRoutine` included automatically, followed by a wait for this URL fragment, so a login that did not complete fails

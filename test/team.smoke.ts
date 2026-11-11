@@ -147,6 +147,27 @@ test('a real run records who started it: the person, root for the installation k
   assert.match(await report.text(), /ana \(ScrapForAI\)/);
 });
 
+test('a target profile limited to some people: the listed runner gets a real run, another runner is refused with 403 before a browser starts', async () => {
+  const ben = JSON.parse(cli(['users', 'create', 'ben', '--role', 'runner', '--json']).stdout).result.key as string;
+  const profile = { name: 'Locked', environment: 'dev', baseUrl: `${deadOrigin}/`, credentialSets: [], allowedUsers: ['ana'] };
+  assert.equal((await api('PUT', '/v1/targets/locked', ROOT_KEY, profile)).status, 200);
+  const through = (key: string) => api('POST', '/v1/explorations/run', key, { targetProfile: 'locked', steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }] });
+
+  const listed = await through(anaKey);
+  assert.equal(listed.status, 500, 'ana may: the run starts, and fails by itself because the target is down');
+  assert.equal(listed.json.error.type, 'TargetUnreachable');
+
+  const refused = await through(ben);
+  assert.equal(refused.status, 403);
+  assert.equal(refused.json.error.type, 'TargetProfileForbidden');
+  assert.ok(!JSON.stringify(refused.json).includes('ana'), 'it does not say who may');
+
+  assert.equal((await api('GET', '/v1/targets/locked', ben)).json.restricted, true);
+  assert.equal((await api('GET', '/v1/targets/locked', ben)).json.allowedUsers, undefined, 'a runner does not read the list');
+  assert.deepEqual((await api('GET', '/v1/targets/locked', ROOT_KEY)).json.allowedUsers, ['ana']);
+  assert.equal((await through(ROOT_KEY)).status, 500, 'the installation key is an admin: it may');
+});
+
 test('revoking and disabling take effect at once', async () => {
   const key2 = JSON.parse(cli(['users', 'key-create', 'ana', '--label', 'second', '--json']).stdout).result;
   assert.equal((await api('GET', '/v1/runs', key2.key)).status, 200);
