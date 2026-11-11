@@ -13,12 +13,14 @@ jobs:
       # ~150 MB Chromium download the playwright package would otherwise fetch on install.
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
     steps:
-      - uses: actions/checkout@v4
+      # v4 targets Node 20, which GitHub is retiring from runners; v7 runs on Node 24. We use neither pull_request_target nor workflow_run,
+      # the only thing checkout v7 changed behaviour for.
+      - uses: actions/checkout@v7
         with:
           # The secret scan reads EVERY commit, not only the last one: a secret deleted in a later commit is still published.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm

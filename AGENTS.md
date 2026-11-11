@@ -44,7 +44,7 @@ step limits, artifact retention, etc.). Node `>=22.13.0` (what eslint needs; `en
 - **`options.screenshots`**: `off` takes none (a `screenshot` step is skipped too); `onFailure` (default) and `always` **behave the same today**: the named `screenshot` steps plus a `failure`
   image. A run that passes without a `screenshot` step has no image in either. (The schema says so; an old note claimed `always` captured on success.)
 - **Dependencies (audit 2026-11-08):** runtime `npm audit` is clean (zod 4.6.7, nanoid 5.1.16, MCP SDK 1.32.2, proxy-addr 2.0.8 via `npm audit fix`; the floors of the three direct ones are raised in
-  `package.json`). Three moderate advisories remain, **dev-only** (eslint -> minimatch); the only fix is `--force` to eslint 9, a downgrade, so they are left. `@hono/node-server` is 2.x
+  `package.json`). The three moderate advisories that stayed (eslint -> minimatch, dev-only; `npm audit fix --force` offered only a downgrade to eslint 9) are closed since 2026-11-10 by `"overrides": { "minimatch": "^11.0.1" }` in `package.json` (eslint 10 declares `^10.2.x` but runs on 11: checked by linting a file with a throwaway config; `npm audit` says 0). Drop the override when eslint itself requires minimatch >= 11.0.1. `@hono/node-server` is 2.x
   because the MCP SDK pulls it. **zod >= 4.6 requires seconds in `z.iso.datetime`** (`10:00Z` is refused, `10:00:00Z` accepted): that is the `setClock` `fixedTime`/`installAt` and the `expiresAt` of
   a new key; stored data is unaffected (`users.json` is read with `z.string()`), `test/clock.test.ts` pins it, and `schema/routine.request.json` carries the new pattern. After ANY zod
   upgrade run `npm run generate:schema` and read the diff of `schema/*.json`: the unit tests did not notice this one.
