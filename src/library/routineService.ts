@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import type { ZodError } from 'zod';
 
 import { sanitizeParameterName } from '../schemas/parameters.schema.js';
-import { mapLeaves } from '../schemas/stepTree.js';
+import { mapLeaves, someStep } from '../schemas/stepTree.js';
 import { expandIncludes } from './includeExpander.js';
 import { resolveJobFile } from '../evidence/locate.js';
 import { RequestResolutionError, resolveExplorationRequest } from '../runner/resolveRequest.js';
@@ -24,9 +24,9 @@ import { getTarget } from '../targets/targetStore.js';
 import { listAllCredentialValues } from '../vault/credentials/credentialVault.js';
 import { recordRunMetrics } from '../metrics/perfRecorder.js';
 import type { Initiator } from '../team/initiator.js';
-import { getRoutine, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
+import { getRoutine, listRoutines, RoutineLibraryError, saveRoutineVersion } from './routineLibrary.js';
 import { type ConventionLintResult, lintConventions } from './conventionLint.js';
-import { lintParameters, lintRoutineDoc, lintRoutineSteps } from './routineLint.js';
+import { lintFreeText, lintParameters, lintRoutineDoc, lintRoutineSteps } from './routineLint.js';
 
 function zodDetails(error: ZodError): Array<{ path: string; message: string }> {
   return error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }));
@@ -224,6 +224,65 @@ export async function saveRoutine(
   }
 
   return { ...(await saveRoutineVersion(id, content, body.createdBy)), lint };
+}
+
+export interface RoutineStatusChange {
+  routine: LibraryRoutine;
+  previousStatus: LibraryRoutine['status'];
+  previousVersion: number;
+  /** False when the routine already had that status: nothing was stored. */
+  changed: boolean;
+  /** Only for `retired`: the routines whose CURRENT version includes this one, which will stop saving and running (an included routine must not be retired). */
+  includedBy?: Array<{ id: string; version: number }>;
+}
+
+/**
+ * Changes a routine's status (quarantine, release, activate, retire, back to draft): the SAME content under another status, stored as the next
+ * immutable version (status is part of the digest), so the history of who put it where is the version history.
+ *
+ * The content is NOT judged again. It was validated when it was saved; judging it now would let a newer convention rule (or a table that
+ * has since moved) stop a person from quarantining the very routine that is misbehaving. The reason is checked like a step value because
+ * it goes to the audit log, which is never pruned; it is not stored in the routine.
+ */
+export async function setRoutineStatus(
+  id: string,
+  status: LibraryRoutine['status'],
+  options: { reason: string; changedBy?: string },
+): Promise<RoutineStatusChange> {
+  const current = await getRoutine(id);
+  if (!current) {
+    throw new RoutineLibraryError(404, 'RoutineNotFound', `Routine "${id}" does not exist`);
+  }
+
+  const issues = lintFreeText(options.reason, 'reason', await listAllCredentialValues());
+  if (issues.length > 0) {
+    throw new RoutineLibraryError(422, 'RoutineLintError', 'The reason contains what looks like a secret', issues);
+  }
+
+  const { id: _id, version: _version, sha256: _sha256, createdBy: _createdBy, createdAt: _createdAt, ...content } = current;
+  const stored = await saveRoutineVersion(id, routineContentSchema.parse({ ...content, status }), options.changedBy);
+
+  const includedBy = status === 'retired' && stored.created ? await routinesIncluding(id) : undefined;
+  return {
+    routine: stored.routine,
+    previousStatus: current.status,
+    previousVersion: current.version,
+    changed: stored.created,
+    ...(includedBy && includedBy.length > 0 ? { includedBy } : {}),
+  };
+}
+
+/** The routines whose current version has an `include` of this one (steps, branches and teardown). */
+async function routinesIncluding(id: string): Promise<Array<{ id: string; version: number }>> {
+  const found: Array<{ id: string; version: number }> = [];
+  for (const summary of await listRoutines()) {
+    if (summary.id === id) continue;
+    const routine = await getRoutine(summary.id).catch(() => undefined);
+    if (routine && someStep([...routine.steps, ...(routine.teardown ?? [])], (step) => step.action === 'include' && (step as { routineId?: string }).routineId === id)) {
+      found.push({ id: routine.id, version: routine.version });
+    }
+  }
+  return found;
 }
 
 /** What the convention rules need to know about the profile the routine belongs to. */

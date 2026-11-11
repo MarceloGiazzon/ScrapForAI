@@ -32,13 +32,28 @@ function matchesVaultValue(text: string, secret: string): boolean {
   return text === secret || (secret.length >= MIN_SUBSTRING_SECRET_LENGTH && text.includes(secret));
 }
 
+/** What kind of secret a text holds, or undefined when it holds none. Never keeps the text. */
+function secretFound(text: string, vaultValues: string[]): { vault: true } | { shape: string } | undefined {
+  if (vaultValues.some((secret) => matchesVaultValue(text, secret))) return { vault: true };
+  const known = SECRET_PATTERNS.find(({ pattern }) => pattern.test(text));
+  return known ? { shape: known.name } : undefined;
+}
+
 /** Why a piece of text may not be stored in a routine, or undefined when it is fine. Never echoes the text. */
 function secretProblem(text: string, vaultValues: string[]): string | undefined {
-  if (vaultValues.some((secret) => matchesVaultValue(text, secret))) {
-    return 'contains a credential vault value; use valueFromCredential instead of a literal';
-  }
-  const known = SECRET_PATTERNS.find(({ pattern }) => pattern.test(text));
-  return known ? `looks like ${known.name}; secrets must not be stored in a routine` : undefined;
+  const found = secretFound(text, vaultValues);
+  if (!found) return undefined;
+  return 'vault' in found ? 'contains a credential vault value; use valueFromCredential instead of a literal' : `looks like ${found.shape}; secrets must not be stored in a routine`;
+}
+
+/**
+ * A free text a person types next to a routine (the reason for a status change) is kept in the audit log, which is never pruned, so it is
+ * checked like a step value: a vault value or a known secret shape is refused. Never echoes the text.
+ */
+export function lintFreeText(text: string, path: string, vaultValues: string[]): LintIssue[] {
+  const found = secretFound(text, vaultValues);
+  if (!found) return [];
+  return [{ path, message: 'vault' in found ? 'contains a credential vault value' : `looks like ${found.shape}` }];
 }
 
 /** The literals a routine's parameters carry (`cases`, `oneOf` values) are stored with it, so they are checked like step values. */

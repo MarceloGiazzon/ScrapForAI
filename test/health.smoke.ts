@@ -17,6 +17,8 @@ process.env.SCHEDULER_ENABLED = 'false';
 
 const express = (await import('express')).default;
 const { healthRouter } = await import('../src/routes/health.routes.js');
+const { routinesRouter } = await import('../src/routes/routines.routes.js');
+const { getRoutine } = await import('../src/library/routineLibrary.js');
 const { appendPerfRecord } = await import('../src/metrics/perfStore.js');
 const { saveTarget } = await import('../src/targets/targetStore.js');
 const { saveRoutine } = await import('../src/library/routineService.js');
@@ -31,6 +33,10 @@ app.use((_req, res, next) => {
   next();
 });
 app.use('/v1/health', healthRouter);
+// Who the page thinks is signed in, switchable per test. The roles and the audit are proved over HTTP with real keys in test/routine-status.test.ts; here the screen is.
+let role: 'viewer' | 'runner' = 'viewer';
+app.get('/v1/auth/me', (_req, res) => res.json({ user: { id: 'ana', role } }));
+app.use('/v1/routines', express.json(), routinesRouter);
 app.use('/ui', express.static(path.resolve(import.meta.dirname, '..', 'public'), { index: 'index.html' }));
 const api = app.listen(0, '127.0.0.1');
 await new Promise<void>((resolve) => api.once('listening', resolve));
@@ -112,6 +118,75 @@ test('the Health screen renders targets, statuses, reasons, result strips and th
     assert.match((await page.locator('header.topbar nav a.active').textContent()) ?? '', /Health/);
 
     assert.deepEqual(problems, [], 'no CSP violation or script error');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a runner quarantines a flaky routine from the screen (the suggestion preselected), a viewer has no button, an empty reason is refused', async () => {
+  const profile = {
+    id: 'app-ops', name: 'App Ops', platform: 'generic' as const, environment: 'dev' as const, baseUrl: 'https://dev.example.com', credentialSets: [],
+    noiseFilters: [], surfaces: {}, screens: [], flags: { allowDestructive: false, allowFaults: false, maxSessionsPerCredential: 1 },
+  };
+  await saveTarget(profile);
+  await saveRoutine('wobbly', { title: 'wobbly', targetProfile: 'app-ops', steps: [{ id: 'open', action: 'goto', url: '$targetUrl' }] as never });
+  for (const record of series('FP'.repeat(10))) await appendPerfRecord('wobbly', record);
+
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const problems: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') problems.push(message.text());
+    });
+    page.on('pageerror', (error) => problems.push(error.message));
+    const card = () => page.locator('#health-targets .card', { hasText: 'App Ops' });
+    // The version moves with the status (a status is the next version), so the row is found by id.
+    const row = () => card().locator('tbody tr', { hasText: /wobbly v\d/ });
+
+    role = 'viewer';
+    await page.goto(`${apiUrl}/ui/health.html`);
+    await row().waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Status…' }).count(), 0, 'a viewer only reads');
+
+    role = 'runner';
+    await page.reload();
+    await row().waitFor();
+    assert.match((await row().textContent()) ?? '', /quarantine suggested/);
+    await row().getByRole('button', { name: 'Status…' }).click();
+    const dialog = page.locator('#status-dialog');
+    await dialog.waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#status-select').inputValue(), 'quarantined', 'the analysis suggestion is preselected, never applied by itself');
+    assert.ok(((await page.locator('#status-reason').inputValue()) ?? '').length > 5, 'and its reason is a starting point for the person');
+    await page.screenshot({ path: path.join(dataDir, 'health-status-dialog.png') });
+
+    // Nothing is applied by opening; an empty reason is refused before the server is asked.
+    await page.locator('#status-reason').fill('  ');
+    await page.locator('#status-apply').click();
+    assert.match((await page.locator('#status-error').textContent()) ?? '', /Say why/);
+    assert.equal((await getRoutine('wobbly'))!.status, 'active');
+
+    await page.locator('#status-reason').fill('flaky since build r104, parked until the fix is in');
+    await page.locator('#status-apply').click();
+    await dialog.waitFor({ state: 'hidden' });
+    assert.match((await page.locator('#status-message').textContent()) ?? '', /wobbly is now quarantined \(version 2, was active\)/);
+    await row().locator('.badge', { hasText: 'quarantined' }).waitFor();
+
+    const stored = (await getRoutine('wobbly'))!;
+    assert.equal(stored.status, 'quarantined');
+    assert.equal(stored.version, 2);
+
+    // A refusal from the server is shown in the dialog, not lost (a secret in the reason).
+    await row().getByRole('button', { name: 'Status…' }).click();
+    await page.locator('#status-select').selectOption('retired');
+    await page.locator('#status-reason').fill('see sk-abcdefghijklmnopqrstuvwxyz0123');
+    await page.locator('#status-apply').click();
+    await page.locator('#status-error').waitFor({ state: 'visible' });
+    assert.match((await page.locator('#status-error').textContent()) ?? '', /secret/i);
+    assert.equal((await getRoutine('wobbly'))!.version, 2, 'nothing stored');
+
+    assert.deepEqual(problems.filter((problem) => !/status of 400|status of 422|Failed to load resource/.test(problem)), [], 'no CSP violation or script error');
   } finally {
     await browser.close();
   }

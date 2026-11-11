@@ -56,3 +56,42 @@ test('health.js: report links only point at this server\'s own report routes, wi
   // Nothing but these two report routes is ever a link target.
   assert.deepEqual([...script.matchAll(/[`'"](\/v1\/[a-z]+)/g)].map((m) => m[1]!).sort(), ['/v1/health', '/v1/runs', '/v1/suites']);
 });
+
+// ---- the status editor (public/healthStatus.js): the only write on this screen
+
+test('healthStatus.js: the one write is POST /v1/routines/<id>/status with an encoded id; the reads are /v1/auth/me and nothing else; health.js stays read-only', () => {
+  const script = read('healthStatus.js');
+  const calls = [...script.matchAll(/apiFetch\(\s*[`'"]([^`'"]+)/g)].map((m) => m[1]!);
+  assert.deepEqual(calls, ['/v1/auth/me', '/v1/routines/${encodeURIComponent(current.id)}/status']);
+  const writes = [...script.matchAll(/method:\s*['"](\w+)/g)].map((m) => m[1]);
+  assert.deepEqual(writes, ['POST']);
+  assert.ok(!/bearer/i.test(script), 'no admin key is asked for: a runner session may change a status, exactly as PUT /v1/routines/:id already allows');
+  assert.ok(!/method:\s*['"](POST|PUT|DELETE)/i.test(read('health.js')), 'the report itself is still only read');
+});
+
+test('healthStatus.js: DOM by textContent, no inline style or handler, classes never taken from data', () => {
+  const script = read('healthStatus.js');
+  assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(script));
+  assert.ok(!/\.style\b|setAttribute\(\s*['"]style|'style'/.test(script));
+  assert.ok(!/class:\s*`[^`]*\$\{/.test(script));
+  assert.ok(!/className\s*=/.test(script));
+});
+
+test('health.html: the dialog is static markup with the ids the script uses, no inline handler, and the page no longer claims it changes no status', () => {
+  const html = read('health.html');
+  for (const id of ['status-dialog', 'status-title', 'status-current', 'status-select', 'status-help', 'status-reason', 'status-error', 'status-apply', 'status-cancel', 'status-message']) {
+    assert.match(html, new RegExp(`id="${id}"`), id);
+  }
+  assert.ok(!/<style|style=|\son[a-z]+=/i.test(html));
+  assert.ok(!/changes no status/.test(html));
+  assert.match(html, /<textarea[^>]*maxlength="300"/, 'the same cap the server enforces');
+});
+
+test('healthStatus.js offers exactly the statuses the server knows, and the suggestions map to real ones', async () => {
+  const { routineStatusSchema } = await import('../src/schemas/libraryRoutine.schema.js');
+  const script = read('healthStatus.js');
+  const listed = /const STATUS_ORDER = \[([^\]]+)\]/.exec(script)![1]!.split(',').map((item) => item.trim().replace(/'/g, ''));
+  assert.deepEqual([...listed].sort(), [...routineStatusSchema.options].sort());
+  assert.match(script, /quarantine: 'quarantined', release: 'active'/);
+  assert.match(script, /const MAX_REASON = 300;/);
+});

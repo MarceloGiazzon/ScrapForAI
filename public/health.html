@@ -29,12 +29,35 @@
     <div class="card">
       <h2>Health by target</h2>
       <p class="muted" id="health-summary">Loading…</p>
-      <p class="muted">One card per target profile: the last state of each library routine, its trend and flakiness, performance alerts, the regression vault and the schedules. A target is red when something that counts failed in its last run, yellow when nothing failed but something needs a person, green otherwise. Quarantined routines and items are shown apart and never turn a target red. This screen only reads: it starts nothing and changes no status.</p>
+      <p class="muted">One card per target profile: the last state of each library routine, its trend and flakiness, performance alerts, the regression vault and the schedules. A target is red when something that counts failed in its last run, yellow when nothing failed but something needs a person, green otherwise. Quarantined routines and items are shown apart and never turn a target red. This screen starts nothing. A runner or an admin can change a routine's status (quarantine, release, retire) with the Status… button: it saves the same steps as a new version, and the reason goes to the audit log.</p>
       <div id="health-banner"></div>
     </div>
+    <div id="status-message"></div>
     <div id="health-targets"></div>
     <div id="health-unscoped"></div>
   </main>
+  <dialog id="status-dialog">
+    <div class="card">
+      <h2 id="status-title">Status</h2>
+      <p class="muted" id="status-current"></p>
+      <div class="field">
+        <label for="status-select">New status</label>
+        <select id="status-select"></select>
+        <div class="help" id="status-help"></div>
+      </div>
+      <div class="field">
+        <label for="status-reason">Why</label>
+        <div class="help">It is kept in the audit log, which is never deleted: no secrets, no personal data.</div>
+        <textarea id="status-reason" rows="3" maxlength="300"></textarea>
+      </div>
+      <div class="danger-banner hidden" id="status-error"></div>
+      <p class="muted">This saves the same steps as the next version of the routine with the new status. Earlier versions stay as they are.</p>
+    </div>
+    <div class="dialog-actions">
+      <button id="status-apply" type="button">Apply</button>
+      <button class="secondary" id="status-cancel" type="button">Cancel</button>
+    </div>
+  </dialog>
   <script type="module" src="health.js"></script>
 </body>
 </html>

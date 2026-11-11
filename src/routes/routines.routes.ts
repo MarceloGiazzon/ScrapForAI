@@ -2,10 +2,10 @@ import { Router, type Response } from 'express';
 import { ZodError } from 'zod';
 
 import { getRoutine, listRoutines, listVersions, RoutineLibraryError } from '../library/routineLibrary.js';
-import { lintRoutineContent, runLibraryRoutine, saveRoutine } from '../library/routineService.js';
+import { lintRoutineContent, runLibraryRoutine, saveRoutine, setRoutineStatus } from '../library/routineService.js';
 import { acquireInteractiveSlot } from '../runner/jobSlots.js';
 import { RequestResolutionError } from '../runner/resolveRequest.js';
-import { routineLintBodySchema, routineRunBodySchema, routineSaveBodySchema } from '../schemas/libraryRoutine.schema.js';
+import { routineLintBodySchema, routineRunBodySchema, routineSaveBodySchema, routineStatusChangeSchema } from '../schemas/libraryRoutine.schema.js';
 import { redactSecrets } from '../security/redactSecrets.js';
 import { TargetUrlNotAllowedError } from '../security/validateTargetUrl.js';
 import { VaultError } from '../vault/credentials/credentialVault.js';
@@ -111,6 +111,43 @@ routinesRouter.put('/:id', async (req, res, next) => {
 
     const { routine, created, lint } = await saveRoutine(String(req.params.id), parsed.data);
     res.status(created ? 201 : 200).json({ created, routine, lint });
+  } catch (error) {
+    if (!sendKnownError(res, error)) {
+      next(error);
+    }
+  }
+});
+
+/**
+ * Quarantine, release, activate, retire or park a routine: the same content under another status, as the next version. A runner may do it,
+ * exactly as a runner could already do it by saving the routine again (PUT), so this adds no power; it adds the reason, the person in the audit
+ * log and a path that does not re-judge the content (see setRoutineStatus).
+ */
+routinesRouter.post('/:id/status', async (req, res, next) => {
+  try {
+    const parsed = routineStatusChangeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { type: 'ValidationError', message: 'Invalid status change', details: zodDetails(parsed.error) } });
+      return;
+    }
+
+    const id = String(req.params.id);
+    const change = await setRoutineStatus(id, parsed.data.status, { reason: parsed.data.reason, changedBy: req.principal?.userId });
+    res.locals.auditDetail = {
+      routine: id,
+      from: change.previousStatus,
+      to: change.routine.status,
+      version: change.routine.version,
+      changed: change.changed,
+      reason: parsed.data.reason,
+    };
+    res.json({
+      changed: change.changed,
+      previousStatus: change.previousStatus,
+      previousVersion: change.previousVersion,
+      routine: { id: change.routine.id, version: change.routine.version, status: change.routine.status, title: change.routine.title, sha256: change.routine.sha256 },
+      ...(change.includedBy ? { includedBy: change.includedBy } : {}),
+    });
   } catch (error) {
     if (!sendKnownError(res, error)) {
       next(error);

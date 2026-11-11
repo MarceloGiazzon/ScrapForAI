@@ -102,6 +102,13 @@ export const routineSaveBodySchema = routineSaveBodyBase.superRefine(refineRouti
 /** MCP save_routine: the same body plus the routine id. */
 export const mcpSaveRoutineSchema = routineSaveBodyBase.extend({ id: safeName }).superRefine(refineRoutineSaveBody);
 
+/**
+ * POST /v1/routines/:id/status body: the new status and why. The reason goes to the audit log (never pruned), so it is checked like a step value
+ * and kept short; it is not part of the routine.
+ */
+export const routineStatusChangeSchema = z.object({ status: routineStatusSchema, reason: z.string().trim().min(3).max(300) }).strict();
+export type RoutineStatusChangeBody = z.infer<typeof routineStatusChangeSchema>;
+
 /** POST /v1/routines/lint body: the content to lint (not stored). `routineId` lets the rules know it is the profile's login routine. */
 export const routineLintBodySchema = z
   .object({

@@ -1,4 +1,5 @@
 import { apiFetch, el, formatDateTime, logout, markActiveNav } from './api.js';
+import { createStatusEditor } from './healthStatus.js';
 
 markActiveNav();
 document.getElementById('logout').addEventListener('click', logout);
@@ -97,11 +98,19 @@ function routineNote(routine) {
   return notes.join(' · ');
 }
 
+// The Status… button under the routine's id (a column of its own would be pushed off a narrow screen). Absent for a viewer, and until the editor is built.
+let statusEditor;
+
+function statusButtonCell(routine) {
+  const button = statusEditor?.button(routine);
+  return button ? el('div', { class: 'cell-actions' }, [button]) : null;
+}
+
 function routinesTable(routines) {
   if (routines.list.length === 0) return el('p', { class: 'muted', text: 'No library routine on this target.' });
   const rows = routines.list.map((routine) =>
     el('tr', { class: 'static' }, [
-      el('td', { class: 'mono', text: `${routine.id} v${routine.version}` }),
+      el('td', {}, [el('div', { class: 'mono', text: `${routine.id} v${routine.version}` }), statusButtonCell(routine)]),
       el('td', {}, [badge(routine.state, STATE_LABEL[routine.state] ?? routine.state)]),
       el('td', { text: routine.lastRun ? formatDateTime(routine.lastRun.at) : '—' }),
       el('td', {}, [runsCell(routine)]),
@@ -224,6 +233,7 @@ function render(report) {
 }
 
 async function load() {
+  statusEditor ??= await createStatusEditor(load);
   render(await apiFetch('/v1/health'));
 }
 
